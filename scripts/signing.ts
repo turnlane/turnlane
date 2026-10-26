@@ -178,9 +178,35 @@ export function parseSubmit(
   }
 }
 
+/** staple を何回まで試すか（既定の待ち 30 秒で合計 5 分弱） */
+export const STAPLE_ATTEMPTS = 10;
+export const STAPLE_RETRY_WAIT_MS = 30_000;
+
+/**
+ * stapler の一時的な失敗か。公証が Accepted になった直後は票がまだ Apple の配布網に出ておらず、
+ * `Error 73`（票が見つからない）や `Error 65` で落ちることがある。待てば通る
+ */
+export function isStapleRetryable(output: string): boolean {
+  return /\bError (73|65)\b/.test(output);
+}
+
+/** 公証は通ったが staple できなかった（票の配布待ちが長引いた）。id は提出 ID、app は staple する .app */
+export class StapleError extends Error {
+  constructor(
+    message: string,
+    readonly id: string,
+    readonly app: string,
+  ) {
+    super(message);
+    this.name = "StapleError";
+  }
+}
+
 /**
  * 公証して staple する: app を zip にして送り（--wait）、Accepted なら staple → validate。
- * Accepted 以外なら notarytool log を取って例外にする（メッセージに log を含める）。exec はテストで差し替える
+ * Accepted 以外なら notarytool log を取って例外にする（メッセージに log を含める）。
+ * staple が Error 73 / 65（票の配布待ち）で落ちたら stapleWaitMs 待って最大 STAPLE_ATTEMPTS 回までやり直し、
+ * それでも駄目なら StapleError（提出 ID と手でやり直す手順を含める）。exec・log・待ち時間はテストで差し替える
  */
 export function notarize(
   app: string,
@@ -188,6 +214,7 @@ export function notarize(
   profile: string,
   exec: Exec = spawnExec,
   log: (s: string) => void = (s) => console.error(s),
+  stapleWaitMs: number = STAPLE_RETRY_WAIT_MS,
 ): { id: string } {
   const c = notarizeCommands(app, zip, profile);
   const must = (cmd: string[], what: string) => {
@@ -212,7 +239,28 @@ export function notarize(
     );
   }
   log(`notarized: submission ${s.id} Accepted`);
-  must(c.staple, "stapler staple");
+  for (let attempt = 1; ; attempt++) {
+    const st = exec(c.staple);
+    if (st.code === 0) break;
+    const out = `${st.stdout}${st.stderr}`;
+    if (!isStapleRetryable(out))
+      throw new Error(`stapler staple failed (${c.staple.join(" ")}):\n${out}`);
+    const err = /\bError (73|65)\b/.exec(out)?.[0] ?? "Error";
+    if (attempt >= STAPLE_ATTEMPTS)
+      throw new StapleError(
+        `stapler staple failed ${STAPLE_ATTEMPTS} times (${err}): the ticket for submission ${s.id} (Accepted) is not available yet.\n` +
+          `Wait a few minutes, then staple by hand, validate, and make the zip again:\n` +
+          `  xcrun stapler staple "${app}"\n` +
+          `  xcrun stapler validate "${app}"\n` +
+          `Last output:\n${out}`,
+        s.id,
+        app,
+      );
+    log(
+      `staple: attempt ${attempt}/${STAPLE_ATTEMPTS} failed (${err}), retrying in ${Math.round(stapleWaitMs / 1000)}s`,
+    );
+    if (stapleWaitMs > 0) Bun.sleepSync(stapleWaitMs);
+  }
   must(c.validate, "stapler validate");
   return { id: s.id };
 }

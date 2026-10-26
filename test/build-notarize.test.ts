@@ -26,6 +26,8 @@ import {
   notarizeDecision,
   notaryProfile,
   parseSubmit,
+  STAPLE_ATTEMPTS,
+  StapleError,
   signatureProblems,
   signKind,
   timestampArgs,
@@ -270,6 +272,92 @@ describe("公証の流れ（偽の exec。Apple に送らない）", () => {
       /notarytool submit failed[\s\S]*No Keychain password item found[\s\S]*notarytool history/,
     );
     expect(parseSubmit("not json")).toBeNull();
+  });
+});
+
+describe("staple の再試行（票の配布待ち）", () => {
+  const ID = "11111111-2222-3333-4444-555555555555";
+  const accepted: ExecResult = {
+    code: 0,
+    stdout: `{"id":"${ID}","status":"Accepted","message":"ok"}`,
+    stderr: "",
+  };
+  // staple の n 回目の結果を results[n-1] で返す（足りなければ最後のものを繰り返す）
+  const fake = (results: ExecResult[]) => {
+    const calls: string[][] = [];
+    let staples = 0;
+    const exec = (cmd: string[]): ExecResult => {
+      calls.push(cmd);
+      if (cmd.includes("submit")) return accepted;
+      if (cmd.includes("staple")) {
+        staples++;
+        return results[Math.min(staples, results.length) - 1] as ExecResult;
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    return { calls, exec, staples: () => staples };
+  };
+  const err73: ExecResult = {
+    code: 73,
+    stdout: 'Processing: /s/A.app\nCloudKit query for A.app failed due to "Record not found".\n',
+    stderr: "The staple and validate action failed! Error 73.\n",
+  };
+  const ok: ExecResult = { code: 0, stdout: "The staple and validate action worked!", stderr: "" };
+
+  test("1 回目 Error 73、2 回目成功: 待ってやり直し、validate まで進む", () => {
+    const f = fake([err73, ok]);
+    const logs: string[] = [];
+    const r = notarize("/s/A.app", "/s/a.zip", "p", f.exec, (s) => logs.push(s), 0);
+    expect(r.id).toBe(ID);
+    expect(f.staples()).toBe(2);
+    expect(f.calls.at(-1)).toEqual(["xcrun", "stapler", "validate", "/s/A.app"]);
+    expect(logs).toContain("staple: attempt 1/10 failed (Error 73), retrying in 0s");
+  });
+
+  test("Error 65 も再試行する", () => {
+    const f = fake([
+      { code: 65, stdout: "", stderr: "The staple and validate action failed! Error 65." },
+      ok,
+    ]);
+    notarize("/s/A.app", "/s/a.zip", "p", f.exec, () => {}, 0);
+    expect(f.staples()).toBe(2);
+  });
+
+  test("10 回とも Error 73: 提出 ID と手でやり直す手順を含む StapleError（validate しない）", () => {
+    const f = fake([err73]);
+    const logs: string[] = [];
+    let thrown: unknown;
+    try {
+      notarize("/s/A.app", "/s/a.zip", "p", f.exec, (s) => logs.push(s), 0);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(StapleError);
+    const e = thrown as StapleError;
+    expect(e.id).toBe(ID);
+    expect(e.message).toContain(`submission ${ID}`);
+    expect(e.message).toContain('xcrun stapler staple "/s/A.app"');
+    expect(e.message).toMatch(/Wait a few minutes/);
+    expect(f.staples()).toBe(STAPLE_ATTEMPTS);
+    expect(STAPLE_ATTEMPTS).toBe(10);
+    expect(logs.filter((l) => l.startsWith("staple: attempt"))).toHaveLength(9);
+    expect(f.calls.some((c) => c.includes("validate"))).toBe(false);
+  });
+
+  test("Error 73 / 65 以外の失敗: 1 回で例外（やり直さない）", () => {
+    const f = fake([
+      { code: 1, stdout: "", stderr: "The staple and validate action failed! Error 68." },
+    ]);
+    let thrown: unknown;
+    try {
+      notarize("/s/A.app", "/s/a.zip", "p", f.exec, () => {}, 0);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown).not.toBeInstanceOf(StapleError);
+    expect((thrown as Error).message).toMatch(/stapler staple failed[\s\S]*Error 68/);
+    expect(f.staples()).toBe(1);
   });
 });
 

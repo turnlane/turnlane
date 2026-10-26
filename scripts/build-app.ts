@@ -49,6 +49,7 @@ import {
   notarizeCommands,
   notarizeDecision,
   notaryProfile,
+  StapleError,
   signatureProblems,
   signKind,
   spawnExec,
@@ -419,6 +420,7 @@ export async function buildApp(o: {
   const buildId = buildVersion(ROOT);
   mkdirSync(outDir, { recursive: true });
   const stage = mkdtempSync(join(outDir, ".stage-"));
+  let keepStage = false;
   try {
     // 1. turnlaned / turnlane（拡張を組み込み、内側から署名）
     const bin = join(stage, "bin");
@@ -481,9 +483,20 @@ export async function buildApp(o: {
 
     // 5b. 公証と staple（Developer ID かつ TURNLANE_NOTARY_PROFILE があるとき。zip を送り、.app に staple）
     let notarized: { id: string } | null = null;
-    if (decision.action === "notarize")
-      notarized = notarize(app, join(stage, "notarize.zip"), decision.profile);
-    else if (decision.warning) console.error(decision.warning);
+    if (decision.action === "notarize") {
+      try {
+        notarized = notarize(app, join(stage, "notarize.zip"), decision.profile);
+      } catch (e) {
+        // 公証は通って staple だけ落ちたときは、手でやり直せるよう作業フォルダを残す
+        if (e instanceof StapleError) {
+          keepStage = true;
+          throw new Error(
+            `${e.message}\nThe work folder was kept so you can staple by hand: ${stage}\nDelete it when done (rm -rf "${stage}").`,
+          );
+        }
+        throw e;
+      }
+    } else if (decision.warning) console.error(decision.warning);
 
     // 6. 置き換え
     const dst = join(outDir, APP_NAME);
@@ -514,7 +527,7 @@ export async function buildApp(o: {
       verify,
     };
   } finally {
-    rmSync(stage, { recursive: true, force: true });
+    if (!keepStage) rmSync(stage, { recursive: true, force: true });
   }
 }
 

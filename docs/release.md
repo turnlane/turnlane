@@ -85,6 +85,7 @@ Do not write these values into the repository, a script, or a commit.
    - The release page lists the four assets, `curl -sIL https://github.com/turnlane/turnlane/releases/latest/download/Turnlane.zip` ends in `200`, and `curl -sL https://github.com/turnlane/turnlane/releases/latest/download/latest.json` returns the new version.
    - On a clean macOS account: `brew install --cask turnlane/tap/turnlane`, open Turnlane, and confirm the Gatekeeper dialog says Apple checked it ([docs/dev/codesign.md](dev/codesign.md) 5.5).
    - `brew audit --cask --online turnlane/tap/turnlane` and `brew livecheck --cask turnlane/tap/turnlane`.
+     Homebrew 6+ refuses to load a cask from an untrusted tap for these commands, so on the maintainer's Mac run `brew trust turnlane/tap` once (`brew untrust turnlane/tap` undoes it). Users do not need this: a fully qualified `brew install --cask turnlane/tap/turnlane` trusts that cask by itself ([Tap Trust](https://docs.brew.sh/Tap-Trust)).
 
 ### Development check (no Developer ID)
 
@@ -123,6 +124,7 @@ brew untap turnlane-check/tmp
 | A precondition | Fix what the error names and run again. Nothing was built or written. |
 | `bun run check` | Fix the failure on a branch, merge to `main`, run again. |
 | Notarization (`notarization Invalid (submission <id>)`) | The build prints the notarytool log. Later: `xcrun notarytool log <id> --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. Fix the reported `path`/`message` (usually a signature or an entitlement), commit, run again. See [docs/dev/codesign.md](dev/codesign.md) 5.4. |
+| `stapler staple failed` (Error 73 / 65) | Notarization was Accepted, but the ticket is not on Apple's servers yet. The script waits and retries for up to 5 minutes. If it still fails, the error prints the submission ID and the work folder (`out/release/.stage-*`, kept): wait a few minutes and run the release again, or staple by hand (`xcrun stapler staple <app>`, then `xcrun stapler validate <app>`) and delete the work folder. Other stapler errors stop at once. |
 | `notarytool submit failed` | Check the profile: `xcrun notarytool history --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. |
 | After the tap commit, before publishing | Undo the local tap commit if you will rebuild: `git -C ../homebrew-tap reset --hard HEAD~1` (only if it was not pushed). A rebuild changes the zip's sha256, so the cask must be regenerated. |
 | `git tag` done, push failed | Delete the local tag: `git tag -d v<version>`. |
