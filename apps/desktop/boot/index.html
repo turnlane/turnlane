@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Turnlane</title>
+    <!--
+      アプリに同梱する唯一のページ（依存なし）。2つの画面を持つ:
+      - 初めての起動（boot_state.firstRun）: O1 Welcome（onboarding.md 4.1、確定デザイン docs/design/onboarding-v1/onb-O1-*）と
+        塞がる状態 B1・B2・B4（4.9）。SPA の部品は使えないので、トークン（色・角丸・フォント）とボタンの幅の決まりだけそろえる
+      - それ以外: デーモンにつながらないときの画面（desktop-shell.md 6.1、M2-D9）
+      つながればアプリが SPA へ移す（未完了のオンボーディングは SPA が /onboarding へ回す）
+      最初の画面はアプリが渡す初めの状態（window.__turnlaneBootSeed）で IPC を待たずに描く。Get started の後は
+      「常駐を起動しています」→「画面を読み込んでいます」と経過の秒を出し、15秒つながらなければ B2
+      JS が動かなくても Welcome が見える作り（HTML の既定で Welcome を出し、JS は状態に応じて切り替えるだけ）。Get started は
+      JS の初期化が終わるまで押せない。JS の失敗は画面の下に出し、Copy diagnostics に載せる
+    -->
+    <script>
+      // 最初のスクリプト: 後のスクリプトの例外（構文の誤りを含む）と、捕まえていない Promise の失敗を捕まえて画面の下に出す。
+      // 本体のスクリプトとは別にして、本体が構文の誤りで丸ごと動かなくてもここは動くようにする
+      (() => {
+        const B = { errors: [], steps: {}, ready: false };
+        window.__turnlaneBoot = B;
+        const base = (f) => String(f || "").split(/[?#]/)[0].split("/").pop();
+        const msg = (e) => (e?.message ? String(e.message) : String(e));
+        const draw = () => {
+          const box = document.getElementById("boot-error");
+          const text = document.getElementById("boot-error-text");
+          if (!box || !text) return;
+          const lines = B.errors.slice(0, 3).map((e) => e.text);
+          text.textContent = lines.join("\n");
+          box.hidden = lines.length === 0;
+          // 初期化が終わる前に止まったら、メニューバーからの起動の案内を残す
+          const nojs = document.getElementById("nojs");
+          if (nojs && !B.ready) nojs.hidden = false;
+        };
+        const add = (text) => {
+          if (B.errors.some((e) => e.text === text)) return;
+          B.errors.push({ text });
+          if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", draw);
+          else draw();
+          // アプリの記録にも残す（ターミナルから開けば stderr に出る。Copy diagnostics の先頭にも載る）
+          try {
+            const ipc = window.__TAURI_INTERNALS__;
+            if (ipc?.invoke) ipc.invoke("boot_report", { line: `error: ${text}` }).catch(() => {});
+          } catch {}
+        };
+        const PREFIX = "Something went wrong while starting: ";
+        B.draw = draw;
+        /** 段（seed の読み取り・boot_state・接続の試行など）の失敗 */
+        B.fail = (step, e) => {
+          B.steps[step] = `failed: ${msg(e)}`;
+          add(`${PREFIX}${msg(e)} (step: ${step})`);
+        };
+        window.addEventListener("error", (ev) => {
+          const where = ev.filename ? ` (${base(ev.filename)}:${ev.lineno || 0})` : "";
+          add(`${PREFIX}${ev.message || msg(ev.error)}${where}`);
+        });
+        window.addEventListener("unhandledrejection", (ev) => {
+          add(`${PREFIX}${msg(ev.reason)} (promise)`);
+        });
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfbfa;
+        --raised: #ffffff;
+        --fg: #161719;
+        --fg2: #4d5058;
+        --fg3: #72757c;
+        --line: #d6d6d0;
+        --accent: #161719;
+        --onaccent: #fbfbfa;
+        --error: #d93036;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e0f11;
+          --raised: #18191c;
+          --fg: #e8e9eb;
+          --fg2: #9a9da3;
+          --fg3: #686c73;
+          --line: #26282c;
+          --accent: #e8e9eb;
+          --onaccent: #0e0f11;
+          --error: #f2555a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--fg);
+        font: 13px/1.5 "Inter", "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      [hidden] {
+        display: none;
+      }
+      button {
+        font: inherit;
+        font-weight: 500;
+        height: 32px;
+        padding: 0 16px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--fg);
+        cursor: pointer;
+        white-space: nowrap;
+        display: inline-grid;
+        place-items: center;
+      }
+      button:focus-visible {
+        outline: 1.5px solid var(--accent);
+        outline-offset: 2px;
+      }
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--onaccent);
+      }
+      button.primary:hover {
+        opacity: 0.9;
+      }
+      button:disabled {
+        color: var(--fg3);
+        cursor: default;
+      }
+      button.primary:disabled {
+        opacity: 0.9;
+        color: var(--onaccent);
+      }
+      /* JS の初期化の前（押せない）。起動中（Starting…）の押せない状態とは見た目を分ける */
+      button.primary[data-init] {
+        opacity: 0.4;
+      }
+      /* 文言が変わっても幅を変えない: 候補を同じ場所に重ね、最も長いものの幅を取る */
+      button > span {
+        grid-area: 1 / 1;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      button > span.off {
+        visibility: hidden;
+      }
+      .kbd {
+        font: 11px ui-monospace, "JetBrains Mono", Menlo, monospace;
+        opacity: 0.7;
+      }
+      .spin {
+        animation: spin 1.2s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin {
+          animation: none;
+        }
+      }
+      svg {
+        flex-shrink: 0;
+      }
+      /* O1 Welcome */
+      #welcome {
+        width: 560px;
+        max-width: calc(100vw - 48px);
+      }
+      .mark {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 14px;
+      }
+      .lead {
+        font-size: 15px;
+        margin: 0 0 22px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin: 0 0 12px;
+      }
+      .row svg {
+        margin-top: 2px;
+      }
+      .row p {
+        margin: 0;
+      }
+      .row .sub {
+        color: var(--fg2);
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .hint {
+        text-align: right;
+        color: var(--fg3);
+        font-size: 12px;
+        margin: 12px 0 0;
+      }
+      .notice {
+        display: flex;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .notice svg {
+        margin-top: 2px;
+      }
+      .notice .title {
+        font-weight: 500;
+        margin: 0;
+      }
+      .notice .body {
+        color: var(--fg2);
+        margin: 0;
+      }
+      .err {
+        color: var(--error);
+      }
+      /* デーモンにつながらない（既存の利用者） */
+      #offline {
+        max-width: 420px;
+        text-align: center;
+      }
+      #offline h1 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0 0 6px;
+      }
+      #offline p {
+        color: var(--fg2);
+        margin: 0 0 16px;
+      }
+      #offline button {
+        margin: 0 4px;
+        height: 28px;
+        padding: 0 12px;
+      }
+      code {
+        font: 12px ui-monospace, Menlo, monospace;
+        padding: 1px 4px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+      }
+      #status {
+        margin-top: 14px;
+        font-size: 12px;
+      }
+      /* 起動中の段（常駐を起動している・画面を読み込んでいる）と経過の秒 */
+      #progress {
+        color: var(--fg2);
+        margin-top: 14px;
+      }
+      .secs {
+        font-variant-numeric: tabular-nums;
+        color: var(--fg3);
+      }
+      /* JS の失敗（画面の下に小さく） */
+      #boot-error {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--fg2);
+      }
+      #boot-error[hidden] {
+        display: none;
+      }
+      #boot-error-text {
+        white-space: pre-line;
+        color: var(--error);
+        overflow-wrap: anywhere;
+      }
+      #boot-error button {
+        height: 24px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- JS が動かなくても見える（既定で表示。JS が状態に応じて切り替える） -->
+    <main id="welcome">
+      <p class="mark">Turnlane</p>
+      <p class="lead" data-w="lead">Your day and your AI agents' work, on one timeline.</p>
+      <div class="row">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+        <div><p data-w="r1">Reads Claude Code and Codex session logs on this Mac.</p><p class="sub" data-w="r1s">Conversation text is never saved or sent.</p></div>
+      </div>
+      <div class="row">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div><p data-w="r2">Runs a small background process.</p><p class="sub" data-w="r2s">So nothing is missed while the window is closed.</p></div>
+      </div>
+      <div class="row">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg>
+        <div><p data-w="r3">No account.</p><p class="sub" data-w="r3s">Everything stays on this Mac.</p></div>
+      </div>
+
+      <!-- 通常・起動中 -->
+      <div id="s-start">
+        <div class="actions">
+          <!-- JS の初期化が終わるまで押せない（JS が無いと押しても何も起きない） -->
+          <button class="primary" id="start" type="button" disabled data-init>
+            <span id="start-idle"><span data-w="start">Get started</span><span class="kbd">⏎</span></span>
+            <span id="start-busy" class="off"><svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg><span data-w="starting">Starting…</span></span>
+          </button>
+        </div>
+        <p class="hint" id="progress" hidden aria-live="polite"><span id="progress-text"></span> <span class="secs" id="progress-secs"></span></p>
+        <p class="hint" data-w="hint">macOS will tell you Turnlane added a background item. That's this process.</p>
+        <!-- 初期化が終わったら JS が隠す。JS が動かないときの逃げ道（メニューバーの Start Turnlane はネイティブで動く） -->
+        <p class="hint" id="nojs" data-w="nojs">If Get started stays unavailable, choose Start Turnlane from the Turnlane icon in the menu bar.</p>
+      </div>
+
+      <!-- B1 常駐の項目がオフ（赤にしない） -->
+      <div id="s-b1" hidden>
+        <div class="notice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <div><p class="title" data-w="b1t">Turnlane's background item is off</p><p class="body" data-w="b1b">Turn on Turnlane in System Settings › General › Login Items. Setup continues on its own once it's on.</p></div>
+        </div>
+        <div class="actions">
+          <button id="b1-check" type="button"><span data-w="b1check">Check again</span><span class="off" data-w="b1open"></span></button>
+          <button class="primary" id="b1-open" type="button"><span data-w="b1open">Open Login Items</span><span class="off" data-w="b1check"></span></button>
+        </div>
+      </div>
+
+      <!-- B2 15秒たっても応答しない -->
+      <div id="s-b2" hidden>
+        <div class="notice">
+          <svg class="err" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <div id="b2-plain"><p class="title" data-w="b2t">The background process didn't start</p><p class="body" data-w="b2b">Try again. If it keeps failing, copy the diagnostics and attach them to an issue. They contain no conversation text.</p></div>
+          <!-- 登録をやり直しても起きない（macOS が起動を拒んでいる。署名の不一致など） -->
+          <div id="b2-blocked" hidden><p class="title" data-w="b2xt">macOS is blocking Turnlane's background process</p><p class="body" data-w="b2xb">The app's signature doesn't match the one macOS registered. Reinstall Turnlane, then open it again. If it keeps happening, copy the diagnostics and attach them to an issue.</p></div>
+        </div>
+        <div class="actions">
+          <button id="b2-copy" type="button">
+            <span id="copy-idle" data-w="copy">Copy diagnostics</span>
+            <span id="copy-done" class="off"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-w="copied">Copied</span></span>
+            <span class="off" data-w="retry"></span>
+          </button>
+          <button class="primary" id="b2-retry" type="button"><span data-w="retry">Retry</span><span class="off" data-w="copy"></span></button>
+        </div>
+      </div>
+
+      <!-- B4 ダウンロードフォルダ・ディスクイメージから開いた（App Translocation） -->
+      <div id="s-b4" hidden>
+        <div class="notice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <div><p class="title" data-w="b4t">Move Turnlane to Applications first</p><p class="body" data-w="b4b">Turnlane can't start its background process from Downloads or a disk image.</p></div>
+        </div>
+        <p class="body err" id="b4-error" hidden data-w="b4err">Couldn't move Turnlane. Drag it to the Applications folder in Finder, then open it again.</p>
+        <div class="actions">
+          <button class="primary" id="b4-move" type="button">
+            <span id="move-idle" data-w="b4move">Move to Applications</span>
+            <span id="move-busy" class="off"><svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg><span data-w="moving">Moving…</span></span>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <main id="offline" hidden>
+      <h1 data-t="title">Turnlane isn't running in the background</h1>
+      <p data-t="body">Turnlane shows your board once it answers. It retries automatically.</p>
+      <div>
+        <button class="primary" id="o-start" type="button" data-t="start">Start Turnlane</button>
+        <button id="o-retry" type="button" data-t="retry">Retry</button>
+      </div>
+      <p id="status"></p>
+      <p data-t="doctor">If it keeps failing, run <code>turnlane doctor</code> in a terminal.</p>
+    </main>
+    <p id="boot-error" role="alert" hidden><span id="boot-error-text"></span><button id="boot-error-copy" type="button"><span id="ecopy-idle" data-w="copy">Copy diagnostics</span><span id="ecopy-done" class="off" data-w="copied">Copied</span></button></p>
+    <script>
+      // 関数の中に閉じる（グローバルの名前とぶつからない。トップレベルの const・let・function は他のスクリプトや
+      // ブラウザのグローバルと名前が重なると、このスクリプト全体が動かない）
+      (() => {
+        const B = window.__turnlaneBoot || { errors: [], steps: {}, fail() {}, draw() {} };
+        /** 段ごとに try/catch。失敗したら段の名前を画面の下と Copy diagnostics に出す */
+        const step = (name, fn) => {
+          try {
+            const r = fn();
+            B.steps[name] = "ok";
+            return r;
+          } catch (e) {
+            B.fail(name, e);
+            return undefined;
+          }
+        };
+        const $ = (id) => document.getElementById(id);
+
+        // デーモンにつながる前の画面なので、文言はここに置き、macOS の優先言語で選ぶ（メニューの代わりの文言と同じ）
+        const WJA = {
+          lead: "自分の一日と AI の作業を、ひとつの時間軸に。",
+          r1: "この Mac の Claude Code と Codex のセッションの記録を読みます。",
+          r1s: "会話の本文は保存も送信もしません。",
+          r2: "小さなバックグラウンドのプロセスを動かします。",
+          r2s: "窓を閉じている間も取りこぼさないためです。",
+          r3: "アカウントは要りません。",
+          r3s: "すべてこの Mac の中に置きます。",
+          start: "はじめる",
+          starting: "起動しています…",
+          hint: "macOS が『バックグラウンド項目を追加しました』と知らせます。このプロセスのことです。",
+          nojs: "「はじめる」が押せないままのときは、メニューバーの Turnlane のアイコンから「Turnlane を起動」を選んでください。",
+          b1t: "Turnlane のバックグラウンド項目がオフになっています",
+          b1b: "システム設定 › 一般 › ログイン項目 で Turnlane をオンにしてください。オンになると自動で続きます。",
+          b1check: "もう一度確かめる",
+          b1open: "ログイン項目を開く",
+          b2t: "バックグラウンドのプロセスが起動しませんでした",
+          b2b: "もう一度試してください。続けて失敗するときは、診断情報をコピーして issue に貼ってください。会話の本文は含みません。",
+          b2xt: "macOS がバックグラウンドのプロセスの起動を拒んでいます",
+          b2xb: "アプリの署名が、macOS に登録したときのものと一致しません。Turnlane を入れ直してから、もう一度開いてください。続くときは、診断情報をコピーして issue に貼ってください。",
+          copy: "診断情報をコピー",
+          copied: "コピーしました",
+          retry: "もう一度",
+          b4t: "まず Turnlane を「アプリケーション」に移してください",
+          b4b: "ダウンロードフォルダやディスクイメージの中からは、バックグラウンドのプロセスを始められません。",
+          b4move: "アプリケーションに移す",
+          moving: "移しています…",
+          b4err: "移せませんでした。Finder で「アプリケーション」フォルダにドラッグしてから、もう一度開いてください。",
+        };
+        const OJA = {
+          title: "Turnlane がバックグラウンドで動いていません",
+          body: "応答があればボードを表示します。自動でつなぎ直します。",
+          start: "Turnlane を起動",
+          retry: "もう一度試す",
+          doctor: "失敗が続くときは、ターミナルで <code>turnlane doctor</code> を実行してください。",
+          starting: "起動しています…",
+          retrying: "つなぎ直しています…",
+          waiting: "127.0.0.1:{port} を待っています",
+        };
+        const OEN = {
+          starting: "Starting…",
+          retrying: "Retrying…",
+          waiting: "Waiting for 127.0.0.1:{port}",
+        };
+        // 起動中の段（Get started の後・つながらない画面）。経過の秒を添える
+        const PJA = {
+          daemon: "バックグラウンドのプロセスを起動しています…",
+          loading: "画面を読み込んでいます…",
+          secs: "{n}秒",
+        };
+        const PEN = {
+          daemon: "Starting the background process…",
+          loading: "Loading Turnlane…",
+          secs: "{n}s",
+        };
+        let ja = false;
+        try {
+          ja = (navigator.language || "").toLowerCase().startsWith("ja");
+        } catch {}
+        const T = ja ? OJA : OEN;
+        const P = ja ? PJA : PEN;
+
+        step("text", () => {
+          if (ja) {
+            document.documentElement.lang = "ja";
+            for (const el of document.querySelectorAll("[data-t]")) el.innerHTML = OJA[el.dataset.t];
+          }
+          // 幅をそろえるための見えない候補にも同じ文言を入れる
+          for (const el of document.querySelectorAll("[data-w]")) {
+            const k = el.dataset.w;
+            if (ja && WJA[k]) el.textContent = WJA[k];
+            else if (!el.textContent)
+              el.textContent = document.querySelector(`[data-w="${k}"]:not(:empty)`)?.textContent ?? "";
+          }
+        });
+
+        const ipc = window.__TAURI_INTERNALS__;
+        /** IPC。同期で投げる失敗も Promise の失敗にそろえる。アプリの外（確かめ用・ブラウザ）では null */
+        const call = (cmd, args) =>
+          ipc && typeof ipc.invoke === "function"
+            ? Promise.resolve().then(() => ipc.invoke(cmd, args))
+            : Promise.resolve(null);
+        /** 確かめ用（scripts/screens-onboarding.ts）: 状態を決めて出す */
+        const preview = window.__turnlaneBootPreview;
+        /**
+         * アプリがウインドウを作るときに渡す初めの状態（firstRun・port・translocated）。IPC の答えを待たずに最初の画面を描く
+         * （IPC が遅れても黒いままにしない）。常駐の登録の状態（B1）は IPC の答えで足す
+         */
+        let seed;
+        step("seed", () => {
+          seed = window.__turnlaneBootSeed;
+          if (seed !== undefined && (seed === null || typeof seed !== "object")) throw new Error("the initial state is not an object");
+        });
+
+        function show(id) {
+          for (const s of ["s-start", "s-b1", "s-b2", "s-b4"]) $(s).hidden = s !== id;
+        }
+        // 起動中: Get started を押した時刻（null なら押していない）。押した後は、デーモンがトークンを書いて firstRun が
+        // 外れても Welcome のまま起動中の段を出す
+        let startedAt = null;
+        let online = false;
+        let timer = null;
+        let ticker = null;
+        let ready = false;
+        function progress() {
+          const el = $("progress");
+          if (startedAt === null) {
+            el.hidden = true;
+            return;
+          }
+          el.hidden = false;
+          $("progress-text").textContent = online ? P.loading : P.daemon;
+          const n = Math.floor((Date.now() - startedAt) / 1000);
+          $("progress-secs").textContent = n >= 1 ? P.secs.replace("{n}", String(n)) : "";
+        }
+        function starting(on) {
+          $("start-idle").classList.toggle("off", on);
+          $("start-busy").classList.toggle("off", !on);
+          $("start").disabled = on || !ready;
+          progress();
+        }
+        function getStarted() {
+          if (!ready || $("start").disabled) return;
+          startedAt = Date.now();
+          starting(true);
+          // 配布版はここで常駐を登録する（SMAppService）。ログイン項目でオフにされていれば B1（状態を見直す）
+          call("boot_start_daemon")
+            .then(() => setTimeout(() => void refresh(), 800))
+            .catch((e) => B.fail("connect", e));
+          // 1秒ごとに経過と段を描き直し、状態を見直す（つながればアプリが SPA へ移すので、この画面は消える）
+          clearInterval(ticker);
+          ticker = setInterval(() => {
+            progress();
+            void refresh();
+          }, 1000);
+          // 15秒たっても応答が無ければ B2。つながった後（画面の読み込み中）は出さない
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            if (online) return;
+            clearInterval(ticker);
+            startedAt = null;
+            starting(false);
+            show("s-b2");
+          }, 15000);
+        }
+        /** 起動ページ自身の状態（Copy diagnostics の先頭に載せる。会話の本文・パスを含まない） */
+        function diagnostics() {
+          const has = (f) => {
+            try {
+              const v = f();
+              return v === undefined || v === null ? "missing" : "present";
+            } catch (e) {
+              return `unreadable (${e?.message ?? e})`;
+            }
+          };
+          const lines = [
+            "boot page:",
+            `  __turnlaneBootSeed: ${has(() => window.__turnlaneBootSeed)}${seed ? ` ${JSON.stringify(seed)}` : ""}`,
+            `  window.__TAURI__: ${has(() => window.__TAURI__)}`,
+            `  window.__TAURI_INTERNALS__: ${has(() => window.__TAURI_INTERNALS__)}`,
+            `  steps: ${
+              Object.keys(B.steps)
+                .map((k) => `${k} ${B.steps[k]}`)
+                .join(", ") || "none"
+            }`,
+            `  user agent: ${navigator.userAgent}`,
+          ];
+          for (const e of B.errors) lines.push(`  ${e.text}`);
+          return lines.join("\n");
+        }
+        async function copyDiagnostics(idle, done) {
+          let text = diagnostics();
+          try {
+            const app = await call("boot_diagnostics");
+            if (app) text += `\n\n${String(app)}`;
+          } catch (e) {
+            text += `\n  boot_diagnostics failed: ${e?.message ?? e}`;
+          }
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {}
+          $(idle).classList.add("off");
+          $(done).classList.remove("off");
+          setTimeout(() => {
+            $(idle).classList.remove("off");
+            $(done).classList.add("off");
+          }, 2000);
+        }
+
+        function welcome(s) {
+          $("welcome").hidden = false;
+          $("offline").hidden = true;
+          // 登録をやり直しても常駐が起きない: 起動中をやめて B2（拒まれている）
+          $("b2-plain").hidden = !!s?.blocked;
+          $("b2-blocked").hidden = !s?.blocked;
+          if (s?.blocked) {
+            clearInterval(ticker);
+            clearTimeout(timer);
+            startedAt = null;
+            starting(false);
+            show("s-b2");
+            return;
+          }
+          if (startedAt !== null) {
+            // 起動中: 登録が承認待ちなら B1、ほかは起動中の段のまま
+            if (s?.background === "requiresApproval") show("s-b1");
+            else if ($("s-b1").hidden) return;
+            else show("s-start");
+            return;
+          }
+          if (s?.translocated) show("s-b4");
+          else if (s?.background === "requiresApproval") show("s-b1");
+          else if (!$("s-b2").hidden) return;
+          else show("s-start");
+        }
+        function offline(s) {
+          $("offline").hidden = false;
+          $("welcome").hidden = true;
+          const status = $("status");
+          $("o-start").onclick = () => {
+            status.textContent = T.starting;
+            call("boot_start_daemon").catch((e) => B.fail("connect", e));
+          };
+          $("o-retry").onclick = () => {
+            status.textContent = T.retrying;
+            call("boot_retry").catch((e) => B.fail("connect", e));
+          };
+          // つながればアプリが SPA へ移す。移るまでは読み込み中と出す
+          if (s?.blocked) status.textContent = ja ? WJA.b2xt : $("b2-blocked").querySelector(".title").textContent;
+          else if (s?.online) status.textContent = P.loading;
+          else if (s) status.textContent = T.waiting.replace("{port}", String(s.port));
+        }
+        function render(s) {
+          online = !!s?.online;
+          // B2 を出した後は、トークンが書かれて firstRun が外れても B2 のまま（つながらない画面に替えない）
+          const onB2 = !$("welcome").hidden && !$("s-b2").hidden;
+          if (s?.firstRun || startedAt !== null || onB2) welcome(s);
+          else offline(s);
+          progress();
+        }
+        let answered = false;
+        let stateFailed = false;
+        async function refresh() {
+          let s;
+          try {
+            s = await call("boot_state");
+          } catch (e) {
+            // 1秒ごとの見直しで同じ失敗を何度も出さない
+            if (!stateFailed) B.fail("boot_state", e);
+            stateFailed = true;
+            return null;
+          }
+          answered = true;
+          step("render", () => render(s));
+          return s;
+        }
+
+        step("handlers", () => {
+          $("start").onclick = getStarted;
+          $("b1-open").onclick = () => call("boot_open_login_items").catch((e) => B.fail("connect", e));
+          $("b1-check").onclick = () => void refresh();
+          $("b2-retry").onclick = () => {
+            show("s-start");
+            getStarted();
+          };
+          $("b2-copy").onclick = () => copyDiagnostics("copy-idle", "copy-done");
+          $("boot-error-copy").onclick = () => copyDiagnostics("ecopy-idle", "ecopy-done");
+          // B4: Applications へ写して開き直す（移せたらこのウインドウは閉じる）。失敗したら Finder で移す案内
+          $("b4-move").onclick = async () => {
+            if ($("b4-move").disabled) return;
+            $("b4-move").disabled = true;
+            $("move-idle").classList.add("off");
+            $("move-busy").classList.remove("off");
+            try {
+              if (!ipc) throw new Error("no ipc");
+              await ipc.invoke("boot_move_to_applications");
+            } catch {
+              $("b4-error").hidden = false;
+              $("b4-move").disabled = false;
+              $("move-idle").classList.remove("off");
+              $("move-busy").classList.add("off");
+            }
+          };
+          // ⏎ は Welcome の Get started が見えているときだけ（描く前・ほかの画面で押しても登録しない）
+          document.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter" || $("welcome").hidden || $("s-start").hidden) return;
+            if (document.activeElement?.tagName !== "BUTTON") getStarted();
+          });
+        });
+
+        // 最初の画面は IPC を待たずに描く。初めの状態が無い（古いアプリ・確かめ用）ときも、1.5秒で答えが無ければ
+        // つながらない画面を出す（何も描かないままにしない）
+        step("render", () => {
+          if (seed) render(seed);
+          else
+            setTimeout(() => {
+              if (!answered) step("render", () => render({ online: false, port: 7317, firstRun: false }));
+            }, 1500);
+        });
+
+        // 初期化が終わった: Get started を押せるようにし、メニューバーの案内を隠す（途中の段が失敗していれば案内を残す）
+        ready = B.steps.handlers === "ok";
+        B.ready = ready && B.errors.length === 0;
+        $("start").disabled = !ready;
+        if (ready) $("start").removeAttribute("data-init");
+        $("nojs").hidden = B.ready;
+        B.draw();
+        // アプリの記録に、起動ページの JS が動いたことを残す（黒い画面の切り分け: JS が動かないのか、描画が出ないのか）
+        call("boot_report", {
+          line: `script ran: seed ${seed ? "present" : "missing"}, welcome ${$("welcome").hidden ? "hidden" : "shown"}, offline ${$("offline").hidden ? "hidden" : "shown"}, errors ${B.errors.length}`,
+        }).catch(() => {});
+
+        refresh().then((s) => {
+          if (s?.firstRun || seed?.firstRun) {
+            if (preview === "starting") getStarted();
+            if (preview === "b2") show("s-b2");
+            if (preview === "b4-failed") $("b4-error").hidden = false;
+          }
+          // B1 はログイン項目でオンにすれば自動で続く。B2・つながらない画面の間も見直す（拒まれていれば文を替える）
+          setInterval(() => {
+            const onWelcome = !$("welcome").hidden && (!$("s-b1").hidden || !$("s-b2").hidden);
+            if (onWelcome || !$("offline").hidden) void refresh();
+          }, 3000);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,239 @@
+{
+  "codexVersion": "codex-cli 0.147.0",
+  "steps": [
+    {
+      "step": "1_other_only_untrusted",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "untrusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "2_other_trusted",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "2b_dayline_async_true",
+      "r": [
+        {
+          "warnings": [
+            "skipping async hook in <home>/hooks.json: async hooks are not supported yet"
+          ],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "3_dayline_appended",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            },
+            {
+              "key": "<home>/hooks.json:stop:1:0",
+              "event": "stop",
+              "command": "'/opt/dl' hook --tool codex --managed-by dayline",
+              "trust": "untrusted",
+              "enabled": true,
+              "hash": "sha256:1b52f7fde530140326b4935fbac94b99c514cdae2a0e9443258d36cb6b40f8d3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "4_dayline_prepended",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "'/opt/dl' hook --tool codex --managed-by dayline",
+              "trust": "modified",
+              "enabled": true,
+              "hash": "sha256:1b52f7fde530140326b4935fbac94b99c514cdae2a0e9443258d36cb6b40f8d3"
+            },
+            {
+              "key": "<home>/hooks.json:stop:1:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "untrusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "5a_third_appended_after_dayline",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            },
+            {
+              "key": "<home>/hooks.json:stop:1:0",
+              "event": "stop",
+              "command": "'/opt/dl' hook --tool codex --managed-by dayline",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:1b52f7fde530140326b4935fbac94b99c514cdae2a0e9443258d36cb6b40f8d3"
+            },
+            {
+              "key": "<home>/hooks.json:stop:2:0",
+              "event": "stop",
+              "command": "third-tool hook",
+              "trust": "untrusted",
+              "enabled": true,
+              "hash": "sha256:715acce6ea2f77dfdd29812acc91a9cd7c454a915b26920ea0343ec3d0630215"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "5b_dayline_removed_from_middle",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            },
+            {
+              "key": "<home>/hooks.json:stop:1:0",
+              "event": "stop",
+              "command": "third-tool hook",
+              "trust": "modified",
+              "enabled": true,
+              "hash": "sha256:715acce6ea2f77dfdd29812acc91a9cd7c454a915b26920ea0343ec3d0630215"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "6_toplevel_unknown_key",
+      "r": [
+        {
+          "warnings": [
+            "failed to parse hooks config <home>/hooks.json: unknown field `x-dayline`, expected `description` or `hooks` at line 2 column 13"
+          ],
+          "errors": [],
+          "hooks": []
+        }
+      ]
+    },
+    {
+      "step": "7_group_and_handler_unknown_key",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": [
+            {
+              "key": "<home>/hooks.json:stop:0:0",
+              "event": "stop",
+              "command": "other-tool hook",
+              "trust": "trusted",
+              "enabled": true,
+              "hash": "sha256:4b7153a81be80e2f7abfc6200b9a0fbdfd5ba83ef9841666219068e906f390e9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "step": "8_features_hooks_false",
+      "r": [
+        {
+          "warnings": [],
+          "errors": [],
+          "hooks": []
+        }
+      ]
+    },
+    {
+      "step": "8b_features_list_hooks_line",
+      "r": [
+        "hooks                                stable             false"
+      ]
+    },
+    {
+      "step": "9_broken_json",
+      "r": [
+        {
+          "warnings": [
+            "failed to parse hooks config <home>/hooks.json: key must be a string at line 1 column 3"
+          ],
+          "errors": [],
+          "hooks": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{"target":"state_5","cond":"absent","mode":"rw","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"rw","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"rw","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"ro_dir","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"ro_dir","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"sandbox","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"sandbox","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"absent","mode":"sandbox","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"state_5","cond":"residual","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"state_5","cond":"residual","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"state_5","cond":"residual","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"state_5","cond":"residual","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"residual","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"live","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"state_5","cond":"live","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"state_5","cond":"live","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"live","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"live","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"state_5","cond":"live","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"state_5","cond":"live","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"live","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"live","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"live","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"state_5","cond":"live","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"state_5","cond":"live","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"rw","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"rw","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"rw","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"ro_dir","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"ro_dir","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"sandbox","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"sandbox","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"absent","mode":"sandbox","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"thread_history_1","cond":"residual","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"thread_history_1","cond":"residual","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"thread_history_1","cond":"residual","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"thread_history_1","cond":"residual","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"residual","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"thread_history_1","cond":"live","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"thread_history_1","cond":"live","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"thread_history_1","cond":"live","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"thread_history_1","cond":"live","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"thread_history_1","cond":"live","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"rw","method":"readonly","ok":true,"seesWalMarker":null,"changes":["-shm:created"]}
+{"target":"goals_1","cond":"absent","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":null,"changes":["-shm:created"]}
+{"target":"goals_1","cond":"absent","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"rw","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"ro_dir","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"ro_dir","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"sandbox","method":"readonly","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"sandbox","method":"uri_ro","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"absent","mode":"sandbox","method":"uri_ro_readonly_shm","ok":false,"err":"unable to open database file","seesWalMarker":null,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"goals_1","cond":"residual","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"goals_1","cond":"residual","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"goals_1","cond":"residual","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:mtime","-shm:content"]}
+{"target":"goals_1","cond":"residual","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"residual","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"rw","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"goals_1","cond":"live","mode":"rw","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"goals_1","cond":"live","mode":"rw","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"rw","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"ro_dir","method":"readonly","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"goals_1","cond":"live","mode":"ro_dir","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":["-shm:content"]}
+{"target":"goals_1","cond":"live","mode":"ro_dir","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"ro_dir","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"sandbox","method":"readonly","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"sandbox","method":"uri_ro","ok":true,"seesWalMarker":true,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"sandbox","method":"uri_ro_immutable","ok":true,"seesWalMarker":false,"changes":[]}
+{"target":"goals_1","cond":"live","mode":"sandbox","method":"uri_ro_readonly_shm","ok":true,"seesWalMarker":true,"changes":[]}
+{"originals":{"state_5":[],"thread_history_1":[],"goals_1":[]}}

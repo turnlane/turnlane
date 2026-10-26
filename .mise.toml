@@ -1,0 +1,4 @@
+[tools]
+bun = "1.4.2"
+# apps/desktop（Tauri 2）だけが使う。ADR 0010 の決定 6
+rust = "1.92.0"

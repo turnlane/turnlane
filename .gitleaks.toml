@@ -1,0 +1,20 @@
+# gitleaks の設定（公開前の監査 M6-7。手順は docs/dev/public-history.md）。既定の規則に、確かめた誤検出だけを足す。
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "取り込みのスナップショットの turnKey（匿名化したフィクスチャの ID）と、RFC 6455 の例の Sec-WebSocket-Key"
+regexTarget = "line"
+regexes = [
+  '''"turnKey": "[0-9a-f-]+"''',
+  '''"sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ=="''',
+]
+
+# 伏せ字のテスト（glance の伏せ字の関数、待ちの中身の保存）。伏せ字になることを確かめるため、
+# 鍵の形をした架空の値（Bearer・AWS のキー・JWT・API キー）を入力に使う。本物の鍵ではない（M6-7 の監査で確かめた）
+[[allowlists]]
+description = "伏せ字のテストに使う架空の鍵"
+paths = [
+  '''(^|/)packages/core/test/glance/redact\.test\.ts$''',
+  '''(^|/)apps/daemon/test/stored-detail\.test\.ts$''',
+]

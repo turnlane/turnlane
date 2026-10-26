@@ -1,0 +1,68 @@
+name: Bug report
+description: Something is broken or behaves differently from what the README says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Turnlane is maintained by one person in their spare time; a clear reproduction makes it far more likely to be fixed. Do not paste conversation text from Claude Code or Codex sessions, session files, credentials, or anything that identifies a client.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+      placeholder: |
+        1. ...
+        2. ...
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `turnlane doctor --redact`
+      description: Paste it as is. It contains versions, state codes, and counts only; home paths, user names, host names, repository names, titles, and calendar names are removed. Check it before pasting anyway.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Board / day view (UI)
+        - Your turn (follow-ups)
+        - Ingestion (Claude Code / Codex sessions)
+        - Hooks or MCP installation
+        - Ask AI (launching an agent from a task)
+        - Calendar (EventKit helper)
+        - Daily note / report / summary
+        - Desktop app (menu bar, notifications, quick add)
+        - CLI
+        - Install / update / self-install
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: How Turnlane was installed
+      placeholder: Release build 0.x.y / built from source at commit abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines (optional)
+      description: "`turnlane daemon logs -n 100`. Logs never contain conversation text but can contain repository paths; remove anything you do not want public."
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I ran `turnlane doctor` and it did not already explain the problem.
+          required: true
+        - label: This report contains no conversation text, session files, credentials, or client-identifying details.
+          required: true

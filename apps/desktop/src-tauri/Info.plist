@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Tauri が生成する Info.plist に足す。ファイル名は Turnlane.app、表示名は Turnlane（desktop-shell.md 1章） -->
+    <key>CFBundleName</key>
+    <string>Turnlane</string>
+    <key>CFBundleDisplayName</key>
+    <string>Turnlane</string>
+    <!-- 配布版（ADR 0011 決定 3）: 許可が親のアプリに付く場合に備え、同梱のヘルパ・turnlaned の用途もここに書く -->
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Turnlane shows your calendar events next to your tasks and AI work, and does not count AI waits during your meetings as idle time. Events stay on this Mac.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Turnlane opens a new tab in your terminal or editor when you ask an AI to work on a task or reopen a session.</string>
+  </dict>
+</plist>

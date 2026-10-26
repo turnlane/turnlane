@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "boot",
+  "description": "同梱の boot ページ（デーモン未起動時の画面）だけに許すコマンド。リモート URL には開かない",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "allow-boot-state",
+    "allow-boot-start-daemon",
+    "allow-boot-retry",
+    "allow-boot-open-login-items",
+    "allow-boot-diagnostics",
+    "allow-boot-move-to-applications",
+    "allow-boot-report"
+  ]
+}

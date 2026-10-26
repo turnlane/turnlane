@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/collectors" },
+    { "path": "./packages/core" },
+    { "path": "./apps/daemon" },
+    { "path": "./apps/cli" },
+    { "path": "./apps/web" },
+    { "path": "./scripts" },
+    { "path": "./e2e" }
+  ]
+}

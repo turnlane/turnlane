@@ -1,0 +1,388 @@
+/*
+ * デザイントークン（docs/design/design-system.md）。値は CSS 変数で持ち、テーマ（data-theme）で切り替える。
+ * Tailwind v4 の @theme inline から参照するので、bg-bg / text-fg / border-line のように使う（M2-11）。
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  color-scheme: dark;
+  --dl-bg: #0e0f11;
+  --dl-sidebar: #0b0c0e;
+  --dl-raised: #18191c;
+  --dl-sunken: #141518;
+  --dl-border: #26282c;
+  --dl-text-1: #e8e9eb;
+  --dl-text-2: #9a9da3;
+  /* D-082: #5F636A → 一段明るく（時間軸の地・予定のグレーの面の上で 3:1 を保つ） */
+  --dl-text-3: #686c73;
+  /* AI カード（D-078）: 旧 sunken にわずかな青みの面と 1px の枠線。ホバーは枠線だけ濃く（text-3 を 3:1 に保つ） */
+  --dl-ai: #13161a;
+  --dl-ai-line: #2c313a;
+  --dl-ai-hover: #13161a;
+  --dl-ai-line-hover: #3d4450;
+  /* 時間軸の地（D-105: 勤務時間のパネルをやめ、一様にした。色は D-082 のパネルの色）と1時間ごとの線 */
+  --dl-lane: #16171a;
+  --dl-lane-grid: #1e2023;
+  --dl-error: #f2555a;
+  --dl-needs: #f5a524;
+  --dl-running: #4c8dff;
+  /* 自分の番はティール（D-104。紫をやめた）。ティールは自分の番だけに使う */
+  --dl-turn: #2dd4bf;
+  --dl-done: #6b6f76;
+  /* 自分のタスク（D-074）: 背景より明るい面と枠線。計画は強い枠線だけ */
+  --dl-task: #202227;
+  --dl-task-line: #34373d;
+  --dl-task-plan: #60656e;
+  --dl-task-shadow: none;
+  /*
+   * 予定（D-103。D-086 の左線をやめた）: 地の色にカレンダー色を 30% 混ぜた塗りだけ（ホバー 36%）。縦の線は AI の作業だけ。
+   * 文字は時刻も text-primary（確定デザインの tokens: event-surface）
+   */
+  --dl-ev-tint: 30%;
+  --dl-ev-tint-hover: 36%;
+  --dl-ev-meta: var(--dl-text-1);
+  /*
+   * カレンダーの色のパレット（D-125。Turnlane の中だけで選ぶ色）。ダークは明るめ・やや淡く、地 #16171a に 30% / 36% を
+   * 混ぜた面で text-primary が 4.5:1 以上、地・AI の面と見分けられる値（apps/web/test/d086.test.ts）
+   */
+  --dl-cal-red: #f2666b;
+  --dl-cal-orange: #f5994d;
+  --dl-cal-yellow: #e8c547;
+  --dl-cal-lime: #9ccc65;
+  --dl-cal-green: #4fc47c;
+  --dl-cal-sky: #4cbfe8;
+  --dl-cal-blue: #6b95f2;
+  --dl-cal-lavender: #9aa5ec;
+  --dl-cal-purple: #b789e6;
+  --dl-cal-pink: #ec7ab4;
+  --dl-cal-brown: #b98a6a;
+  --dl-cal-gray: #8e9299;
+  /* 主ボタン（D-104）: 無彩色（text-primary の塗り）と、その上の文字 */
+  --dl-accent: var(--dl-text-1);
+  --dl-on-accent: #0e0f11;
+  /* ブロック中の行の面（琥珀 8%。対応待ちの帯だけ） */
+  --dl-amber-surface: #211b13;
+  /* 集計外の待ちの線 */
+  --dl-line-excluded: #3a3d42;
+  /* 集中モード中の帯（ux-mvp 4.15、README R18）: 落ち着いた藍の面と、左の線・月のアイコンの藍。文字は text-primary / secondary */
+  --dl-focus: #8f97f5;
+  --dl-focus-surface: #1a1d33;
+  --dl-shadow: 0 8px 24px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  color-scheme: light;
+  /* D-075: 面・枠線・二次/三次テキストを一段濃く（コントラスト比は docs/design/README.md の D-075） */
+  --dl-bg: #fbfbfa;
+  --dl-sidebar: #f0f0ed;
+  --dl-raised: #ffffff;
+  --dl-sunken: #e6e6e1;
+  --dl-border: #d6d6d0;
+  --dl-text-1: #161719;
+  --dl-text-2: #4d5058;
+  --dl-text-3: #72757c;
+  /* AI カード（D-078）: ほんのり青みのある面と、一段濃い青灰の枠線 */
+  --dl-ai: #eef2f7;
+  --dl-ai-line: #c9d2de;
+  --dl-ai-hover: #e6ecf4;
+  --dl-ai-line-hover: #afbccd;
+  /* 時間軸の地と線（D-105。色は D-082 のパネルの色） */
+  --dl-lane: #ffffff;
+  --dl-lane-grid: #f1f1ef;
+  --dl-error: #d93036;
+  --dl-needs: #b25e09;
+  --dl-running: #2563eb;
+  --dl-turn: #0d9488;
+  --dl-done: #7a7e85;
+  --dl-task: #ffffff;
+  --dl-task-line: #c4c4bc;
+  --dl-task-plan: #84857f;
+  --dl-task-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  /* 予定（D-103）: カレンダー色 30%（ホバー 36%）の塗りだけ。左の線は無い。文字は時刻も text-primary */
+  --dl-ev-tint: 30%;
+  --dl-ev-tint-hover: 36%;
+  --dl-ev-meta: var(--dl-text-1);
+  /* カレンダーの色のパレット（D-125）。ライトは濃いめ（白の地に 30% で面の色が分かる値） */
+  --dl-cal-red: #e5484d;
+  --dl-cal-orange: #f07a1a;
+  --dl-cal-yellow: #e5b20c;
+  --dl-cal-lime: #7cb342;
+  --dl-cal-green: #2e9d58;
+  --dl-cal-sky: #1aa1d6;
+  --dl-cal-blue: #3b6fe0;
+  --dl-cal-lavender: #7f8ce0;
+  --dl-cal-purple: #9b59d0;
+  --dl-cal-pink: #e0569b;
+  --dl-cal-brown: #9a6b4b;
+  --dl-cal-gray: #7a7e85;
+  --dl-accent: var(--dl-text-1);
+  --dl-on-accent: #ffffff;
+  --dl-amber-surface: #f5eee7;
+  --dl-line-excluded: #c9cbcf;
+  /* 集中モード中の帯（R18）: 薄い藍の面と、濃い藍の線・アイコン */
+  --dl-focus: #4b52c8;
+  --dl-focus-surface: #eaecfa;
+  --dl-shadow: 0 8px 24px rgb(28 29 31 / 0.12), 0 1px 3px rgb(28 29 31 / 0.08);
+}
+
+@theme inline {
+  --color-bg: var(--dl-bg);
+  --color-sidebar: var(--dl-sidebar);
+  --color-raised: var(--dl-raised);
+  --color-sunken: var(--dl-sunken);
+  --color-line: var(--dl-border);
+  --color-fg: var(--dl-text-1);
+  --color-fg2: var(--dl-text-2);
+  --color-fg3: var(--dl-text-3);
+  --color-ai: var(--dl-ai);
+  --color-ailine: var(--dl-ai-line);
+  --color-error: var(--dl-error);
+  --color-needs: var(--dl-needs);
+  --color-running: var(--dl-running);
+  --color-turn: var(--dl-turn);
+  --color-done: var(--dl-done);
+  --color-accent: var(--dl-accent);
+  --color-onaccent: var(--dl-on-accent);
+  --color-amber: var(--dl-amber-surface);
+  --color-excluded: var(--dl-line-excluded);
+  --color-task: var(--dl-task);
+  --color-taskline: var(--dl-task-line);
+  --color-taskplan: var(--dl-task-plan);
+  --color-evmeta: var(--dl-ev-meta);
+  --color-lane: var(--dl-lane);
+  --color-focus: var(--dl-focus);
+  --color-focussurface: var(--dl-focus-surface);
+
+  --font-sans: "Inter", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 14px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 18px;
+  --text-section: 15px;
+  --text-section--line-height: 20px;
+  --text-title: 20px;
+  --text-title--line-height: 26px;
+
+  /* 角丸（確定デザインの tokens v4）: チップ 4 / 操作 6 / カード・行・ボタン 8 / パネル・メニュー・ポップオーバー 12 */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-pop: 12px;
+
+  --shadow-pop: var(--dl-shadow);
+  --shadow-task: var(--dl-task-shadow);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--dl-bg);
+  color: var(--dl-text-1);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* 数字は等幅（tabular-nums）。mono のメタは ASCII だけを流す */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 1.5px solid var(--dl-accent);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--dl-text-2) 30%, transparent);
+}
+
+/* スクロールバーは細く、目立たせない */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dl-border) transparent;
+}
+
+/* 状態アイコンの動き（prefers-reduced-motion では止める。ux-mvp 4.1） */
+@keyframes dl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes dl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+.dl-spin {
+  animation: dl-spin 1.2s linear infinite;
+  transform-origin: 50% 50%;
+}
+.dl-pulse {
+  animation: dl-pulse 2s ease-in-out infinite;
+}
+/* オンボーディング O3 の取り込み中の日のスケルトン（静かに光る。待機中の日は光らない） */
+@keyframes dl-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.dl-shimmer {
+  background:
+    linear-gradient(
+      90deg,
+      var(--dl-sunken) 0%,
+      color-mix(in srgb, var(--dl-sunken) 40%, var(--dl-bg)) 50%,
+      var(--dl-sunken) 100%
+    )
+    0 0 / 200% 100%;
+  animation: dl-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dl-spin,
+  .dl-pulse,
+  .dl-shimmer {
+    animation: none;
+  }
+}
+
+/*
+ * AI カード（D-078）: 面と 1px の枠線。枠線は inset の影で描き、大きさを変えない。
+ * 左の状態の線は .dl-ai-edge と --dl-ai-edge（色）で、枠線の上に 2px で描く。選択はアクセントのアウトライン（呼ぶ側）
+ */
+.dl-ai {
+  background-color: var(--dl-ai);
+  box-shadow:
+    inset var(--dl-ai-edge-w, 0) 0 0 var(--dl-ai-edge, transparent),
+    inset 0 0 0 1px var(--dl-ai-line);
+}
+.dl-ai-edge {
+  --dl-ai-edge-w: 2px;
+}
+.dl-ai:hover {
+  background-color: var(--dl-ai-hover);
+  box-shadow:
+    inset var(--dl-ai-edge-w, 0) 0 0 var(--dl-ai-edge, transparent),
+    inset 0 0 0 1px var(--dl-ai-line-hover);
+}
+
+/*
+ * 時間軸: 一様の地（.dl-ground）と1時間ごとの線（.dl-grid）。描くのは GridBackground と目盛りの列だけ（全時間軸で同じ）。
+ * D-105 で勤務時間を浮かせるパネルと時間外の沈めた地をやめた
+ */
+.dl-ground {
+  background-color: var(--dl-lane);
+}
+.dl-grid {
+  background-color: var(--dl-lane-grid);
+}
+
+/*
+ * 予定（D-103）: 地の色（--dl-lane）にカレンダー色（--ev）を混ぜた不透明の塗りだけ。左の線・枠線は無い
+ * （縦の線は AI の作業だけ。白黒でも「予定 = 塗り、タスク = チェック、AI = 線」で見分ける）
+ */
+.dl-ev {
+  background-color: color-mix(in srgb, var(--ev) var(--dl-ev-tint), var(--dl-lane));
+}
+.dl-ev:hover {
+  background-color: color-mix(in srgb, var(--ev) var(--dl-ev-tint-hover), var(--dl-lane));
+}
+
+/* 設定の検索で飛んだ項目を少しの間強調する（D-083） */
+@keyframes dl-flash {
+  0%,
+  60% {
+    background-color: color-mix(in srgb, var(--dl-text-2) 12%, transparent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--dl-text-2) 12%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.dl-flash {
+  border-radius: var(--radius-card);
+  animation: dl-flash 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dl-flash {
+    animation: none;
+    outline: 1px solid var(--dl-accent);
+    outline-offset: 4px;
+  }
+}
+
+/* 予定と重なる計画（斜線。色は付けない。C3） */
+.dl-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--dl-text-3) 35%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+}
+
+/*
+ * カレンダーの色の丸（D-125。R52）: 地と見分けるための薄い内側の輪。選んでいる色のチェックは、ダークは地の色（明るい丸の
+ * 上の暗い記号）、ライトは白（明るい色だけ text-primary）。フォーカスは無彩色の輪
+ */
+.dl-cal-swatch {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+  transition: transform 80ms ease-out;
+}
+button.dl-cal-swatch:hover {
+  transform: scale(1.12);
+}
+button.dl-cal-swatch:focus-visible {
+  outline: 2px solid var(--dl-accent);
+  outline-offset: 2px;
+}
+.dl-cal-check {
+  color: var(--dl-bg);
+}
+[data-theme="light"] .dl-cal-check {
+  color: #ffffff;
+}
+[data-theme="light"] .dl-cal-check.dl-cal-check-dark {
+  color: var(--dl-text-1);
+}
+
+/*
+ * 自分の番の行を選んでいて、マウスを乗せていないときは、ホバーのボタンを出さない（理由と待ちを隠さない。D-214 の §4 で
+ * ✓ はホバーのボタンから … と右クリックと Space へ移した）
+ */
+[data-kind="turn"][data-selected]:not(:hover) > .dl-toolbar {
+  display: none;
+}
+
+/* 詳細パネルの幅をドラッグしている間（ux-mvp 4.12.1）: 文字を選ばせず、どこにいてもカーソルを col-resize に保つ。
+   レイヤーの外に置くので Tailwind の cursor-* より強い */
+html[data-panel-resizing],
+html[data-panel-resizing] * {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}

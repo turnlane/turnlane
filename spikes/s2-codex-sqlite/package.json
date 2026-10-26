@@ -1,0 +1,11 @@
+{
+  "name": "s2-codex-sqlite",
+  "private": true,
+  "type": "module",
+  "description": "Spike S2: read Codex SQLite files without writing to them. Not production code.",
+  "scripts": {
+    "lab": "bun src/lab-copies.ts",
+    "originals": "bun src/probe-originals.ts",
+    "stats": "bun src/stats.ts"
+  }
+}

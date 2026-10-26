@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/turnlane/turnlane/discussions
+    about: How-to questions, setups, and ideas that are not yet concrete go to Discussions (Q&A, Ideas, Adapters, Show and tell).
+  - name: Security report
+    url: https://github.com/turnlane/turnlane/security/advisories/new
+    about: Report a vulnerability privately. Please do not open a public issue for it.

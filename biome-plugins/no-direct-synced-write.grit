@@ -1,0 +1,32 @@
+// 同期対象テーブルへの直接の insert / update / delete を禁止する（phase0-plan 2.4、ADR 0002）。
+// 書き込みは packages/core/src/db/mutate.ts の insertRow / updateRow / softDelete /
+// insertRowIfAbsent / putSetting を使う。change_log も mutate 層だけが書く。
+language js
+
+or {
+  `$db.insert($table)`,
+  `$db.update($table)`,
+  `$db.delete($table)`
+} where {
+  $table <: or {
+    `project`,
+    `task`,
+    `taskTimeEntry`,
+    `timeBlock`,
+    `workItem`,
+    `followUp`,
+    `dailyNote`,
+    `setting`,
+    `changeLog`,
+    `schema.project`,
+    `schema.task`,
+    `schema.taskTimeEntry`,
+    `schema.timeBlock`,
+    `schema.workItem`,
+    `schema.followUp`,
+    `schema.dailyNote`,
+    `schema.setting`,
+    `schema.changeLog`
+  },
+  register_diagnostic(span=$table, message="同期対象テーブルへの直接の書き込みは禁止（mutate() を使う。phase0-plan 2.4）")
+}

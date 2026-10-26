@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Turnlane</title>
+    <script>
+      // テーマを描画前に当てる（ちらつき防止）。値は画面の設定（localStorage の写し）
+      (() => {
+        var t = "system";
+        try {
+          t = (JSON.parse(localStorage.getItem("turnlane.ui") || "{}").theme) || "system";
+        } catch {}
+        if (t === "system") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <style>
+      /* 最初の描画（React が描く前）。窓を黒・白のまま待たせない。文言は読み込みが速いときは出さない（0.4 秒後に出す） */
+      body { margin: 0; }
+      html[data-theme="dark"] body { background: #0e0f11; color: #9a9da3; }
+      html[data-theme="light"] body { background: #fbfbfa; color: #4d5058; }
+      #boot-loading {
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"><div id="boot-loading" data-testid="boot-loading">Loading Turnlane…</div></div>
+    <script>
+      (() => {
+        var el = document.getElementById("boot-loading");
+        if ((navigator.language || "").toLowerCase().startsWith("ja")) el.textContent = "画面を読み込んでいます…";
+        setTimeout(() => {
+          el.style.visibility = "visible";
+        }, 400);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

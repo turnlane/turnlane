@@ -1,0 +1,13 @@
+{
+  "name": "@turnlane/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "bun --bun tauri dev --no-watch",
+    "build": "scripts/build.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1"
+  }
+}

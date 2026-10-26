@@ -1,0 +1,200 @@
+{
+  "claudeVersion": "2.1.287 (Claude Code)",
+  "results": [
+    {
+      "variant": "A_baseline",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "B_toplevel_unknown_key",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "C_handler_unknown_key",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "SessionStart",
+          "tag": "c"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "c"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "c"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "D_group_unknown_key",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "d"
+        },
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "d"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "d"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "E_disableAllHooks",
+      "exitCode": 143,
+      "fired": [],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "F_async_marker_in_command",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "SessionStart",
+          "tag": "f"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "f"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "f"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "G_unknown_event_name",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    },
+    {
+      "variant": "H_statusMessage",
+      "exitCode": 143,
+      "fired": [
+        {
+          "e": "SessionStart",
+          "tag": "h"
+        },
+        {
+          "e": "SessionStart",
+          "tag": "base"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "h"
+        },
+        {
+          "e": "UserPromptSubmit",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "base"
+        },
+        {
+          "e": "SessionEnd",
+          "tag": "h"
+        }
+      ],
+      "settingsRewritten": false,
+      "outputHead": ""
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "roundTrip": [
+    {
+      "label": "claude_dir_0",
+      "exists": true,
+      "canonical": true,
+      "otherGroupsBefore": 14,
+      "groupsAfterInstall": 21,
+      "stateAfterInstall": "installed",
+      "secondInstallChanged": false,
+      "byteEqualAfterUninstall": true,
+      "disableAllHooks": false
+    },
+    {
+      "label": "claude_dir_1",
+      "exists": true,
+      "canonical": true,
+      "otherGroupsBefore": 0,
+      "groupsAfterInstall": 7,
+      "stateAfterInstall": "installed",
+      "secondInstallChanged": false,
+      "byteEqualAfterUninstall": true,
+      "disableAllHooks": false
+    },
+    {
+      "label": "claude_dir_2",
+      "exists": true,
+      "canonical": true,
+      "otherGroupsBefore": 0,
+      "groupsAfterInstall": 7,
+      "stateAfterInstall": "installed",
+      "secondInstallChanged": false,
+      "byteEqualAfterUninstall": true,
+      "disableAllHooks": false
+    },
+    {
+      "label": "codex_hooks_json",
+      "exists": true,
+      "canonical": true,
+      "otherGroupsBefore": 9,
+      "groupsAfterInstall": 14,
+      "stateAfterInstall": "installed",
+      "secondInstallChanged": false,
+      "byteEqualAfterUninstall": true
+    }
+  ],
+  "codexFeatureDisabled": false,
+  "claudeE2E": {
+    "exitCode": 143,
+    "daylineFired": [
+      "SessionStart hook --tool claude_code --managed-by dayline",
+      "UserPromptSubmit hook --tool claude_code --managed-by dayline",
+      "SessionEnd hook --tool claude_code --managed-by dayline"
+    ],
+    "otherFired": [
+      "other-start",
+      "other-prompt"
+    ]
+  },
+  "codexBeforeTrust": {
+    "exitCode": 1,
+    "daylineFired": [],
+    "mentionsHooksReview": false,
+    "hookWarningLines": []
+  },
+  "codexNote": "承認後の実行は experiments/codex-trust.ts の hooks/list で trust=trusted を確認済み。ここでは exec で実行されるかを見る"
+}

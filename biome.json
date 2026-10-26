@@ -1,0 +1,127 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!spikes",
+      "!**/.tsbuild",
+      "!**/dist",
+      "!**/.build",
+      "!packages/core/src/db/migrations/meta"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "error",
+        "useImportType": "error"
+      }
+    }
+  },
+  "plugins": [
+    {
+      "path": "./biome-plugins/no-direct-synced-write.grit",
+      "includes": ["**/*.ts", "**/*.tsx"]
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/collectors/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "drizzle-orm": "collectors は DB に依存しない（phase0-plan 3.1.1）",
+                  "hono": "collectors は HTTP に依存しない（phase0-plan 3.1.1）",
+                  "zod": "collectors は外部依存を持たない（phase0-plan 3.1.1）",
+                  "bun:sqlite": "Phase0 の collectors は SQLite を読まない（phase0-plan 3.1.1）"
+                },
+                "patterns": [
+                  {
+                    "group": ["@turnlane/**", "drizzle-orm/**", "hono/**"],
+                    "message": "collectors は他の @turnlane/* / DB / HTTP を import しない（phase0-plan 3.1.1）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/cli/src/hook/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**", "!node:fs", "!./*", "!@turnlane/collectors/hook-allowlist"],
+                    "message": "turnlane hook は起動時間の目標（50ms）のため node:fs、hook/ 内のファイル、@turnlane/collectors/hook-allowlist 以外を import しない（ADR 0007・0009）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/collectors/src/hook-allowlist*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**"],
+                    "message": "hook-allowlist.ts は import を持たない定数だけのモジュール（ADR 0009）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

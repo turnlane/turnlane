@@ -1,0 +1,163 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`hook_spool: golden v1/each-event 1`] = `
+[
+  {
+    "at": 1788310800000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "SessionStart",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "source": "startup",
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 0,
+    },
+  },
+  {
+    "at": 1788310801000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "UserPromptSubmit",
+    "promptId": "20000000-0000-4000-8000-000000000001",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 333,
+    },
+  },
+  {
+    "at": 1788310805000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "PermissionRequest",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 592,
+    },
+    "toolName": "Bash",
+  },
+  {
+    "at": 1788310806000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "Notification",
+    "notificationType": "permission_prompt",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 820,
+    },
+  },
+  {
+    "at": 1788310900000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "Stop",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 1064,
+    },
+  },
+  {
+    "at": 1788310950000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "errorType": "rate_limit",
+    "kind": "hook",
+    "name": "StopFailure",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 1260,
+    },
+  },
+  {
+    "at": 1788311000000,
+    "configRoot": "/fixture/home/.claude",
+    "cwd": "/fixture/repo-d",
+    "kind": "hook",
+    "name": "SessionEnd",
+    "reason": "prompt_input_exit",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 1489,
+    },
+  },
+  {
+    "at": 1788311100000,
+    "configRoot": "/fixture/home/.codex",
+    "cwd": "/fixture/repo-e",
+    "kind": "hook",
+    "name": "UserPromptSubmit",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000c1",
+      "tool": "codex",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 1720,
+    },
+    "turnId": "30000000-0000-4000-8000-000000000001",
+  },
+  {
+    "at": 1788311150000,
+    "configRoot": "/fixture/home/.codex",
+    "cwd": "/fixture/repo-e",
+    "kind": "hook",
+    "name": "Stop",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000c1",
+      "tool": "codex",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 1970,
+    },
+    "turnId": "30000000-0000-4000-8000-000000000001",
+  },
+  {
+    "at": 1788311400000,
+    "configRoot": "/fixture/home/.claude",
+    "kind": "hook",
+    "name": "Stop",
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-00000000000d",
+      "tool": "claude_code",
+    },
+    "spool": {
+      "file": "hooks-20260902.jsonl",
+      "offset": 2388,
+    },
+  },
+]
+`;

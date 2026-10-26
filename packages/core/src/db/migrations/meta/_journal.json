@@ -1,0 +1,153 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790951117142,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790951123075,
+      "tag": "0001_work_item_daily_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790956718719,
+      "tag": "0002_m1_ingestion",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791036912138,
+      "tag": "0003_d045_idle_titles",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791046280600,
+      "tag": "0004_d051_scheduled_wait",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791171251645,
+      "tag": "0005_m3_3_own_timeblock",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791174881413,
+      "tag": "0006_m4_6_ai_summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791347790910,
+      "tag": "0007_d093_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791354196748,
+      "tag": "0008_d097_meeting_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791393655400,
+      "tag": "0009_d105_presence",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791429980639,
+      "tag": "0010_d107_ai_launch",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791449377988,
+      "tag": "0011_d125_calendar_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791509775014,
+      "tag": "0012_d135_scratch",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1791535431455,
+      "tag": "0013_d136_claude_scratch_paths",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791538006270,
+      "tag": "0014_d139_presence_raw",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1791653986852,
+      "tag": "0015_claude_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791852368849,
+      "tag": "0016_launch_exit",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792169057760,
+      "tag": "0017_d218_stored_detail",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1792425317709,
+      "tag": "0018_d238_term_handle",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792725653229,
+      "tag": "0019_subagent_hook",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792766745176,
+      "tag": "0020_quota_horizon",
+      "breakpoints": true
+    }
+  ]
+}

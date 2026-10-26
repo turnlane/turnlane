@@ -1,0 +1,43 @@
+cask "{{CASK_TOKEN}}" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256}}"
+
+  url "{{RELEASES_DOWNLOAD_URL}}/v#{version}/Turnlane-#{version}.zip"
+  name "Turnlane"
+  desc "Daily planner for your calendar, tasks, and AI coding agents"
+  homepage "{{HOMEPAGE}}"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on arch: :arm64
+  depends_on macos: :sonoma
+
+  app "Turnlane.app"
+  binary "#{appdir}/Turnlane.app/Contents/Helpers/turnlane"
+
+  uninstall quit: "dev.turnlane.desktop"
+
+  zap launchctl: [
+        "dev.turnlane.calendar-helper",
+        "dev.turnlane.daemon",
+      ],
+      trash:     [
+        "~/Library/Application Support/turnlane",
+        "~/Library/Caches/dev.turnlane.desktop",
+        "~/Library/Logs/turnlane",
+        "~/Library/Preferences/dev.turnlane.desktop.plist",
+        "~/Library/Saved Application State/dev.turnlane.desktop.savedState",
+        "~/Library/WebKit/dev.turnlane.desktop",
+      ]
+
+  caveats <<~EOS
+    Turnlane's hooks and MCP entries in Claude Code and Codex are not removed by
+    `brew uninstall`. Before uninstalling, run:
+      turnlane uninstall --all
+    Your data in ~/Library/Application Support/turnlane stays unless you use
+    `brew uninstall --zap --cask {{CASK_TOKEN}}`.
+  EOS
+end

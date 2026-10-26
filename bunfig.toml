@@ -1,0 +1,4 @@
+[test]
+preload = ["./test/setup.ts"]
+# spikes/ は本番コードではない（使い捨て。各スパイクのテストはそのディレクトリで個別に実行する）
+pathIgnorePatterns = ["spikes/**"]

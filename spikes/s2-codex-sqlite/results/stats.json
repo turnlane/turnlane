@@ -1,0 +1,1184 @@
+{
+  "state_5": {
+    "meta": {
+      "user_version": 0,
+      "page_size": 4096,
+      "page_count": 109,
+      "quick_check": "ok"
+    },
+    "tables": {
+      "_sqlx_migrations": {
+        "rows": 57,
+        "columns": {
+          "version": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 57
+            },
+            "nullRate": 0
+          },
+          "description": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 57
+            },
+            "nullRate": 0
+          },
+          "installed_on": {
+            "decl": "TIMESTAMP",
+            "typeof": {
+              "text": 57
+            },
+            "nullRate": 0
+          },
+          "success": {
+            "decl": "BOOLEAN",
+            "typeof": {
+              "integer": 57
+            },
+            "nullRate": 0
+          },
+          "checksum": {
+            "decl": "BLOB",
+            "typeof": {
+              "blob": 57
+            },
+            "nullRate": 0
+          },
+          "execution_time": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 57
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "backfill_state": {
+        "rows": 1,
+        "columns": {
+          "id": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 1
+            },
+            "nullRate": 0
+          },
+          "status": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 1
+            },
+            "nullRate": 0,
+            "values": {
+              "complete": 1
+            }
+          },
+          "last_watermark": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 1
+            },
+            "nullRate": 1
+          },
+          "last_success_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 1
+            },
+            "nullRate": 0
+          },
+          "updated_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 1
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "external_agent_config_imports": {
+        "rows": 2,
+        "columns": {
+          "import_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          },
+          "completed_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 2
+            },
+            "nullRate": 0
+          },
+          "successes": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          },
+          "failures": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          },
+          "provider_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "project_idempotency_keys": {
+        "rows": 0,
+        "columns": {
+          "key": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "project_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "project_roots": {
+        "rows": 0,
+        "columns": {
+          "project_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "position": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "path": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "projects": {
+        "rows": 0,
+        "columns": {
+          "id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "name": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "metadata": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "position": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "updated_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "remote_control_enrollments": {
+        "rows": 0,
+        "columns": {
+          "websocket_url": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "account_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "app_server_client_name": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "server_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "environment_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "server_name": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "updated_at": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "remote_control_enabled": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "rollout_migration_skipped_rollouts": {
+        "rows": 0,
+        "columns": {
+          "migration_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "rollout_path": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "rollout_size_bytes": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "rollout_modified_at_ns": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "skip_reason": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "skipped_at": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "rollout_migration_state": {
+        "rows": 1,
+        "columns": {
+          "migration_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 1
+            },
+            "nullRate": 0
+          },
+          "last_checked_thread_created_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 1
+            },
+            "nullRate": 0
+          },
+          "last_checked_thread_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 1
+            },
+            "nullRate": 0
+          },
+          "updated_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 1
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "thread_attachments": {
+        "rows": 0,
+        "columns": {
+          "id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "attachment_type": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "identity_key": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "payload": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "created_at": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "thread_dynamic_tools": {
+        "rows": 0,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "position": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "name": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "description": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "input_schema": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "defer_loading": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "namespace": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "thread_sections": {
+        "rows": 1,
+        "columns": {
+          "id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 1
+            },
+            "nullRate": 0
+          },
+          "name": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 1
+            },
+            "nullRate": 0
+          },
+          "appearance": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 1
+            },
+            "nullRate": 1
+          }
+        }
+      },
+      "thread_spawn_edges": {
+        "rows": 0,
+        "columns": {
+          "parent_thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "child_thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "status": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "threads": {
+        "rows": 18,
+        "columns": {
+          "id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "rollout_path": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "created_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "updated_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "source": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "model_provider": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "cwd": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "title": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "sandbox_policy": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "approval_mode": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "tokens_used": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "has_user_event": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "archived": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "archived_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 5,
+              "null": 13
+            },
+            "nullRate": 0.722
+          },
+          "git_sha": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 17,
+              "text": 1
+            },
+            "nullRate": 0.944
+          },
+          "git_branch": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 17,
+              "text": 1
+            },
+            "nullRate": 0.944
+          },
+          "git_origin_url": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 17,
+              "text": 1
+            },
+            "nullRate": 0.944
+          },
+          "cli_version": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "first_user_message": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "agent_nickname": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "agent_role": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "memory_mode": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "model": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "reasoning_effort": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 3,
+              "text": 15
+            },
+            "nullRate": 0.167
+          },
+          "agent_path": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "updated_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "thread_source": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "preview": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "recency_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "recency_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "history_mode": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "name": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 3,
+              "text": 15
+            },
+            "nullRate": 0.167
+          },
+          "is_pinned": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "thread_section_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "section_position": {
+            "decl": "INTEGER",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "section_entered_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "project_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "originator": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 13,
+              "text": 5
+            },
+            "nullRate": 0.722
+          },
+          "daybreak_enabled": {
+            "decl": "BOOLEAN",
+            "typeof": {
+              "null": 18
+            },
+            "nullRate": 1
+          },
+          "creator_user_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 15,
+              "text": 3
+            },
+            "nullRate": 0.833
+          },
+          "creator_account_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 15,
+              "text": 3
+            },
+            "nullRate": 0.833
+          }
+        }
+      }
+    },
+    "extra": {
+      "threadsUpdatedLast7d": 5,
+      "updatedAtUnit": "ms"
+    }
+  },
+  "thread_history_1": {
+    "meta": {
+      "user_version": 0,
+      "page_size": 4096,
+      "page_count": 383,
+      "quick_check": "ok"
+    },
+    "tables": {
+      "_sqlx_migrations": {
+        "rows": 7,
+        "columns": {
+          "version": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 7
+            },
+            "nullRate": 0
+          },
+          "description": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 7
+            },
+            "nullRate": 0
+          },
+          "installed_on": {
+            "decl": "TIMESTAMP",
+            "typeof": {
+              "text": 7
+            },
+            "nullRate": 0
+          },
+          "success": {
+            "decl": "BOOLEAN",
+            "typeof": {
+              "integer": 7
+            },
+            "nullRate": 0
+          },
+          "checksum": {
+            "decl": "BLOB",
+            "typeof": {
+              "blob": 7
+            },
+            "nullRate": 0
+          },
+          "execution_time": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 7
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "thread_history_projection_state": {
+        "rows": 18,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 18
+            },
+            "nullRate": 0
+          },
+          "next_rollout_byte_offset": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          },
+          "next_rollout_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 18
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "thread_items": {
+        "rows": 357,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 357
+            },
+            "nullRate": 0
+          },
+          "turn_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 357
+            },
+            "nullRate": 0
+          },
+          "item_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 357
+            },
+            "nullRate": 0
+          },
+          "rollout_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 357
+            },
+            "nullRate": 0
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 357
+            },
+            "nullRate": 0
+          },
+          "item_json": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 357
+            },
+            "nullRate": 0
+          },
+          "item_type": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 357
+            },
+            "nullRate": 0
+          },
+          "updated_at_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 357
+            },
+            "nullRate": 0
+          },
+          "started_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 96,
+              "null": 261
+            },
+            "nullRate": 0.731
+          },
+          "completed_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 96,
+              "null": 261
+            },
+            "nullRate": 0.731
+          }
+        }
+      },
+      "thread_realtime_items": {
+        "rows": 0,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "item_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "rollout_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "item_type": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "item_json": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "thread_turns": {
+        "rows": 69,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 69
+            },
+            "nullRate": 0
+          },
+          "turn_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 69
+            },
+            "nullRate": 0
+          },
+          "rollout_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "status": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 69
+            },
+            "nullRate": 0,
+            "values": {
+              "completed": 67,
+              "interrupted": 2
+            }
+          },
+          "error_json": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 69
+            },
+            "nullRate": 1
+          },
+          "started_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "completed_at": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "duration_ms": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "first_user_item_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 69
+            },
+            "nullRate": 0
+          },
+          "final_agent_item_id": {
+            "decl": "TEXT",
+            "typeof": {
+              "null": 2,
+              "text": 67
+            },
+            "nullRate": 0.029
+          },
+          "rollout_byte_offset": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "rollout_end_ordinal": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          },
+          "rollout_end_byte_offset": {
+            "decl": "INTEGER",
+            "typeof": {
+              "integer": 69
+            },
+            "nullRate": 0
+          }
+        }
+      }
+    },
+    "extra": {}
+  },
+  "goals_1": {
+    "meta": {
+      "user_version": 0,
+      "page_size": 4096,
+      "page_count": 8,
+      "quick_check": "ok"
+    },
+    "tables": {
+      "_sqlx_migrations": {
+        "rows": 2,
+        "columns": {
+          "version": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 2
+            },
+            "nullRate": 0
+          },
+          "description": {
+            "decl": "TEXT",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          },
+          "installed_on": {
+            "decl": "TIMESTAMP",
+            "typeof": {
+              "text": 2
+            },
+            "nullRate": 0
+          },
+          "success": {
+            "decl": "BOOLEAN",
+            "typeof": {
+              "integer": 2
+            },
+            "nullRate": 0
+          },
+          "checksum": {
+            "decl": "BLOB",
+            "typeof": {
+              "blob": 2
+            },
+            "nullRate": 0
+          },
+          "execution_time": {
+            "decl": "BIGINT",
+            "typeof": {
+              "integer": 2
+            },
+            "nullRate": 0
+          }
+        }
+      },
+      "thread_goal_continuation_deferrals": {
+        "rows": 0,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      },
+      "thread_goals": {
+        "rows": 0,
+        "columns": {
+          "thread_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "goal_id": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "objective": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "status": {
+            "decl": "TEXT",
+            "typeof": {},
+            "nullRate": null
+          },
+          "token_budget": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "tokens_used": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "time_used_seconds": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "created_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          },
+          "updated_at_ms": {
+            "decl": "INTEGER",
+            "typeof": {},
+            "nullRate": null
+          }
+        }
+      }
+    },
+    "extra": {}
+  },
+  "coverage": {
+    "threads": 18,
+    "threadsInTurns": 17,
+    "threadsWithTurns": 17,
+    "notArchived": 13
+  }
+}

@@ -1,0 +1,7 @@
+{"type":"session_meta","timestamp":"2026-09-01T09:00:00.000Z","payload":{"id":"678e9113-1601-41e2-8f21-9c4f6eff0184","session_id":"678e9113-1601-41e2-8f21-9c4f6eff0184","timestamp":"2026-09-01T08:59:59.772Z","cwd":"/fixture/repo-b","originator":"Codex Desktop","cli_version":"0.147.0-alpha.6.6","source":"vscode","thread_source":"user"}}
+{"type":"event_msg","timestamp":"2026-09-01T09:00:00.005Z","payload":{"type":"task_started","turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","started_at":1788253199}}
+{"type":"turn_context","timestamp":"2026-09-01T09:00:01.898Z","payload":{"turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","cwd":"/fixture/repo-b","model":"gpt-5.6-terra"}}
+{"type":"event_msg","timestamp":"2026-09-01T09:00:01.961Z","payload":{"type":"item_completed","turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","item":{"type":"UserMessage"}}}
+{"type":"event_msg","timestamp":"2026-09-01T09:00:06.485Z","payload":{"type":"item_completed","turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","item":{"type":"AgentMessage"}}}
+{"type":"event_msg","timestamp":"2026-09-01T09:00:20.611Z","payload":{"type":"item_completed","turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","item":{"type":"Reasoning"}}}
+{"type":"event_msg","timestamp":"2026-09-01T09:03:12.622Z","payload":{"type":"turn_aborted","turn_id":"925a895c-87b8-4bf7-8b2b-5d09dd1baead","started_at":1788253199,"completed_at":1788253392,"duration_ms":192644,"reason":"interrupted"}}

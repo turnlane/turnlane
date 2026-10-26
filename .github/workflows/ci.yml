@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: lint (biome)
+        run: bun run lint
+      - name: typecheck (tsc -b)
+        run: bun run typecheck
+      - name: test (bun test)
+        run: bun run test
+
+  collectors:
+    # collectors を単体で検査する（他の @turnlane/* に依存しない境界。phase0-plan 3.1.1）
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: test (packages/collectors)
+        run: bun test packages/collectors
+
+  build:
+    # 単一バイナリのビルドと turnlane hook の起動時間（p95 50ms 以内。ADR 0007）
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: build turnlaned / turnlane
+        run: bun run build
+      - name: turnlane hook startup benchmark
+        run: bun run bench:hook
+      - name: smoke test of the compiled binaries
+        run: bun run smoke
+
+  e2e:
+    # 画面の操作（ドラッグ・IME・メニュー・パネル・オンボーディング）の E2E を WebKit で（D-092・D-196。e2e/。殻は WKWebView）
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: install browsers
+        run: bunx playwright install webkit
+      - name: e2e (WebKit)
+        run: bun run e2e
+
+  calendar-helper:
+    # TurnlaneCalendarHelper（Swift）のビルド（phase0-plan 1.2）。権限・起動の確認は scripts/check-calendar-helper.ts（手元）
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift build
+        run: swift build -c release --package-path native/calendar-helper
+      - name: swift test
+        # 権限の読み直し（D-130）など、EventKit・TCC に触れない部分
+        run: swift test --package-path native/calendar-helper
+
+  desktop:
+    # デスクトップシェル（Tauri 2。apps/desktop/src-tauri）の clippy と test（desktop-shell.md 2.4）。.app のビルドと署名は CI でしない（M6-10）
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: rust toolchain (.mise.toml と同じ版)
+        run: rustup toolchain install 1.92.0 --profile minimal --component clippy && rustup default 1.92.0
+      - name: clippy
+        working-directory: apps/desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: test
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked

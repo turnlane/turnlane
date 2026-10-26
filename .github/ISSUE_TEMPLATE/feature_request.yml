@@ -1,0 +1,40 @@
+name: Feature request
+description: A concrete change to how Turnlane works
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas that are not yet concrete are better in Discussions (Ideas). Note that Turnlane deliberately has no server, no account, no cloud sync, and no generated content; requests in those directions will be closed with a pointer to the ADRs.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where Turnlane gets in the way today. Describe your day rather than the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should happen instead. Screenshots or sketches made with dev-board data are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Board / day view
+        - Your turn
+        - Ingestion / adapters
+        - Ask AI
+        - Calendar
+        - Daily note / report
+        - CLI / MCP
+        - Desktop app
+        - Other

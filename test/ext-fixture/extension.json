@@ -1,0 +1,5 @@
+{
+  "id": "test",
+  "daemon": "../../apps/daemon/test/ext-fixture/daemon.ts",
+  "web": "../../apps/web/test/ext-fixture/web.tsx"
+}

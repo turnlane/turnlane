@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": ".tsbuild",
+    "tsBuildInfoFile": ".tsbuild/tsconfig.tsbuildinfo"
+  },
+  "include": ["./**/*.ts", "../test/**/*.ts"],
+  "exclude": [".tsbuild"],
+  "references": [
+    { "path": "../packages/core" },
+    { "path": "../packages/collectors" },
+    { "path": "../apps/daemon" },
+    { "path": "../apps/cli" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "loops": 5000,
+  "immutableVerify": {
+    "accepted": 3749,
+    "rejected": 1251,
+    "acceptedButCorrupt": 0,
+    "errors": 0,
+    "sawWal": 1161
+  },
+  "immutableWithoutVerifyBadReads": 65,
+  "copyVerify": {
+    "accepted": 4491,
+    "rejected": 488,
+    "acceptedButCorrupt": 0,
+    "errors": 21,
+    "sawWal": 1113
+  }
+}

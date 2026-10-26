@@ -1,0 +1,43 @@
+{
+  "name": "turnlane",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "bun": ">=1.4.2 <1.5.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "bun --bun biome check .",
+    "format": "bun --bun biome check --write .",
+    "typecheck": "bun --bun tsc -b",
+    "test": "bun test",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "check:names": "bun scripts/check-names.ts --list",
+    "build:web": "bun run --cwd apps/web build",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:daemon": "bun --watch apps/daemon/src/bin.ts --foreground",
+    "build": "bun scripts/build.ts",
+    "bench:hook": "bun scripts/bench-hook.ts",
+    "smoke": "bun scripts/smoke.ts",
+    "e2e": "bun run build:web && bun e2e/run.ts",
+    "build:helper": "native/calendar-helper/scripts/build-app.sh",
+    "check:helper": "bun scripts/check-calendar-helper.ts",
+    "dev:board": "bun run build:web && bun scripts/dev-board.ts",
+    "dev:desktop": "bun run --cwd apps/desktop dev",
+    "build:desktop": "apps/desktop/scripts/build.sh",
+    "build:app": "bun scripts/build-app.ts",
+    "release": "bun scripts/release.ts",
+    "check:desktop": "cd apps/desktop/src-tauri && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/bun": "1.4.2",
+    "playwright": "1.61.1",
+    "typescript": "7.0.2"
+  }
+}

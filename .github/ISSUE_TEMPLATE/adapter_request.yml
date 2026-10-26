@@ -1,0 +1,54 @@
+name: Adapter request
+description: Ask for, or offer to build, support for another coding agent
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Each agent is an adapter in `packages/collectors`; see its README for how adapters work and the rules they follow (no conversation text, no network, no writes). Describe the agent's log format by its structure: field names, file layout, how sessions start and end. Do not attach real session files or paste message content.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      placeholder: Name, version, and a link to its documentation
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where it keeps its logs
+      description: Directories and file names (with placeholders for anything personal), file format (JSONL, SQLite, ...), and whether files are appended to while a session runs.
+      placeholder: |
+        ~/.example-agent/sessions/<project>/<session-id>.jsonl, appended per turn
+    validations:
+      required: true
+  - type: textarea
+    id: structure
+    attributes:
+      label: Record structure
+      description: The shape of a record, with field names only. Which fields carry the timestamp, session ID, working directory, and the type of event? Which fields contain message bodies (so they can be excluded)?
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: states
+    attributes:
+      label: How to tell what the agent is doing
+      description: How a reader can tell that the agent is running, waiting for permission, waiting for a reply, finished, or stopped with an error. Does the agent have hooks or another live signal?
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Can you work on it?
+      options:
+        - I can write the adapter (with guidance)
+        - I can provide anonymized fixtures and test a branch
+        - I can only describe the format
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: This request contains no conversation text, session files, or credentials.
+          required: true
