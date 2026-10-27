@@ -211,3 +211,39 @@ describe("質問で終わるか", () => {
     expect(textTraits("完了しました。")).toEqual({ question: false, closing: false });
   });
 });
+
+/** 判断待ちの条件文の一般化と、データを求める依頼（文はすべて合成） */
+describe("条件文の一般化・データを求める依頼", () => {
+  const ASKING = [
+    "結果をまとめました。\n\n動画名と見た割合を『名前：○○%』の形でメモして貼ってもらえれば、回を重ねるほど下がっているかを判断します。スマホのアプリでも同じ数字が見られます。",
+    "名前：○○% の形でメモして貼ってください。",
+    "ログを送っていただけたら、原因を調査します。",
+    "ログを貼ってもらえれば切り分けます。",
+    "数字を送ってもらえれば比べます。",
+    "決まったらお見せします。",
+    "If you paste the numbers here, I'll compare them with the new layout.",
+    "Please send me the export when you have it.",
+    "Paste the error output here and I'll take a look.",
+  ];
+  const NOT_ASKING = [
+    "確認してもらえれば助かります。",
+    "見ていただければ幸いです。",
+    "試してもらえたら嬉しいです。",
+    "確認してください。",
+    "試してください。",
+    "試してみてください。",
+    "見てもらえれば分かります。",
+    "Please review the diff when you have a moment.",
+    "Please check the logs.",
+    "If that helps, great.",
+    "I'll paste the summary below.",
+  ];
+  test.each(ASKING)("問い: %j", (s) =>
+    expect(textTraits(s)).toEqual({ question: true, closing: false }),
+  );
+  test.each(NOT_ASKING)("問いではない: %j", (s) => expect(endsWithQuestion(s)).toBe(false));
+  test("締めの決まり文句は締めのまま", () => {
+    expect(isClosingQuestion("他に何かあれば教えてください。")).toBe(true);
+    expect(isClosingQuestion("I can also add tests if you need anything else.")).toBe(true);
+  });
+});

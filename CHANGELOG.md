@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: the startup health test now allows up to two responses over 100 ms (none over 1000 ms), so a single runner hiccup no longer fails the build.
 - CI: `actions/checkout` updated from v4 to v5 (Node.js 20 deprecation).
 
+### Fixed
+
+- Your turn missed replies that wait on you to paste or send something ("if you paste …, I'll …").
+
 ## [0.7.0] - 2026-10-26
 
 First public release.

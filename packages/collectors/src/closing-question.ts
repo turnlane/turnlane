@@ -13,6 +13,11 @@
  *   「どうしますか」「決めていただきたい」「let me know」「should I」等）、疑問の終止形で終わる、問いの見出し
  *   （「決めていただきたいこと」「Questions for you」）、判断待ちの条件文、「〜にするか」「whether 〜」で終わる・始まる
  *   箇条書きの項目。作業の依頼（「確認してください」「ご確認いただければ」）は含めない
+ * - 条件文の一般化: 「〜して（もらえ|いただけ|くれ…）（れば|たら|次第）」のあと AI の続きの動作（「〜します」「〜できます」
+ *   「進みます」）で終わる文は判断待ちの条件文（「貼ってもらえれば判断します」「if you paste …, I'll …」）。
+ *   礼や気持ちで終わるもの（「確認してもらえれば助かります」）は作業の依頼で、含めない
+ * - データを求める依頼: 情報を受け取る動詞だけ（「貼ってください」「送ってください」「please send」）。作業の依頼
+ *   （「確認してください」「試してください」「please review」）は含めない
  * - 締めの決まり文句: 「他に何かありますか？」「必要であれば〜」「Anything else?」「if you need anything else」等。
  *   質問の文がすべて締めの決まり文句なら締めとし、返答タスクを作らず your_turn の (c) にも数えない（D-021）
  */
@@ -41,6 +46,8 @@ const ASK_JA: RegExp[] = [
   /(進めて|実行して|続けて|マージして|適用して|削除して|上書きして)(も)?(よい|良い|いい|よろしい|大丈夫)(です|でしょう)?か/,
   // 判断・答えを頼む形。「ご確認いただければ」は作業の依頼（レビューの依頼）なので入れない
   /(決めて|お決め|教えて|お教え|選んで|お選び|ご判断|ご指示|ご回答|ご返答|お返事)(いただきたい|頂きたい|いただけますか|いただければ|頂ければ|いただけると|頂けると|もらえますか|もらえれば|もらえると|ほしい|欲しい)/,
+  // データを求める依頼（相手から情報を受け取る動詞だけ）。「確認してください」「試してください」は作業の依頼なので入れない
+  /(貼って|貼り付けて|送って|共有して|見せて|載せて|書いて|記入して|記載して)(ください|下さい|もらえ(ます|ません)か|いただけ(ます|ません)か|ほしい|欲しい)/,
 ];
 
 /**
@@ -67,6 +74,17 @@ const PENDING_JA: RegExp[] = [
 ];
 /** 条件文の結び（「〜します」「進めます」「お見せします」。「〜ました」は除く）。条件の言い回しと両方あるときだけ条件文 */
 const PENDING_JA_TAIL = /ます$/;
+/** 礼や気持ちで終わる結び（「助かります」「幸いに存じます」「安心できます」）。条件文にしない */
+const PENDING_JA_THANKS = /(助かり|幸い|ありがた|嬉し|うれし|安心)[^、。]{0,8}$/;
+
+/**
+ * 条件文の一般化: 「〜して（もらえ|いただけ…）（れば|たら|次第）」。結びは AI の続きの動作に限る（PENDING_JA_GENERAL_TAIL）。
+ * 「見てもらえれば分かります」のような説明の文は結びで外れる
+ */
+const PENDING_JA_GENERAL =
+  /[てで](もらえ|いただけ|頂け|くれ|もらっ|いただい|頂い|くださっ)(れば|たら|次第)/;
+const PENDING_JA_GENERAL_TAIL =
+  /(します|できます|しておきます|進みます|進めます|比べます|調べます|まとめます|切り分けます|考えます|作ります|書きます|続けます|戻します|決めます|絞ります|整えます|見ます|探します)$/;
 
 /** 相手の判断待ちの条件文（英語。小文字にして比べる） */
 const PENDING_EN: RegExp[] = [
@@ -75,6 +93,8 @@ const PENDING_EN: RegExp[] = [
   /\bafter you (decide|confirm|choose|pick|approve|reply)\b/,
   /\bif (that|this|it) (works|sounds good|looks good|is ok|is okay|is fine)( (for|to) you)?,? i('ll| will)\b/,
   /\blet me know and i('ll| will)\b/,
+  // 条件文の一般化: 相手がデータを渡すまで AI が進めない（"if you paste the numbers here, i'll compare …"）
+  /\bif you (can |could )?(paste|send|share|post|give me|drop|tell me|let me know)\b.*\bi('ll| will| can)\b/,
 ];
 
 /**
@@ -104,6 +124,9 @@ const ASK_EN: RegExp[] = [
   /\b(is it|is that|is this) (ok|okay|fine|alright)\b/,
   /\b(ok|okay) to (proceed|continue|merge|apply|delete|push)\b/,
   /(^|\b(it'?s|that'?s) )your call\b/,
+  // データを求める依頼。"please review / check / run" は作業の依頼なので入れない
+  /\bplease (paste|send|share|post)\b/,
+  /^(can you |could you )?(paste|send|share)\b.*\b(here|below|and i('ll| will))\b/,
 ];
 
 /** 締めの決まり文句（日本語）。文に対して判定する */
@@ -237,7 +260,10 @@ function lower(s: string): string {
 /** 相手の判断待ちの条件文か（「決まったら〜お見せします」「once you decide, I'll …」） */
 export function isPendingSentence(s: string): boolean {
   const body = s.replace(/[。.!！]+$/, "");
-  if (PENDING_JA.some((re) => re.test(body)) && PENDING_JA_TAIL.test(body)) return true;
+  if (!PENDING_JA_THANKS.test(body)) {
+    if (PENDING_JA.some((re) => re.test(body)) && PENDING_JA_TAIL.test(body)) return true;
+    if (PENDING_JA_GENERAL.test(body) && PENDING_JA_GENERAL_TAIL.test(body)) return true;
+  }
   const en = lower(s);
   return PENDING_EN.some((re) => re.test(en));
 }
