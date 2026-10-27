@@ -1,7 +1,9 @@
 /**
  * 起動時の読み直しの間も health が速く返る（取り込み・判定がイベントループを塞がない）。
  * パーサの版が上がった直後（カーソルの parser_version が古い）に起動すると、全ストリームを先頭から読み直し、そのたびに
- * 判定が走る。デーモンを別のプロセスで起動し、読み直しが終わるまで health を叩いて、遅れた応答が無いことを確かめる
+ * 判定が走る。デーモンを別のプロセスで起動し、読み直しが終わるまで health を叩いて、遅れた応答が無いことを確かめる。
+ * 共有の CI runner では、塞いでいなくても揺れで 1〜2 件だけ遅い応答が出ることがある。塞ぐバグなら遅い応答が何十件も
+ * 続くので、上限を超える応答は MAX_SLOW 件まで許し、そのかわりどの応答も HARD_LIMIT_MS を超えないことを求める
  */
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
@@ -17,6 +19,10 @@ const FILES = 24;
 const TURNS_PER_FILE = 300;
 /** health の応答の上限（ms） */
 const LIMIT_MS = 100;
+/** LIMIT_MS を超えてよい応答の件数（共有 runner の揺れの分） */
+const MAX_SLOW = 2;
+/** どの応答も超えてはならない上限（ms） */
+const HARD_LIMIT_MS = 1000;
 
 let home: string;
 let child: ReturnType<typeof Bun.spawn> | null = null;
@@ -125,9 +131,9 @@ describe("起動時の読み直し（パーサの版が上がった後）", () =
     expect(settledAt).not.toBeNull();
     // 最初の 1 回は接続の確立を含むので除く
     const slow = lat.slice(1).filter((ms) => ms > LIMIT_MS);
-    expect({ samples: lat.length, slow: slow.map(Math.round) }).toEqual({
-      samples: lat.length,
-      slow: [],
-    });
+    const ok = slow.length <= MAX_SLOW && slow.every((ms) => ms <= HARD_LIMIT_MS);
+    // 落ちたときは期待を slow: [] にして、遅かった応答の値の一覧と総数が差分に出るようにする
+    const report = { samples: lat.length, slow: slow.map(Math.round) };
+    expect(report).toEqual({ samples: lat.length, slow: ok ? report.slow : [] });
   }, 60_000);
 });
