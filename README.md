@@ -1,6 +1,6 @@
 # Turnlane
 
-**A daily planner for people who run AI coding agents.** Your calendar, your own tasks, and the work of Claude Code and Codex sit on the same day lane. Nothing is typed in by hand: AI work is read from the agents' local files, and the moments an agent is waiting on you surface as *Your turn*.
+**A daily planner for people who run AI coding agents.** Your calendar, your own tasks, and the work of Claude Code and Codex, in the terminal or in their desktop apps, sit on the same day lane. Nothing is typed in by hand: AI work is read from the agents' local files, and the moments an agent is waiting on you surface as *Your turn*.
 
 > **0.7.0 is the first public release.** macOS only (macOS 14 or later, Apple Silicon). Install with Homebrew or the signed zip (below); [CHANGELOG.md](CHANGELOG.md) lists what changes between versions. Interfaces, file formats, and the CLI may still change before 1.0.
 
@@ -92,6 +92,10 @@ Both commands apply to every Claude Code profile found (`~/.claude` and the `~/.
 |---|---|---|
 | Claude Code | 2.1.x | `projects/**/*.jsonl` (metadata only), `sessions/*.json`, hooks |
 | Codex CLI | 0.147–0.159 | `sessions/**/rollout-*.jsonl`, `session_index.jsonl` (the SQLite database is never opened), hooks |
+| Claude Desktop app, Code tab | the Claude Code it bundles | the same files as Claude Code, in that Claude Code's config directory; nothing extra to set up |
+| Codex app | the Codex it bundles | the same `~/.codex` files as Codex CLI; nothing extra to set up |
+
+Chats in claude.ai, in the Claude app's chat view, or in the ChatGPT app are not read: those conversations are not stored on your Mac.
 
 Each agent is an adapter in [`packages/collectors`](packages/collectors/README.md). Adapters are small, dependency-free, and tested against anonymized fixtures; adding another agent is the most useful contribution you can make. Open an [adapter request](https://github.com/turnlane/turnlane/issues/new?template=adapter_request.yml) first so the log format can be discussed without posting conversation text.
 
