@@ -255,4 +255,9 @@ export {
 } from "./report/summary.ts";
 export { nextWeekday } from "./report/workday.ts";
 export { matchesAll, matchRanges, matchScore, searchTokens } from "./search/match.ts";
+export {
+  type UpdateDownload,
+  type UpdatePhase,
+  updatePhase,
+} from "./update-download.ts";
 export { uuidv7 } from "./uuid7.ts";

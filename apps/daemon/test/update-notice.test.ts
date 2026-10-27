@@ -7,7 +7,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nullLogger } from "@turnlane/collectors";
-import { FakeClock, RELEASES_LATEST_PAGE_URL, resolvePaths } from "@turnlane/core";
+import {
+  FakeClock,
+  RELEASES_LATEST_PAGE_URL,
+  resolvePaths,
+  type UpdateDownload,
+} from "@turnlane/core";
 import type { UpdateStatus } from "@turnlane/core/api";
 import { updateMenuItem } from "@turnlane/core/web";
 import type { AiDeps } from "../src/http/ai-routes.ts";
@@ -104,6 +109,36 @@ describe("メニューバーの 1 項目（updateMenuItem）", () => {
       action: "open",
       value: RELEASES_LATEST_PAGE_URL,
     });
+  });
+
+  test("自動更新の段階: Downloading…（押せない）、ready は Restart to update（install）、入れている間は押せない", () => {
+    const dl = (state: UpdateDownload["state"], error: UpdateDownload["error"] = null) => ({
+      download: { state, version: "0.7.1", path: null, error, attempts: 1, at: 1 },
+    });
+    expect(updateMenuItem(st(dl("downloading")), "en")).toEqual({
+      label: "Turnlane 0.7.1 is available · Downloading…",
+      action: "none",
+      value: "",
+      copied: "Copied",
+    });
+    expect(updateMenuItem(st(dl("verifying")), "en")?.action).toBe("none");
+    expect(updateMenuItem(st(dl("ready")), "en")).toMatchObject({
+      label: "Turnlane 0.7.1 is ready · Restart to update",
+      action: "install",
+      value: "",
+    });
+    expect(updateMenuItem(st(dl("ready")), "ja")?.label).toBe(
+      "Turnlane 0.7.1 の準備ができました · 再起動して更新",
+    );
+    expect(updateMenuItem(st(dl("installing")), "en")).toMatchObject({
+      label: "Turnlane 0.7.1 is ready · Restarting…",
+      action: "none",
+    });
+    // 失敗・download オフは手動の案内
+    expect(updateMenuItem(st(dl("failed", "team_id")), "en")?.action).toBe("copy");
+    expect(updateMenuItem(st({ ...dl("ready"), downloadEnabled: false }), "en")?.action).toBe(
+      "copy",
+    );
   });
 
   test("新しい版が無い・dev なら出さない", () => {

@@ -46,6 +46,7 @@ import {
   StoredDetailSection,
   StoreTitlesSection,
   TurnDetailSection,
+  UpdateSettingsRows,
 } from "./SettingsSections.tsx";
 import {
   SETTINGS_SECTIONS,
@@ -360,6 +361,7 @@ function GeneralPane() {
           onChange={(v) => save.mutate({ theme: v })}
         />
       </SettingRow>
+      <UpdateSettingsRows />
     </>
   );
 }

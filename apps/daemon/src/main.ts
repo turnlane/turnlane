@@ -62,6 +62,7 @@ import { focusSettings, readUiPrefs } from "./planner/ui-prefs.ts";
 import type { PresenceReader } from "./presence/reader.ts";
 import { PresenceService } from "./presence/service.ts";
 import type { DetectOptions } from "./summary/cli.ts";
+import { AutoUpdater, type AutoUpdaterOptions } from "./update/auto.ts";
 import {
   readUpdateState,
   UPDATE_STATE_KEY,
@@ -156,6 +157,10 @@ export interface StartOptions {
     feedOverridden?: boolean;
     fetch?: UpdateCheckerOptions["fetch"];
     firstDelayMs?: number;
+    /** 自動更新の取得・検証・置き換え・アプリの確かめの差し替え（テスト）。省略時は本物 */
+    auto?: Partial<
+      Pick<AutoUpdaterOptions, "download" | "verify" | "install" | "appRunning" | "idleGraceMs">
+    > & { afterInstallMs?: number };
   };
   /**
    * システム設定の画面を開く（オンボーディング O4 の拒否・O7。`x-apple.systempreferences:` の URL）。省略時は開けない
@@ -188,6 +193,7 @@ export interface RunningDaemon {
   launch: LaunchService | null;
   onboarding: OnboardingService;
   update: UpdateChecker;
+  autoUpdate: AutoUpdater;
   install: InstallService | null;
   stop(): Promise<void>;
 }
@@ -352,15 +358,56 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
     },
     onboardingInitial,
   );
+  // 自動更新（ADR 0008 の追記 4）: 配布版（mode が app）で update.check と update.download がオンのとき、確認の後に
+  // 同じ GitHub Releases から取得・検証し、Restart to update かアプリが動いていない間に入れる
+  const updateFeed = opts.update?.feedUrl ?? null;
+  const readUpdate = () => readUpdateState(getSetting<unknown>(db, UPDATE_STATE_KEY));
+  const autoOpts = opts.update?.auto ?? {};
+  const autoUpdater = new AutoUpdater({
+    dataDir: paths.dataDir,
+    version: VERSION,
+    clock,
+    logger,
+    enabled: () =>
+      getSetting<unknown>(db, "update.check") !== false &&
+      getSetting<unknown>(db, "update.download") !== false,
+    appPath: () => (install?.mode === "app" ? install.appPath : null),
+    latest: () => readUpdate()?.latest ?? null,
+    load: () => readUpdate()?.download ?? null,
+    save: (d) =>
+      putSetting(mutateCtx, UPDATE_STATE_KEY, {
+        ...(readUpdate() ?? { checkedAt: 0, latest: null, error: null }),
+        download: d,
+      }),
+    publish: (data) => hub.publish("update", data),
+    loopbackOrigin:
+      opts.update?.feedOverridden === true && updateFeed ? new URL(updateFeed).origin : null,
+    desktopConnected: () => hub.desktopClients > 0,
+    afterInstall: (reason) =>
+      install?.bundleReplaced({
+        relaunchDesktop: reason === "user",
+        ...(autoOpts.afterInstallMs !== undefined ? { afterMs: autoOpts.afterInstallMs } : {}),
+      }),
+    ...(autoOpts.download ? { download: autoOpts.download } : {}),
+    ...(autoOpts.verify ? { verify: autoOpts.verify } : {}),
+    ...(autoOpts.install ? { install: autoOpts.install } : {}),
+    ...(autoOpts.appRunning ? { appRunning: autoOpts.appRunning } : {}),
+    ...(autoOpts.idleGraceMs !== undefined ? { idleGraceMs: autoOpts.idleGraceMs } : {}),
+  });
+  const desktopGoneUnsub = hub.onDesktopGone(() => autoUpdater.onDesktopGone());
   // 更新確認（M6-12）。確認先が無い（テスト）なら何もしない。拡張を組み込んだビルドと開発時の配置では確認しない
   const updater = new UpdateChecker({
-    feedUrl: opts.update?.feedUrl ?? null,
+    feedUrl: updateFeed,
     version: VERSION,
     clock,
     logger,
     enabled: () => getSetting<unknown>(db, "update.check") !== false,
-    load: () => readUpdateState(getSetting<unknown>(db, UPDATE_STATE_KEY)),
+    load: readUpdate,
     save: (s) => putSetting(mutateCtx, UPDATE_STATE_KEY, s),
+    onChecked: () => autoUpdater.onChecked(),
+    downloadEnabled: () => getSetting<unknown>(db, "update.download") !== false,
+    download: () => autoUpdater.status(),
+    install: () => autoUpdater.install("user"),
     publish: () => hub.publish("update", {}),
     ...(opts.update?.fetch ? { fetch: opts.update.fetch } : {}),
     ...(opts.update?.firstDelayMs !== undefined ? { firstDelayMs: opts.update.firstDelayMs } : {}),
@@ -716,6 +763,7 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
   notifier?.start();
   updater.start();
   install?.start();
+  autoUpdater.start();
   calendar?.start();
   presence?.start();
   launch?.start();
@@ -735,6 +783,7 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
     launch,
     onboarding,
     update: updater,
+    autoUpdate: autoUpdater,
     install,
     async stop() {
       if (stopped) return;
@@ -748,6 +797,8 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
       launch?.stop();
       notifier?.stop();
       updater.stop();
+      autoUpdater.stop();
+      desktopGoneUnsub();
       install?.stop();
       clearInterval(focusTimer);
       if (focusSoon) clearTimeout(focusSoon);

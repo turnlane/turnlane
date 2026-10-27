@@ -29,6 +29,7 @@ import {
   readUserVersion,
   SCHEMA_VERSION,
   summaryToolCommand,
+  UPDATE_DOWNLOAD_MAX_ATTEMPTS,
   VERSION,
 } from "@turnlane/core";
 import type { SummaryToolsResponse, UpdateStatus } from "@turnlane/core/api";
@@ -503,7 +504,11 @@ export async function doctorCommand(
         "取り込み: 同意待ち（turnlane onboarding consent で始めます）",
       ),
     );
-  if (update) env.out(updateLine(update));
+  if (update) {
+    env.out(updateLine(update));
+    const dl = updateDownloadLine(update);
+    if (dl) env.out(dl);
+  }
   return audit.length > 0 ? 1 : 0;
 }
 
@@ -573,4 +578,63 @@ function launchdSummary(env: CliEnv): {
     }
   };
   return { daemon: one(DAEMON_LABEL), calendarHelper: one(CALENDAR_HELPER_LABEL) };
+}
+
+/**
+ * 自動更新の 1 行（ADR 0008 の追記 4）: update.download のオン・オフ、取得・検証・置き換えの状態、最後の失敗。
+ * 古いデーモン（download が無い）・確認先の無いビルドでは出さない
+ */
+export function updateDownloadLine(u: UpdateStatus): string | null {
+  if (!u.configured || !u.download) return null;
+  if (u.downloadEnabled === false)
+    return tr(
+      "Update download: off (setting; turn on with turnlane config set update.download true)",
+      "更新のダウンロード: オフ（設定。turnlane config set update.download true でオン）",
+    );
+  const off = u.off ?? (u.enabled ? null : "setting");
+  if (off)
+    return tr(
+      "Update download: off (the update check is off)",
+      "更新のダウンロード: オフ（更新確認がオフ）",
+    );
+  if (u.channel === "dev")
+    return tr(
+      "Update download: on · only for the app install (Turnlane.app)",
+      "更新のダウンロード: オン · アプリの配置（Turnlane.app）だけ",
+    );
+  const d = u.download;
+  const v = d.version ?? "";
+  switch (d.state) {
+    case "downloading":
+      return tr(
+        `Update download: on · downloading ${v}`,
+        `更新のダウンロード: オン · ${v} を取得中`,
+      );
+    case "verifying":
+      return tr(`Update download: on · verifying ${v}`, `更新のダウンロード: オン · ${v} を確認中`);
+    case "ready":
+      return tr(
+        `Update download: on · ${v} is ready (Restart to update in the menu bar or at the top of the board)`,
+        `更新のダウンロード: オン · ${v} の準備ができました（メニューバーかボードの上部の「再起動して更新」）`,
+      );
+    case "installing":
+      return tr(
+        `Update download: on · installing ${v}`,
+        `更新のダウンロード: オン · ${v} を入れています`,
+      );
+    case "installed":
+      return tr(
+        `Update download: on · installed ${v} (restarting)`,
+        `更新のダウンロード: オン · ${v} を入れました（再起動中）`,
+      );
+    case "failed": {
+      const gaveUp = d.attempts >= UPDATE_DOWNLOAD_MAX_ATTEMPTS;
+      return tr(
+        `Update download: on · ${v} failed: ${d.error ?? "unknown"} (${gaveUp ? "gave up; update by hand" : `attempt ${d.attempts} of ${UPDATE_DOWNLOAD_MAX_ATTEMPTS}; retried at the next check`})`,
+        `更新のダウンロード: オン · ${v} は失敗: ${d.error ?? "unknown"}（${gaveUp ? "やめました。手で更新してください" : `${UPDATE_DOWNLOAD_MAX_ATTEMPTS} 回のうち ${d.attempts} 回目。次の確認でやり直します`}）`,
+      );
+    }
+    default:
+      return tr("Update download: on", "更新のダウンロード: オン");
+  }
 }

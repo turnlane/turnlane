@@ -144,6 +144,11 @@ export interface InstallServiceOptions extends InstallOptions {
 export class InstallService {
   readonly #o: InstallServiceOptions;
   #timer: ReturnType<typeof setInterval> | null = null;
+  /** 起動時のバンドルのビルド（版の監視の基準） */
+  #started: string | null = null;
+  /** 自動更新でアプリが動いていない間に入れた（終わるときにアプリを起こし直す印を書かない） */
+  #noRelaunch = false;
+  #replacedTimer: ReturnType<typeof setTimeout> | null = null;
   /** 登録をし直した組み合わせ（`<動いている版>→<同梱の版>`）。同じ組み合わせでは繰り返さない */
   readonly #helperTried = new Set<string>();
 
@@ -188,6 +193,7 @@ export class InstallService {
     const read = this.#o.readBuild ?? bundleBuild;
     const started = read(appPath);
     if (started === null) return;
+    this.#started = started;
     void this.reregisterOnBuildChange(started);
     this.#timer = setInterval(() => {
       if (!this.checkBundle(started)) void this.checkHelper();
@@ -282,8 +288,13 @@ export class InstallService {
     // 入れ替えの途中（読めない）は次の回に見る
     if (now === null || now === started) return false;
     this.#o.logger.info("install.bundle_changed", {});
-    // アプリがつながっていた（cask の uninstall が quit したばかり）なら、新しい版のデーモンに起こしてもらう印を残す
-    if (this.#o.mode === "app" && this.#o.desktopSeenWithin?.(DESKTOP_RECENT_MS)) {
+    // アプリがつながっていた（cask の uninstall が quit したばかり）なら、新しい版のデーモンに起こしてもらう印を残す。
+    // 自動更新をアプリが動いていない間に入れたときは残さない（利用者が終えたアプリを起こさない）
+    if (
+      this.#o.mode === "app" &&
+      !this.#noRelaunch &&
+      this.#o.desktopSeenWithin?.(DESKTOP_RECENT_MS)
+    ) {
       try {
         writeRelaunchMark(this.#o.dataDir, this.#o.now());
         this.#o.logger.info("install.relaunch_mark_written", {});
@@ -296,9 +307,35 @@ export class InstallService {
     return true;
   }
 
+  /**
+   * 自動更新でバンドルを入れ替えた直後（ADR 0008 の追記 4）。relaunchDesktop なら新しい版のデーモンにアプリを起こして
+   * もらう印を書く（Restart to update を押したとき。アプリが自分で開き直していれば二重には開かない）。afterMs の後に
+   * バンドルの版を確かめて終わる（SSE の installed を届けてから。launchd が新しい版で起こす）
+   */
+  bundleReplaced(o: { relaunchDesktop: boolean; afterMs?: number }): void {
+    if (this.#o.mode !== "app" || !this.#o.appPath) return;
+    if (o.relaunchDesktop) {
+      try {
+        writeRelaunchMark(this.#o.dataDir, this.#o.now());
+        this.#o.logger.info("install.relaunch_mark_written", {});
+      } catch (e) {
+        this.#o.logger.warn("install.relaunch_mark_failed", errorFields(e));
+      }
+    } else this.#noRelaunch = true;
+    const started = this.#started;
+    if (started === null) return;
+    if (this.#replacedTimer) clearTimeout(this.#replacedTimer);
+    this.#replacedTimer = setTimeout(() => {
+      this.#replacedTimer = null;
+      this.checkBundle(started);
+    }, o.afterMs ?? 2_000);
+  }
+
   stop(): void {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
+    if (this.#replacedTimer) clearTimeout(this.#replacedTimer);
+    this.#replacedTimer = null;
   }
 
   status(): InstallStatus {

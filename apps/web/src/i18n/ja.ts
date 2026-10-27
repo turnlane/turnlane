@@ -66,6 +66,13 @@ export const ja: Dict = {
   "update.copyFailed": "コピーできませんでした。ターミナルで {command} を実行してください。",
   "update.open": "リリースのページを開く",
   "update.dismiss": "閉じる",
+  "update.downloading": "Turnlane {version} に更新できます · ダウンロード中…",
+  "update.ready": "Turnlane {version} の準備ができました",
+  "update.restart": "再起動して更新",
+  "update.restarting": "Turnlane {version} の準備ができました · 再起動しています…",
+  "update.failedVerify": "Turnlane {version} に更新できます · ダウンロードを確かめられませんでした",
+  "update.failedInstall": "Turnlane {version} に更新できます · 更新を入れられませんでした",
+  "update.installFailed": "更新を入れられませんでした。",
   "dayDivider.nextWorkday": "次の稼働日",
   "board.addShort": "追加",
   "totals.free.def": "計画の目安のうち、予定と計画の入っていない時間",
@@ -681,6 +688,12 @@ export const ja: Dict = {
   "answer.options": "選択肢",
   "answer.option": "答えに {n} を入れる",
   "keys.answer": "答える（自分の番）",
+  "settings.update.check": "更新を確かめる",
+  "settings.update.check.hint":
+    "1日1回、GitHub Releases の小さなファイルを取得して新しい版があるかを確かめます。あなたやこの Mac についての情報は送りません。",
+  "settings.update.download": "更新を自動でダウンロード",
+  "settings.update.download.hint":
+    "新しい版を同じ GitHub Releases から取得し、Apple の署名と公証を確かめてから、「再起動して更新」を押したときかアプリが動いていない間に入れます。オフにすると新しい版を知らせるだけになります。",
   "settings.turn.answer": "Turnlane から答える",
   "settings.turn.answer.hint":
     "待ちの行に「答える」を出します。答えはそのセッションの端末のタブ（tmux・ターミナル・iTerm2・Ghostty・Orca）に文字として届きます。届いたか確かめられなければタブを前に出します。書いた答えは Turnlane に残しません。",

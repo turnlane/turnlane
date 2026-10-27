@@ -143,7 +143,9 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 notes.push(MenuItem::with_id(app, "version", &t.needs_update, false, None::<&str>)?);
             }
             if let (true, Some(u)) = (update, st.summary.update.as_ref()) {
-                notes.push(MenuItem::with_id(app, "update_available", &u.label, true, None::<&str>)?);
+                // 取得・入れている途中（none）は押せない 1 項目
+                let enabled = menu_text::update_action(u) != Some(UpdateAction::Info);
+                notes.push(MenuItem::with_id(app, "update_available", &u.label, enabled, None::<&str>)?);
             }
         }
     }
@@ -190,7 +192,8 @@ pub fn refresh(app: &AppHandle) {
 }
 
 /// 更新の知らせ（M6-17）: homebrew はコマンドをクリップボードへ写してメニューバーに短く「Copied」、download はリリースの
-/// ページを開く。ダウンロード・入れ替えはしない（ADR 0008）
+/// ページを開く。自動更新の用意ができていれば（install）デーモンに入れてもらう。入れ替えはデーモンが行い、終わると
+/// SSE update の installed でアプリが開き直す（daemon.rs。ADR 0008 の追記 4）
 fn on_update(app: &AppHandle) {
     let Some(u) = app.state::<Shared>().st.lock().unwrap().summary.update.clone() else { return };
     match menu_text::update_action(&u) {
@@ -212,7 +215,15 @@ fn on_update(app: &AppHandle) {
                 windows::log(&format!("tray: opening the releases page failed: {e}"));
             }
         }
-        None => {}
+        Some(UpdateAction::Install) => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                if daemon::call(&app, "POST", "/api/update/install", None).is_err() {
+                    windows::log("tray: installing the update failed");
+                }
+            });
+        }
+        Some(UpdateAction::Info) | None => {}
     }
 }
 

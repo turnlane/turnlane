@@ -318,4 +318,22 @@ export {
   type UpdateOffReason,
   updateBuildOff,
 } from "./update.ts";
+export {
+  downloadGaveUp,
+  downloadOnStart,
+  downloadUrlAllowed,
+  idleDownload,
+  nextDownload,
+  readUpdateDownload,
+  shouldStartDownload,
+  UPDATE_DOWNLOAD_ERRORS,
+  UPDATE_DOWNLOAD_MAX_ATTEMPTS,
+  UPDATE_DOWNLOAD_MAX_BYTES,
+  type UpdateDownload,
+  type UpdateDownloadError,
+  type UpdateDownloadEvent,
+  type UpdateDownloadState,
+  type UpdatePhase,
+  updatePhase,
+} from "./update-download.ts";
 export { VERSION } from "./version.ts";

@@ -8,10 +8,11 @@
  * `turnlane self-install` はコピー元（turnlane と同じディレクトリ）に Turnlane.app があれば install と同じことを行う（--no-desktop で省く）。
  * `turnlane uninstall` はアプリの LaunchAgent と .app も消す。
  */
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { DESKTOP_APP, DESKTOP_LABEL } from "@turnlane/core";
 import type { DesktopStatusResponse, NotificationPermission } from "@turnlane/daemon";
+import { replaceBundle, signatureKind } from "@turnlane/daemon/bundle";
 import { desktopPlist } from "@turnlane/daemon/launchd";
 import { callApi, fetchHealth } from "../client.ts";
 import type { CliEnv } from "../env.ts";
@@ -52,18 +53,8 @@ export function desktopSourceApp(env: CliEnv, app?: string): string | null {
 
 const isApp = (p: string) => existsSync(join(p, "Contents", "MacOS", "turnlane"));
 
-/** 署名の種類（turnlane doctor・status）: Apple Development / Developer ID / ad-hoc / なし */
-export function signatureKind(app: string): string {
-  const p = Bun.spawnSync(["/usr/bin/codesign", "-dv", "--verbose=2", app], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const out = p.stdout.toString() + p.stderr.toString();
-  if (p.exitCode !== 0) return "unsigned";
-  if (/Signature=adhoc/.test(out)) return "ad-hoc";
-  const a = /Authority=(Apple Development|Developer ID Application)/.exec(out)?.[1];
-  return a ?? "other";
-}
+/** 署名の種類（turnlane doctor・status）: Apple Development / Developer ID / ad-hoc / なし（デーモンの自動更新と共通） */
+export { signatureKind };
 
 /**
  * 公証のチケットが staple されているか。stapler は .app の Contents/CodeResources にチケットを置く。
@@ -81,11 +72,11 @@ function quitRunning(app: string): void {
   });
 }
 
-export function installDesktop(
+export async function installDesktop(
   env: CliEnv,
   src: string,
   o: { dryRun: boolean; step: (s: string) => void },
-): number {
+): Promise<number> {
   if (!isApp(src)) {
     env.err(
       tr(
@@ -110,21 +101,17 @@ export function installDesktop(
   quitRunning(dst);
   if (!same) {
     mkdirSync(dirname(dst), { recursive: true });
-    // 一時名に写してから入れ替える（ditto は署名を壊さずにバンドルを写す）
-    const tmp = `${dst}.tmp-${process.pid}`;
-    rmSync(tmp, { recursive: true, force: true });
-    const p = Bun.spawnSync(["/usr/bin/ditto", src, tmp], { stdout: "pipe", stderr: "pipe" });
-    if (p.exitCode !== 0) {
+    // 隣の一時名に写してから rename で入れ替える（ditto は署名を壊さずにバンドルを写す。失敗したら前のものを残す）
+    const err = await replaceBundle(src, dst);
+    if (err) {
       env.err(
         tr(
-          `Copy failed: ${p.stderr.toString().trim()}`,
-          `コピーに失敗しました: ${p.stderr.toString().trim()}`,
+          `Copy failed (${err === "not_writable" ? "not writable" : "copy or rename failed"}): ${dst}`,
+          `コピーに失敗しました（${err === "not_writable" ? "書き込めません" : "写し・名前の変更に失敗"}）: ${dst}`,
         ),
       );
       return 1;
     }
-    rmSync(dst, { recursive: true, force: true });
-    renameSync(tmp, dst);
   }
   mkdirSync(env.paths.launchAgentsDir, { recursive: true });
   mkdirSync(env.paths.logDir, { recursive: true, mode: 0o700 });
@@ -250,7 +237,7 @@ export async function desktopCommand(
         );
         return 1;
       }
-      return installDesktop(env, src, { dryRun: o.dryRun === true, step });
+      return await installDesktop(env, src, { dryRun: o.dryRun === true, step });
     }
     case "uninstall":
       uninstallDesktop(env, { dryRun: o.dryRun === true, step });

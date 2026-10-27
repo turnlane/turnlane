@@ -18,6 +18,7 @@
  * - GET  /api/update                          状態（接続しない）
  * - POST /api/update/check                    今すぐ確かめる（update.check がオフなら 409 update_check_off）
  * - POST /api/update/dismiss { version }       ボードの更新の知らせを閉じる（その版は次の起動まで出さない。接続しない）
+ * - POST /api/update/install                  取得・検証の済んだ更新を入れる（ready 以外は 409 update_not_ready。ADR 0008 の追記 4）
  */
 import { zValidator } from "@hono/zod-validator";
 import { ONBOARDING_STEPS } from "@turnlane/core";
@@ -101,5 +102,6 @@ export function createOnboardingRoutes(
     .post("/update/check", async (c) => c.json(await upd().checkNow()))
     .post("/update/dismiss", zValidator("json", dismissInput, invalid), (c) =>
       c.json(upd().dismiss(c.req.valid("json").version)),
-    );
+    )
+    .post("/update/install", async (c) => c.json(await upd().installNow()));
 }

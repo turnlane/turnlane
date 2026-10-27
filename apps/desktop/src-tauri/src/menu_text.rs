@@ -89,7 +89,8 @@ fn redo_en() -> String {
 #[derive(Clone, Deserialize, PartialEq, Debug)]
 pub struct UpdateItem {
     pub label: String,
-    /// copy（コマンドをクリップボードへ）か open（リリースのページを開く）
+    /// copy（コマンドをクリップボードへ）、open（リリースのページを開く）、install（自動更新の用意ができた。押すと
+    /// POST /api/update/install）、none（取得・入れている途中。押せない）。ADR 0008 の追記 4
     pub action: String,
     pub value: String,
     /// 写した直後にメニューバーに短く出す文言
@@ -101,6 +102,10 @@ pub struct UpdateItem {
 pub enum UpdateAction<'a> {
     Copy(&'a str),
     Open(&'a str),
+    /// デーモンに入れてもらう（押すと POST /api/update/install。入れ終わると SSE update の installed で開き直す）
+    Install,
+    /// 押せない項目（Downloading… など）
+    Info,
 }
 
 pub fn update_action(u: &UpdateItem) -> Option<UpdateAction<'_>> {
@@ -109,6 +114,8 @@ pub fn update_action(u: &UpdateItem) -> Option<UpdateAction<'_>> {
     match u.action.as_str() {
         "copy" if one_line && v.starts_with("brew upgrade ") => Some(UpdateAction::Copy(v)),
         "open" if one_line && v.starts_with("https://github.com/") => Some(UpdateAction::Open(v)),
+        "install" => Some(UpdateAction::Install),
+        "none" => Some(UpdateAction::Info),
         _ => None,
     }
 }
@@ -257,6 +264,21 @@ mod tests {
         assert_eq!(update_action(&item("open", "https://evil.example/")), None);
         assert_eq!(update_action(&item("open", "file:///etc/passwd")), None);
         assert_eq!(update_action(&item("run", "brew upgrade --cask turnlane")), None);
+    }
+
+    #[test]
+    fn reads_the_auto_update_items() {
+        // packages/core の updateMenuItem の ready（install）と途中（none）
+        let ready: UpdateItem = serde_json::from_str(
+            r#"{"label":"Turnlane 0.7.2 is ready · Restart to update","action":"install","value":"","copied":"Copied"}"#,
+        )
+        .unwrap();
+        assert_eq!(update_action(&ready), Some(UpdateAction::Install));
+        assert_eq!(version_note(false, false, Some(&ready)), VersionNote::Notes { mismatch: false, update: true });
+        let busy = item("none", "");
+        assert_eq!(update_action(&busy), Some(UpdateAction::Info));
+        // Restart to Finish Update（バンドルが入れ替わった）が先
+        assert_eq!(version_note(true, false, Some(&ready)), VersionNote::Restart);
     }
 
     #[test]

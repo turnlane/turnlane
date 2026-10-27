@@ -2,6 +2,8 @@
  * Homebrew cask（phase0-plan M6-9、ADR 0011 決定 6、docs/release.md）。雛形 turnlane.rb.tmpl に版と sha256 を差し込む。
  * - app と binary（Contents/Helpers/turnlane）、arm64・Sonoma 以降、uninstall は quit だけ（launchctl は zap にだけ。
  *   uninstall は brew upgrade のたびに走るため）、postflight なし
+ * - auto_updates true（アプリが同じ GitHub Releases から自分で更新する。ADR 0008 の追記 4。brew upgrade は --greedy のときだけ
+ *   触る。binary のリンク先と uninstall・zap は変わらない）
  * - url は Releases の zip（core の releaseZipUrl と同じ形。テストで突き合わせる）。持ち主・リポジトリ・cask の名前は
  *   packages/core/src/release-config.ts から差し込む（名前を変えるときは docs/release.md の一覧）
  */

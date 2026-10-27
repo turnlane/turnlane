@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- When a new version is available, the board shows "Turnlane x.y.z is available" at the top and the menu bar menu gets the same item: copy `brew upgrade --cask turnlane` (Homebrew) or open the Releases page (zip). Turnlane still never downloads or installs anything itself.
+- When a new version is available, the board shows "Turnlane x.y.z is available" at the top and the menu bar menu gets the same item: copy `brew upgrade --cask turnlane` (Homebrew) or open the Releases page (zip).
+- Automatic updates: Turnlane downloads the new version from GitHub Releases, checks Apple's signature and notarization, and installs it when you choose "Restart to update" (or while the app isn't running). If a check fails, nothing is installed and you get the manual instructions. Turn it off with Settings › General or `turnlane config set update.download false`.
 - After `brew upgrade --cask turnlane`, Turnlane reopens itself in the menu bar (no window) if it was running before the upgrade.
 
 ### Changed

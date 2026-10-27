@@ -266,8 +266,18 @@ fn connect_once(app: &AppHandle, tx: &mpsc::Sender<()>) -> Attempt {
 fn handle_event(app: &AppHandle, tx: &mpsc::Sender<()>, event: &str, data: &str) {
     match event {
         // update: 更新確認の結果が変わった（メニューの更新の知らせを summary で取り直す。M6-17）
-        "hello" | "follow_up" | "work_item" | "task" | "day_boundary" | "update" => {
+        "hello" | "follow_up" | "work_item" | "task" | "day_boundary" => {
             let _ = tx.send(());
+        }
+        // 自動更新（ADR 0008 の追記 4）: デーモンが新しい版を入れ終わったら（installed）、Restart to Finish Update と同じく
+        // 自分を開き直す
+        "update" => {
+            let _ = tx.send(());
+            if update_installed(data) {
+                windows::log("daemon: update installed, relaunching");
+                let a = app.clone();
+                let _ = app.run_on_main_thread(move || crate::setup::relaunch(&a));
+            }
         }
         "settings" => {
             let _ = tx.send(());
@@ -317,9 +327,22 @@ fn check_version(app: &AppHandle) {
     tray::refresh(app);
 }
 
+/// SSE update の中身が「入れ終わった」か（`{"installed":true,...}`）
+pub fn update_installed(data: &str) -> bool {
+    serde_json::from_str::<Value>(data).ok().and_then(|v| v.get("installed").and_then(Value::as_bool)).unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{http_error, next_wait, prompt_removed, Attempt};
+    use super::{http_error, next_wait, prompt_removed, update_installed, Attempt};
+
+    #[test]
+    fn reads_update_installed() {
+        assert!(update_installed(r#"{"installed":true,"version":"0.7.2","rev":4}"#));
+        assert!(!update_installed(r#"{"rev":3}"#));
+        assert!(!update_installed(r#"{"installed":"yes"}"#));
+        assert!(!update_installed("not json"));
+    }
 
     #[test]
     fn waits_a_second_while_the_first_daemon_is_starting() {

@@ -3,7 +3,7 @@
  * dev・閉じた版・新しい版が無いときは出さない。SSE update で取り直す（確認の直後に出る）
  */
 import { describe, expect, test } from "bun:test";
-import type { UpdateStatus } from "@turnlane/core/web";
+import type { UpdateDownload, UpdateStatus } from "@turnlane/core/web";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UpdateBarView, updateNotice } from "../src/components/UpdateBar.tsx";
@@ -106,5 +106,89 @@ describe("SSE update", () => {
     expect(updateNotice(status({ available: false }))).toBeNull();
     expect(updateNotice(status({ available: true }))?.version).toBe("0.7.1");
     expect(render(status({ available: false }))).toBe("");
+  });
+});
+
+describe("自動更新の段階（ADR 0008 の追記 4）", () => {
+  const dl = (o: Partial<UpdateDownload>): UpdateDownload => ({
+    state: "idle",
+    version: "0.7.1",
+    path: null,
+    error: null,
+    attempts: 0,
+    at: 1,
+    ...o,
+  });
+  const zip = { channel: "download" as const, upgradeCommand: null, releasesUrl: RELEASES };
+
+  test("download がオフなら今までどおり手動の案内", () => {
+    const h = render(
+      status({ downloadEnabled: false, download: dl({ state: "ready", path: "/p" }) }),
+    );
+    expect(h).toContain('data-action="copy"');
+    expect(h).toContain("Turnlane 0.7.1 is available");
+    expect(h).not.toContain("update-install");
+  });
+
+  test("取得・検証の途中: Downloading…、ボタンなし", () => {
+    for (const state of ["downloading", "verifying"] as const) {
+      const h = render(status({ ...zip, downloadEnabled: true, download: dl({ state }) }));
+      expect(h).toContain("Turnlane 0.7.1 is available · Downloading…");
+      expect(h).toContain('data-action="none"');
+      expect(h).not.toContain("update-open");
+      expect(h).not.toContain("update-copy");
+    }
+    expect(render(status({ download: dl({ state: "downloading" }) }), "ja")).toContain(
+      "Turnlane 0.7.1 に更新できます · ダウンロード中…",
+    );
+  });
+
+  test("ready: is ready と Restart to update", () => {
+    const h = render(status({ ...zip, download: dl({ state: "ready", path: "/p" }) }));
+    expect(h).toContain("Turnlane 0.7.1 is ready");
+    expect(h).toContain('data-testid="update-install"');
+    expect(h).toContain("Restart to update");
+    expect(h).not.toContain("update-open");
+    const ja = render(status({ download: dl({ state: "ready", path: "/p" }) }), "ja");
+    expect(ja).toContain("Turnlane 0.7.1 の準備ができました");
+    expect(ja).toContain("再起動して更新");
+  });
+
+  test("入れている間・入れ終わり: Restarting…、ボタンなし", () => {
+    for (const state of ["installing", "installed"] as const) {
+      const h = render(status({ download: dl({ state }) }));
+      expect(h).toContain("Turnlane 0.7.1 is ready · Restarting…");
+      expect(h).not.toContain("update-install");
+    }
+  });
+
+  test("検証に落ちた: Could not verify the download と手動の案内。書けなかった: Could not install the update", () => {
+    const h = render(status({ download: dl({ state: "failed", error: "team_id", attempts: 1 }) }));
+    expect(h).toContain("Turnlane 0.7.1 is available · Could not verify the download");
+    expect(h).toContain("Copy brew upgrade --cask turnlane");
+    const z = render(
+      status({ ...zip, download: dl({ state: "failed", error: "sha256", attempts: 3 }) }),
+    );
+    expect(z).toContain("Could not verify the download");
+    expect(z).toContain("Open Releases");
+    expect(
+      render(status({ download: dl({ state: "failed", error: "not_writable", attempts: 1 }) })),
+    ).toContain("Turnlane 0.7.1 is available · Could not install the update");
+    expect(render(status({ download: dl({ state: "failed", error: "team_id" }) }), "ja")).toContain(
+      "ダウンロードを確かめられませんでした",
+    );
+  });
+
+  test("別の版の状態は見ない（手動の案内）。閉じた版は出さない", () => {
+    expect(
+      updateNotice(status({ download: dl({ state: "ready", version: "0.7.0", path: "/p" }) })),
+    ).toEqual({
+      version: "0.7.1",
+      action: "copy",
+      command: "brew upgrade --cask turnlane",
+    });
+    expect(
+      render(status({ dismissed: "0.7.1", download: dl({ state: "ready", path: "/p" }) })),
+    ).toBe("");
   });
 });

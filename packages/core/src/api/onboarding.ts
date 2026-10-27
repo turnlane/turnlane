@@ -1,5 +1,6 @@
 /** オンボーディングの API（onboarding.md 5.4、M6-18〜M6-20）と更新確認（M6-12） */
 import type { Onboarding, OnboardingStep, OnboardingStepStatus } from "../onboarding.ts";
+import type { UpdateDownload } from "../update-download.ts";
 import type { EpochMs, LocalDate } from "./common.ts";
 
 /** GET /api/onboarding */
@@ -222,4 +223,11 @@ export interface UpdateStatus {
    * dev_install は開発時の配置（公開版を勧めない）
    */
   off?: "setting" | "custom_build" | "dev_install" | null;
+  /** 設定 update.download（既定オン。オフなら確認だけ。古いデーモンには無い） */
+  downloadEnabled?: boolean;
+  /**
+   * 取得・検証・置き換えの状態（ADR 0008 の追記 4）。自動の対象外（開発時の配置・アプリの外の起動）では idle のまま。
+   * 古いデーモンには無い
+   */
+  download?: UpdateDownload;
 }

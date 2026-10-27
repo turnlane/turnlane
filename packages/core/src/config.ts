@@ -147,6 +147,11 @@ export const CONFIG_SCHEMAS = {
    * （接続のコードを通らない）
    */
   "update.check": z.boolean(),
+  /**
+   * 更新の取得と置き換え（ADR 0008 の追記 4、onboarding.md 2.5）。既定オン。新しい版があれば、同じ GitHub Releases の zip を
+   * 背景で取得し、Apple の署名・公証と Team ID の一致を確かめて入れる用意をする。false なら確認だけ（手動の案内）
+   */
+  "update.download": z.boolean(),
   "ui.theme": z.enum(["system", "light", "dark"]),
   "ui.language": z.enum(["system", "en", "ja"]),
   /** 稼働曜日（ISO: 月 = 1 … 日 = 7）。1つ以上 */

@@ -7,8 +7,9 @@
  *   クエリ文字列は付けない
  * - 設定 `update.check`（既定オン）が false なら接続のコードを通らない（確認の直前に毎回見る）
  * - 新しい版があれば UI（GET /api/update と SSE `update`。ボードの上部の 1 行とメニューバーの 1 項目）と `turnlane doctor` に
- *   知らせるだけ。ダウンロード・入れ替えはしない（Homebrew 版は brew upgrade --cask を案内し、zip の版は最新リリースの
- *   ページを開く。M6-17）
+ *   知らせる。配布版で設定 update.download がオンなら、確認の後に自動更新（auto.ts）が同じ GitHub Releases から取得・検証・
+ *   置き換えをする（ADR 0008 の追記 4）。オフ・検証に落ちたときは手動の案内（Homebrew 版は brew upgrade --cask、zip の版は
+ *   最新リリースのページ。M6-17）
  * - ボードの知らせを閉じた版（dismiss）はこのプロセスの中だけ覚える（次の起動でまた出す。設定に残さない）
  */
 import { errorFields, type MetaOnlyLogger, meta } from "@turnlane/collectors";
@@ -16,10 +17,13 @@ import {
   type Clock,
   compareVersions,
   HOMEBREW_UPGRADE_COMMAND,
+  idleDownload,
   type LatestRelease,
   parseLatest,
   RELEASES_LATEST_PAGE_URL,
+  readUpdateDownload,
   UPDATE_CHECK_INTERVAL_MS,
+  type UpdateDownload,
   type UpdateOffReason,
 } from "@turnlane/core";
 import type { UpdateStatus } from "@turnlane/core/api";
@@ -30,6 +34,8 @@ export interface UpdateState {
   checkedAt: number;
   latest: LatestRelease | null;
   error: string | null;
+  /** 取得・検証・置き換えの状態（ADR 0008 の追記 4。auto.ts が書く。確認はそのまま残す） */
+  download?: UpdateDownload | null;
 }
 
 export const UPDATE_STATE_KEY = "update.state";
@@ -51,6 +57,7 @@ export function readUpdateState(v: unknown): UpdateState | null {
     checkedAt: o.checkedAt,
     latest,
     error: typeof o.error === "string" ? o.error : null,
+    download: readUpdateDownload(o.download),
   };
 }
 
@@ -82,6 +89,14 @@ export interface UpdateCheckerOptions {
    * 値があれば設定に関わらず接続のコードを通らない。省略時は null
    */
   buildOff?: Exclude<UpdateOffReason, "setting"> | null;
+  /** 確認が終わったとき（自動更新の取得を始める。auto.ts） */
+  onChecked?: () => void;
+  /** 設定 update.download（既定オン） */
+  downloadEnabled?: () => boolean;
+  /** 取得・検証・置き換えの状態（auto.ts）。省略時は idle */
+  download?: () => UpdateDownload;
+  /** 取得・検証の済んだ更新を入れる（auto.ts の install("user")。ready 以外は 409）。省略時は 409 */
+  install?: () => Promise<unknown>;
 }
 
 export class UpdateChecker {
@@ -189,7 +204,14 @@ export class UpdateChecker {
       error = (e as Error).name === "TimeoutError" ? "timeout" : "network";
       this.#o.logger.info("update.check_failed", errorFields(e));
     }
-    const next: UpdateState = { checkedAt: this.#o.clock.now(), latest, error };
+    // 取得の状態（download）は確認の結果と一緒に残す（接続の間に変わりうるので読み直す）
+    const download = this.#o.load()?.download ?? null;
+    const next: UpdateState = {
+      ...(download ? { download } : {}),
+      checkedAt: this.#o.clock.now(),
+      latest,
+      error,
+    };
     this.#o.save(next);
     const was = prev ? statusOf(prev, this.#o.version) : null;
     const now = statusOf(next, this.#o.version);
@@ -202,6 +224,14 @@ export class UpdateChecker {
       this.#o.publish();
     if (now.available)
       this.#o.logger.info("update.available", { version: meta(next.latest?.version ?? "") });
+    this.#o.onChecked?.();
+  }
+
+  /** POST /api/update/install: 取得・検証の済んだ更新を入れる。ready 以外は 409 update_not_ready */
+  async installNow(): Promise<UpdateStatus> {
+    if (!this.#o.install) throw new OpError(409, "update_not_ready");
+    await this.#o.install();
+    return this.status();
   }
 
   /** ボードの更新の知らせを閉じる（POST /api/update/dismiss）。その版はこのプロセスの間は出さない */
@@ -230,6 +260,14 @@ export class UpdateChecker {
       releasesUrl: channel === "download" ? RELEASES_LATEST_PAGE_URL : null,
       dismissed: this.#dismissed,
       off: this.#off(),
+      downloadEnabled: (() => {
+        try {
+          return this.#o.downloadEnabled?.() ?? true;
+        } catch {
+          return false;
+        }
+      })(),
+      download: this.#o.download?.() ?? idleDownload(0),
     };
   }
 }

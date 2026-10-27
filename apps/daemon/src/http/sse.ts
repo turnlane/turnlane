@@ -63,6 +63,8 @@ export class SseHub {
   /** 最後のデスクトップアプリの購読が切れた時刻（更新の後の起こし直し。M6-17） */
   #desktopLeftAt: number | null = null;
   readonly #now: () => number;
+  /** デスクトップアプリの購読が全部切れたとき（自動更新。アプリが動いていない間に入れる） */
+  readonly #desktopGone = new Set<() => void>();
   readonly bootId: string = crypto.randomUUID();
 
   constructor(
@@ -96,6 +98,12 @@ export class SseHub {
   desktopSeenWithin(ms: number): boolean {
     if (this.#desktop.size > 0) return true;
     return this.#desktopLeftAt !== null && this.#now() - this.#desktopLeftAt <= ms;
+  }
+
+  /** デスクトップアプリの購読が全部切れたときに呼ぶ（外すための関数を返す） */
+  onDesktopGone(f: () => void): () => void {
+    this.#desktopGone.add(f);
+    return () => this.#desktopGone.delete(f);
   }
 
   /** 最後につないだデスクトップアプリの言語（例 ja-JP）。いなければ null */
@@ -190,6 +198,11 @@ export class SseHub {
         if (this.#desktop.delete(me) && this.#desktop.size === 0) {
           this.#desktopLeftAt = this.#now();
           this.publish("follow_up", { ids: [], workItemIds: [] });
+          for (const f of this.#desktopGone) {
+            try {
+              f();
+            } catch {}
+          }
         }
       }
     });

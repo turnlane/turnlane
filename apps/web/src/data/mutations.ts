@@ -1464,6 +1464,21 @@ export async function dismissUpdate(version: string): Promise<void> {
   }
 }
 
+/**
+ * 取得・検証の済んだ更新を入れる（Restart to update。ADR 0008 の追記 4）。入れ終わったら true。デーモンは新しい版で
+ * 起き直し、アプリは SSE update の installed で開き直す。入れられなかった・ready でなかったら false
+ */
+export async function installUpdate(): Promise<boolean> {
+  try {
+    const v = await unwrap<UpdateStatus>(api.api.update.install.$post());
+    queryClient.setQueryData(keys.update(), v);
+    return v.download?.state === "installed";
+  } catch {
+    void queryClient.invalidateQueries({ queryKey: keys.update() });
+    return false;
+  }
+}
+
 // ---------- タスクから AI に頼む（D-107。m2-api 27章） ----------
 
 /** 依頼して端末を開く。コピーになったら（端末が無い・オートメーションの許可が無い）クリップボードへ書く */

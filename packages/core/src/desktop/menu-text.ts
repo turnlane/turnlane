@@ -3,6 +3,7 @@
  * 集中モードのサブメニュー（FOCUS_MENU）と同じく、ロケールはデーモンで解決して /api/queue/summary の nativeMenu で返す。
  * 英語は macOS の慣習どおり Title Case（sentence case の規則の例外）。{key} はクイック入力のキーの表記に置き換える
  */
+import { type UpdateDownload, updatePhase } from "../update-download.ts";
 export interface NativeMenuText {
   // メニューバーの右クリック
   open: string;
@@ -92,14 +93,18 @@ export const NATIVE_MENU: { en: NativeMenuText; ja: NativeMenuText } = {
 };
 
 /**
- * メニューバーの更新の知らせ（onboarding.md 2.5 の更新確認の行、M6-17）。/api/queue/summary の update で返す。
- * homebrew は押すと `brew upgrade --cask turnlane` をクリップボードに写し（copied を短く出す）、download は最新リリースの
- * ページを開く。dev・新しい版が無いときは null（メニューに出さない）。Restart to Finish Update があればアプリがそちらを出す
+ * メニューバーの更新の知らせ（onboarding.md 2.5 の更新確認の行、M6-17。自動更新は ADR 0008 の追記 4）。/api/queue/summary の
+ * update で返す。段階（updatePhase）で分ける:
+ * - 手動（update.download がオフ・自動の対象外・検証に落ちた）: homebrew は押すと `brew upgrade --cask turnlane` をクリップボードに
+ *   写し（copied を短く出す）、download は最新リリースのページを開く
+ * - 取得・検証の途中・入れている間: 押せない 1 項目（none）
+ * - 入れる用意ができた: `Turnlane 0.7.2 is ready · Restart to update`。押すと POST /api/update/install（install）
+ * dev・新しい版が無いときは null（メニューに出さない）。Restart to Finish Update があればアプリがそちらを出す
  */
 export interface UpdateMenuItem {
   label: string;
-  action: "copy" | "open";
-  /** copy なら写すコマンド、open なら開く URL */
+  action: "copy" | "open" | "install" | "none";
+  /** copy なら写すコマンド、open なら開く URL（install・none は空） */
   value: string;
   /** 写した直後にメニューバーに短く出す文言 */
   copied: string;
@@ -109,11 +114,17 @@ const UPDATE_MENU = {
   en: {
     copy: "Turnlane {version} is available · Copy {command}",
     open: "Turnlane {version} is available · Open Releases",
+    downloading: "Turnlane {version} is available · Downloading…",
+    ready: "Turnlane {version} is ready · Restart to update",
+    installing: "Turnlane {version} is ready · Restarting…",
     copied: "Copied",
   },
   ja: {
     copy: "Turnlane {version} に更新できます · {command} をコピー",
     open: "Turnlane {version} に更新できます · リリースのページを開く",
+    downloading: "Turnlane {version} に更新できます · ダウンロード中…",
+    ready: "Turnlane {version} の準備ができました · 再起動して更新",
+    installing: "Turnlane {version} の準備ができました · 再起動しています…",
     copied: "コピーしました",
   },
 } as const;
@@ -125,12 +136,25 @@ export function updateMenuItem(
     channel?: "homebrew" | "download" | "dev";
     upgradeCommand?: string | null;
     releasesUrl?: string | null;
+    downloadEnabled?: boolean;
+    download?: UpdateDownload | null;
   },
   locale: "en" | "ja",
 ): UpdateMenuItem | null {
-  if (!s.available || !s.latest) return null;
+  const phase = updatePhase(s);
+  if (!phase) return null;
   const t = UPDATE_MENU[locale];
-  const version = s.latest.version;
+  const version = phase.version;
+  const item = (label: string, action: "install" | "none"): UpdateMenuItem => ({
+    label: label.replace("{version}", version),
+    action,
+    value: "",
+    copied: t.copied,
+  });
+  if (phase.kind === "downloading") return item(t.downloading, "none");
+  if (phase.kind === "ready") return item(t.ready, "install");
+  if (phase.kind === "installing") return item(t.installing, "none");
+  // 手動の案内（失敗したときも退路として同じ）
   if (s.channel === "homebrew" && s.upgradeCommand)
     return {
       label: t.copy.replace("{version}", version).replace("{command}", s.upgradeCommand),

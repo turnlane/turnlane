@@ -1,6 +1,6 @@
 # ADR 0008: MIT ライセンスのオープンソースとして配布し、作者が運用するサーバーを持たない
 
-- ステータス: Accepted（2026-10-02 追記あり。末尾。Amended by [0015](./0015-extension-points-and-separately-licensed-additions.md): 拡張点と、公式の配布物に組み込む別ライセンスの拡張） / Amends [ADR 0002](./0002-local-sqlite-source-of-truth-hlc-lww-sync-later.md)、[ADR 0003](./0003-calendar-eventkit-phase0-google-api-phase1.md)
+- ステータス: Accepted（2026-10-02・2026-10-27 追記あり。末尾。Amended by [0015](./0015-extension-points-and-separately-licensed-additions.md): 拡張点と、公式の配布物に組み込む別ライセンスの拡張） / Amends [ADR 0002](./0002-local-sqlite-source-of-truth-hlc-lww-sync-later.md)、[ADR 0003](./0003-calendar-eventkit-phase0-google-api-phase1.md)
 - 日付: 2026-10-02
 - 関係: どちらも決定の一部だけを置き換える。ADR 0002 のうち「Phase1 以降に同期サーバ経由の同期を実装する」を取り消す（同期用カラムと `mutate()` / `change_log` は残す）。ADR 0003 のうち「Phase1 で Google Calendar API 直結を追加する」を取り消す（EventKit の決定は有効）
 
@@ -55,3 +55,21 @@ Decision を補う PO の決定。上の Decision の本文は書き換えず、
 - 監査で問題が出た場合、公開リポジトリには公開前の履歴が残らない。
 
 2026-10-26: 著作権者の表記を Rootstack Inc. に変えた（公開先が法人所有の組織になったため）
+
+## 追記 4（2026-10-27）: 同じ GitHub Releases からの取得と置き換え
+
+4. **追記 2 の「確認だけ」を、同じ GitHub Releases から配布物を取得して置き換えることまで広げる**。デーモンは、更新確認で新しい版を見つけたら、`latest.json` の `url` の zip を取得し、検証してからアプリ（`install.json` の `appPath` の `Turnlane.app`）を置き換えてよい。条件:
+   - 取得先は `latest.json` の `url` だけで、GitHub（`https://github.com/`）に限る。転送は GitHub のリリースの添付の置き場（`*.githubusercontent.com`）だけ追う。作者が運用するホストや独自 API は使わない。
+   - 送るのは HTTP の GET だけで、Cookie、端末やユーザーの識別子、利用状況を付けない（User-Agent は更新確認と同じ `turnlane/<version>`）。
+   - 入れる前の検証を必須にする: `latest.json` の sha256 との一致、`codesign --verify --deep --strict`、TeamIdentifier が動いている自分のバンドルと同じ（Team ID はコードに書かず自分のバンドルから読む）、`Info.plist` の版が `latest.json` の版と同じで今より新しい、`spctl --assess --type execute`（Apple の公証）が通ること。
+   - 検証のどれか 1 つに落ちたら何も入れない（取得したものを消し、手動の案内に戻す）。置き換えは配置先の隣の一時名から rename で行い、途中で失敗したら前のものを戻す。配置先に書けなければ管理者権限を求めずに手動の案内に戻す。
+   - 設定でオフにできる（`update.download`、既定はオン。オフなら確認だけ。`update.check` をオフにすれば取得もしない）。
+   - 新しい署名の鍵は持たない（検証は Apple の署名と公証で足りるため。Tauri の updater プラグインの鍵は使わない）。
+   - 実装は `apps/daemon/src/update/`（`downloader.ts`・`verify.ts`・`install.ts`・`auto.ts`）。README に取得と置き換え、オフにする方法、`spctl` が Apple に接続しうることを書く。
+
+### 追記 4 の Consequences
+
+- 通信先の一覧は「GitHub Releases の `latest.json` と、新しい版の zip（どちらもオフにできる）」になる。
+- `spctl` は、公証のチケットがバンドルに staple されていれば通常は接続しないが、チケットが無いと Apple に問い合わせうる。これは macOS の仕組みによる接続で、Turnlane の識別子は送らない。
+- 取得・置き換えの経路が Homebrew の人と zip の人で同じになる。cask は `auto_updates true` にする（`brew upgrade` は `--greedy` のときだけ触る）。
+- 置き換えの通しの確認は、実際のリリース（0.7.1 から 0.7.2）で初めてできる。

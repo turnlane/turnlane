@@ -43,6 +43,16 @@ const CORE_SECTIONS: SettingsSection[] = [
     items: [
       { anchor: "language", title: "settings.language" },
       { anchor: "theme", title: "settings.theme" },
+      {
+        anchor: "update-check",
+        title: "settings.update.check",
+        hint: "settings.update.check.hint",
+      },
+      {
+        anchor: "update-download",
+        title: "settings.update.download",
+        hint: "settings.update.download.hint",
+      },
     ],
   },
   {

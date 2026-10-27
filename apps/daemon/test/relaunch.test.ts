@@ -108,6 +108,38 @@ describe("終わるとき（バンドルの版が変わった）", () => {
   });
 });
 
+describe("自動更新で入れ替えた直後（bundleReplaced）", () => {
+  async function replaced(relaunchDesktop: boolean) {
+    let build = "0.7.1+old";
+    let exited = 0;
+    const s = svc({
+      readBuild: () => build,
+      exit: () => exited++,
+      desktopSeenWithin: () => true,
+      watchMs: 600_000,
+      reregisterHelper: async () => false,
+    });
+    s.start();
+    // 起動時の起こし直しの確かめ（印なし）を済ませる
+    await Bun.sleep(5);
+    build = "0.7.2+new";
+    s.bundleReplaced({ relaunchDesktop, afterMs: 5 });
+    for (let i = 0; i < 50 && exited === 0; i++) await Bun.sleep(5);
+    s.stop();
+    return exited;
+  }
+
+  test("Restart to update（user）: 印を書いてから、待ちの後にバンドルの変化で終わる", async () => {
+    expect(await replaced(true)).toBe(1);
+    expect(takeRelaunchMark(dataDir, T0)).toBe("fresh");
+  });
+
+  test("アプリが動いていない間に入れた: アプリがさっきまでつながっていても印を書かない", async () => {
+    expect(await replaced(false)).toBe(1);
+    expect(existsSync(relaunchMarkPath(dataDir))).toBe(false);
+  });
+});
+
 describe("起動時の起こし直し（open は偽の関数）", () => {
   const opener = (ok: boolean | "throw" = true) => {
     const calls = { n: 0 };

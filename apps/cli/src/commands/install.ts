@@ -134,7 +134,7 @@ export async function selfInstall(env: CliEnv, opts: SelfInstallOptions = {}): P
     refreshMcpPaths(env, join(paths.binDir, "turnlane"), { dryRun: true, now: opts.now, step });
     step(`plist: ${plist}`);
     env.out(content);
-    if (withDesktop) installDesktop(env, desktopSrc, { dryRun: true, step });
+    if (withDesktop) await installDesktop(env, desktopSrc, { dryRun: true, step });
     step(
       opts.noLoad
         ? tr("Skip registering with launchd (--no-load)", "launchd への登録はしない（--no-load）")
@@ -202,7 +202,7 @@ export async function selfInstall(env: CliEnv, opts: SelfInstallOptions = {}): P
     );
   }
   if (withDesktop && !opts.noLoad) {
-    const r = installDesktop(env, desktopSrc, { dryRun: false, step });
+    const r = await installDesktop(env, desktopSrc, { dryRun: false, step });
     if (r !== 0) return r;
   }
   const pathVar = env.vars.PATH ?? "";

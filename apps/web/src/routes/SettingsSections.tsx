@@ -501,6 +501,71 @@ export function FollowUpSection() {
 }
 
 /**
+ * 更新（設定 › 一般。ADR 0008 の追記 2・4）: 更新を確かめる（update.check）と、更新を自動でダウンロードする（update.download）。
+ * どちらも既定オン。確認がオフのときはダウンロードも行わない
+ */
+export function UpdateSettingsRows() {
+  const t = useT();
+  const qc = useQueryClient();
+  const q = useConfigValues();
+  const [err, setErr] = useState<string | null>(null);
+  if (!q.data) return null;
+  const save = (key: string, value: unknown) => {
+    setErr(null);
+    putConfig(key, value)
+      .catch(() => setErr(key))
+      .finally(() => {
+        void qc.invalidateQueries({ queryKey: ["settings"] });
+        void qc.invalidateQueries({ queryKey: keys.update() });
+      });
+  };
+  const check = q.data["update.check"] !== false;
+  const download = q.data["update.download"] !== false;
+  const onOff = [
+    { v: "on" as const, label: t("settings.on") },
+    { v: "off" as const, label: t("settings.off") },
+  ];
+  return (
+    <>
+      <section
+        className="flex items-center justify-between gap-4"
+        data-testid="settings-update-check"
+        data-setting="update-check"
+      >
+        <SectionHead
+          k="settings.update.check"
+          hint="settings.update.check.hint"
+          err={err === "update.check"}
+        />
+        <Segmented
+          label={t("settings.update.check")}
+          value={check ? "on" : "off"}
+          options={onOff}
+          onChange={(v) => save("update.check", v === "on")}
+        />
+      </section>
+      <section
+        className="flex items-center justify-between gap-4"
+        data-testid="settings-update-download"
+        data-setting="update-download"
+      >
+        <SectionHead
+          k="settings.update.download"
+          hint="settings.update.download.hint"
+          err={err === "update.download"}
+        />
+        <Segmented
+          label={t("settings.update.download")}
+          value={download ? "on" : "off"}
+          options={onOff}
+          onChange={(v) => save("update.download", v === "on")}
+        />
+      </section>
+    </>
+  );
+}
+
+/**
  * 行に中身を出すか（turn.show_detail。既定オン。D-207 (1)）と通知に出す中身（notify.content。既定は件名。D-207 (4)）。
  * 「セッションの題名を保存」（保存）とは別の設定（こちらは表示。spec-glance §7）
  */

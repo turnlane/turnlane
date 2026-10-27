@@ -27,6 +27,10 @@ The update check in the daemon reads `https://github.com/turnlane/turnlane/relea
 
 `url` must be an `https://github.com/` URL (or the same origin as the feed); otherwise the daemon ignores the file (`parseLatest` in `packages/core/src/update.ts`). `scripts/build-app.ts` writes it, and `bun run release` checks that it matches the zip.
 
+The app's automatic update downloads `url` only when it is on `https://github.com/` (redirects are followed only to `*.githubusercontent.com`; a loopback feed set with `TURNLANE_UPDATE_FEED_URL` may also serve the zip from its own origin, for testing). It refuses to install unless the zip matches `sha256`, contains only `Turnlane.app`, passes `codesign --verify --deep --strict`, has the same TeamIdentifier as the running app, has `CFBundleShortVersionString` equal to `version`, and passes `spctl --assess --type execute`. So every release zip must be the notarized, stapled build signed with the same Developer ID team as the previous release; a release signed by another team cannot reach existing users through the automatic update (they get the manual instructions instead).
+
+The automatic update can only be tested end to end with a real release: the first full run is updating from 0.7.1 to 0.7.2. Keep 0.7.2 small so that the run is the point of it. Before that, a candidate build can be checked on a spare Mac with a loopback feed (`TURNLANE_UPDATE_FEED_URL=http://127.0.0.1:<port>/latest.json` in the daemon's environment) pointing at a notarized zip of a higher version.
+
 ## Requirements
 
 - macOS on Apple Silicon, Bun 1.4.x, Xcode command line tools, Rust (see `.mise.toml`), `gh` signed in to the account that owns the repository.
@@ -105,6 +109,7 @@ The template is `scripts/release/turnlane.rb.tmpl`; `scripts/release/cask.ts` fi
 - `zap` removes the background items (`dev.turnlane.daemon`, `dev.turnlane.calendar-helper`), the data directory, the logs, and the app's caches and preferences. Without `--zap`, the data stays.
 - No `postflight`. `caveats` says that hooks and MCP entries are not removed by `brew uninstall` and to run `turnlane uninstall --all` first.
 - `livecheck` uses the latest GitHub release.
+- `auto_updates true`: the app updates itself from the same GitHub Releases (ADR 0008, addendum 4), so a plain `brew upgrade` skips it unless `--greedy` is given; `brew upgrade --cask turnlane` still works. When the app replaces `/Applications/Turnlane.app` itself, the `binary` link (it points into the bundle), `uninstall quit`, and `zap` stay valid.
 
 To check a changed template without publishing, render it into a temporary tap:
 

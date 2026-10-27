@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./launchd": "./src/launchd/plist.ts",
+    "./bundle": "./src/install/bundle.ts",
     "./ext": "./src/ext/types.ts"
   },
   "scripts": {

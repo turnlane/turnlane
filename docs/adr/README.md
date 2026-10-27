@@ -9,7 +9,7 @@
 | [0005](./0005-no-ai-session-body-storage-or-transmission.md) | AI セッションの会話本文は保存も送信もしない | Accepted（2026-10-03 追記: 日報の AI 要約はユーザー自身の Claude / Codex CLI で、日報の Markdown だけを渡す。Amended by 0018: 保存は限定した待ちの中身だけ許す） |
 | [0006](./0006-bun-workspaces-toolchain.md) | ツールチェーンを Bun workspaces に揃える | Accepted（Amended by 0007） |
 | [0007](./0007-bun-1-4-pin-and-build-conditions.md) | Bun を 1.4 系に固定し、単一バイナリのビルド条件を定める | Accepted（Amends 0006。Amended by 0009: hook の import 制限） |
-| [0008](./0008-mit-no-server-open-source.md) | MIT ライセンスのオープンソースとして配布し、作者が運用するサーバーを持たない | Accepted（Amends 0002, 0003。更新確認の例外と LICENSE の確定を追記。Amended by 0015: 拡張点と別ライセンスの拡張） |
+| [0008](./0008-mit-no-server-open-source.md) | MIT ライセンスのオープンソースとして配布し、作者が運用するサーバーを持たない | Accepted（Amends 0002, 0003。更新確認の例外と LICENSE の確定を追記。追記 4: 同じ GitHub Releases からの取得・検証・置き換え。Amended by 0015: 拡張点と別ライセンスの拡張） |
 | [0009](./0009-hook-allowlist-zero-dependency-module.md) | hooks の許可リストを collectors の依存ゼロのモジュールに置き、dl hook の import 制限を緩める | Accepted（Amends 0007） |
 | [0010](./0010-desktop-shell-in-phase0-as-daemon-client.md) | デスクトップシェル（Tauri 2）を Phase0 の常用中に入れ、デーモンのクライアントとして作る | Accepted（Amends 0001, 0003。Amended by 0011 を提案中: 起動の登録とヘルパの同梱） |
 | [0011](./0011-single-app-bundle-smappservice.md) | 配布物を Dayline.app 1つにまとめ、常駐プロセスを SMAppService で登録する | Proposed（Amends 0001, 0003, 0010。Amended by 0016: 名前） |

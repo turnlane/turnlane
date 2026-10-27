@@ -25,6 +25,7 @@ const EXPECTED = `cask "turnlane" do
     strategy :github_latest
   end
 
+  auto_updates true
   depends_on arch: :arm64
   depends_on macos: :sonoma
 
@@ -66,6 +67,13 @@ describe("cask の描画", () => {
     const cask = renderCaskFile({ version: "1.2.3", sha256: SHA });
     const url = /^\s*url "([^"]+)"/m.exec(cask)?.[1] ?? "";
     expect(url.replaceAll("#{version}", "1.2.3")).toBe(releaseZipUrl("1.2.3"));
+  });
+
+  test("auto_updates true（アプリが自分で更新する。brew upgrade は --greedy のときだけ触る）", () => {
+    const cask = renderCaskFile({ version: "0.7.0", sha256: SHA });
+    expect(cask.split("\n").filter((l) => /^\s*auto_updates\b/.test(l))).toEqual([
+      "  auto_updates true",
+    ]);
   });
 
   test("uninstall に launchctl を書かず、postflight を持たない（uninstall は brew upgrade のたびに走る）", () => {

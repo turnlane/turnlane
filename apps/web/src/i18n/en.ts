@@ -63,6 +63,14 @@ export const en = {
   "update.copyFailed": "Couldn't copy. Run {command} in Terminal.",
   "update.open": "Open Releases",
   "update.dismiss": "Dismiss",
+  // 自動更新（ADR 0008 の追記 4）
+  "update.downloading": "Turnlane {version} is available · Downloading…",
+  "update.ready": "Turnlane {version} is ready",
+  "update.restart": "Restart to update",
+  "update.restarting": "Turnlane {version} is ready · Restarting…",
+  "update.failedVerify": "Turnlane {version} is available · Could not verify the download",
+  "update.failedInstall": "Turnlane {version} is available · Could not install the update",
+  "update.installFailed": "Couldn't install the update.",
   "dayDivider.nextWorkday": "Next workday",
   "board.addShort": "Add",
   "totals.free.def": "Time within your planning hours with no events or planned tasks",
@@ -709,6 +717,12 @@ export const en = {
   "answer.options": "Choices",
   "answer.option": "Put {n} in the answer",
   "keys.answer": "Answer (your turn)",
+  "settings.update.check": "Check for updates",
+  "settings.update.check.hint":
+    "Once a day, fetch a small file from GitHub Releases to see if there's a new version. Nothing about you or this Mac is sent.",
+  "settings.update.download": "Download updates automatically",
+  "settings.update.download.hint":
+    "Get the new version from the same GitHub Releases, check Apple's signature and notarization, and install it when you choose Restart to update or while the app isn't running. Off: you're only told about new versions.",
   "settings.turn.answer": "Answer from Turnlane",
   "settings.turn.answer.hint":
     "Show Answer on waiting rows. Your answer is typed into that session's terminal tab (tmux, Terminal, iTerm2, Ghostty, Orca). If Turnlane can't confirm it went through, it brings the tab to the front. Turnlane doesn't keep what you wrote.",
