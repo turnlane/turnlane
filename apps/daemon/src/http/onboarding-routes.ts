@@ -17,6 +17,7 @@
  * 更新確認（M6-12）:
  * - GET  /api/update                          状態（接続しない）
  * - POST /api/update/check                    今すぐ確かめる（update.check がオフなら 409 update_check_off）
+ * - POST /api/update/dismiss { version }       ボードの更新の知らせを閉じる（その版は次の起動まで出さない。接続しない）
  */
 import { zValidator } from "@hono/zod-validator";
 import { ONBOARDING_STEPS } from "@turnlane/core";
@@ -36,6 +37,7 @@ const consentInput = z.object({
 const sourceInput = z.object({ path: z.string().min(1).max(1024) });
 const installInput = z.object({ dryRun: z.boolean().optional() });
 const paneInput = z.object({ pane: z.enum(["calendars", "notifications"]) });
+const dismissInput = z.object({ version: z.string().min(1).max(64) }).strict();
 
 const invalid = (r: { success: boolean }, c: { json: (b: unknown, s: 400) => Response }) => {
   if (!r.success) return c.json({ error: "invalid_input" }, 400);
@@ -96,5 +98,8 @@ export function createOnboardingRoutes(
       c.json(await svc().openSettings(c.req.valid("json").pane)),
     )
     .get("/update", (c) => c.json(upd().status()))
-    .post("/update/check", async (c) => c.json(await upd().checkNow()));
+    .post("/update/check", async (c) => c.json(await upd().checkNow()))
+    .post("/update/dismiss", zValidator("json", dismissInput, invalid), (c) =>
+      c.json(upd().dismiss(c.req.valid("json").version)),
+    );
 }

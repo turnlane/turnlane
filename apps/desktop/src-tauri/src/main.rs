@@ -39,6 +39,8 @@ pub struct State {
     pub version_mismatch: bool,
     /// 動いている間にバンドルが入れ替わった（更新の後。メニューに Restart to Finish Update。M6-17）
     pub update_pending: bool,
+    /// 更新のコマンドを写した直後（メニューバーの文字を短く「Copied」にする。M6-17）
+    pub copied_until: Option<Instant>,
     /// main を閉じたときの画面（次に開くときに戻す）
     pub last_path: Option<String>,
     /// クイック入力を閉じたら直前のアプリへフォーカスを返すか

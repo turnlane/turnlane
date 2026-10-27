@@ -1,4 +1,5 @@
 import { tokenEquals } from "@turnlane/core";
+import type { UpdateMenuItem } from "@turnlane/core/web";
 import { Hono } from "hono";
 import type { CalendarDeps } from "../calendar/index.ts";
 import type { FocusService } from "../focus/service.ts";
@@ -50,6 +51,8 @@ export interface AppDeps {
   onboarding?: () => OnboardingService | undefined;
   /** 更新確認（M6-12）。無ければ 409 */
   update?: () => UpdateChecker | undefined;
+  /** メニューバーの更新の知らせ（/api/queue/summary の update。M6-17）。無ければ出さない */
+  updateMenu?: () => UpdateMenuItem | null;
   /** 配置の方式（M6-15）。無ければ 409 */
   install?: () => InstallService | undefined;
   /** Claude の利用枠の受け口（POST /api/limits/claude）。無ければ 409 */
@@ -98,6 +101,7 @@ function createCoreApi(deps: AppDeps) {
         () => deps.ai?.(),
         () => deps.hub.desktopClients > 0,
         () => deps.focus?.(),
+        () => deps.updateMenu?.() ?? null,
       ),
     )
     .route(

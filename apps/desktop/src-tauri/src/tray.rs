@@ -3,11 +3,13 @@
 //! 集中モード中（D-097。desktop-shell.md 3.5）は月のアイコン（needs_input の琥珀が優先）。メニューに集中モードの
 //! サブメニュー（文言はデーモンの summary の focusMenu）。ほかの項目の文言も summary の nativeMenu（menu_text.rs）。
 
+use crate::menu_text::{self, UpdateAction, VersionNote};
 use crate::{daemon, notify, shortcut, windows, Shared};
 use tauri::image::Image;
 use serde_json::json;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, Wry};
 
 const ID: &str = "turnlane";
@@ -67,6 +69,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             "shortcut" => windows::open_main(app, Some("/settings#keyboard".into())),
             "start_daemon" => windows::start_daemon(app),
             "restart_update" => crate::setup::relaunch(app),
+            "update_available" => on_update(app),
             "focus_30" => focus_call(app, "/api/focus/start", Some(json!({ "minutes": 30 }))),
             "focus_60" => focus_call(app, "/api/focus/start", Some(json!({ "minutes": 60 }))),
             "focus_event" => focus_call(app, "/api/focus/start", Some(json!({ "until": "event_end" }))),
@@ -131,16 +134,18 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             None::<&str>,
         )?);
     }
-    if st.update_pending {
-        notes.push(MenuItem::with_id(app, "restart_update", &t.restart_to_update, true, None::<&str>)?);
-    } else if st.version_mismatch {
-        notes.push(MenuItem::with_id(
-            app,
-            "version",
-            &t.needs_update,
-            false,
-            None::<&str>,
-        )?);
+    match menu_text::version_note(st.update_pending, st.version_mismatch, st.summary.update.as_ref()) {
+        VersionNote::Restart => {
+            notes.push(MenuItem::with_id(app, "restart_update", &t.restart_to_update, true, None::<&str>)?);
+        }
+        VersionNote::Notes { mismatch, update } => {
+            if mismatch {
+                notes.push(MenuItem::with_id(app, "version", &t.needs_update, false, None::<&str>)?);
+            }
+            if let (true, Some(u)) = (update, st.summary.update.as_ref()) {
+                notes.push(MenuItem::with_id(app, "update_available", &u.label, true, None::<&str>)?);
+            }
+        }
     }
     if !notes.is_empty() {
         m.append(&PredefinedMenuItem::separator(app)?)?;
@@ -158,10 +163,11 @@ pub fn refresh(app: &AppHandle) {
     let a = app.clone();
     let _ = app.run_on_main_thread(move || {
         let Some(tray) = a.tray_by_id(ID) else { return };
-        let (online, summary) = {
+        let (online, summary, copied) = {
             let s = a.state::<Shared>();
             let st = s.st.lock().unwrap();
-            (st.online, st.summary.clone())
+            let copied = st.copied_until.filter(|u| *u > Instant::now()).and(st.summary.update.as_ref()).map(|u| u.copied.clone());
+            (st.online, st.summary.clone(), copied)
         };
         let (icon, template, title) = match look(online, &summary) {
             Look::Offline => (ICON_OFFLINE, true, Some("–".to_string())),
@@ -175,11 +181,50 @@ pub fn refresh(app: &AppHandle) {
             let _ = tray.set_icon(Some(img));
         }
         let _ = tray.set_icon_as_template(template);
-        let _ = tray.set_title(title);
+        // 更新のコマンドを写した直後は、件数の代わりに短く「Copied」
+        let _ = tray.set_title(copied.or(title));
         if let Ok(m) = menu(&a) {
             let _ = tray.set_menu(Some(m));
         }
     });
+}
+
+/// 更新の知らせ（M6-17）: homebrew はコマンドをクリップボードへ写してメニューバーに短く「Copied」、download はリリースの
+/// ページを開く。ダウンロード・入れ替えはしない（ADR 0008）
+fn on_update(app: &AppHandle) {
+    let Some(u) = app.state::<Shared>().st.lock().unwrap().summary.update.clone() else { return };
+    match menu_text::update_action(&u) {
+        Some(UpdateAction::Copy(cmd)) => {
+            if copy_text(cmd) {
+                app.state::<Shared>().st.lock().unwrap().copied_until = Some(Instant::now() + COPIED_FOR);
+                refresh(app);
+                let a = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(COPIED_FOR);
+                    refresh(&a);
+                });
+            } else {
+                windows::log("tray: copying the update command failed");
+            }
+        }
+        Some(UpdateAction::Open(url)) => {
+            if let Err(e) = tauri_plugin_opener::open_url(url, None::<&str>) {
+                windows::log(&format!("tray: opening the releases page failed: {e}"));
+            }
+        }
+        None => {}
+    }
+}
+
+const COPIED_FOR: Duration = Duration::from_secs(2);
+
+/// クリップボードへ写す（pbcopy に標準入力で渡す。シェルを通さない）
+fn copy_text(text: &str) -> bool {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let Ok(mut child) = Command::new("/usr/bin/pbcopy").stdin(Stdio::piped()).spawn() else { return false };
+    let wrote = child.stdin.take().is_some_and(|mut i| i.write_all(text.as_bytes()).is_ok());
+    child.wait().is_ok_and(|s| s.success()) && wrote
 }
 
 /// 集中モードの操作をデーモンへ送る（結果は SSE focus で返り、件数を取り直す）

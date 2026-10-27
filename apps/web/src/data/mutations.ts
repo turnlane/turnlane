@@ -44,6 +44,7 @@ import {
   type TaskWriteResponse,
   type TimeBlockView,
   type TimeBlockWriteResponse,
+  type UpdateStatus,
   uuidv7,
   type WorktreeCleanupResult,
   wakeFollowUpInQueue,
@@ -1446,6 +1447,20 @@ export async function answerFocus(key: string, answer: "focus" | "skip"): Promis
   } finally {
     void queryClient.invalidateQueries({ queryKey: keys.focus() });
     void queryClient.invalidateQueries({ queryKey: keys.queue() });
+  }
+}
+
+// ---------- 更新の知らせ（M6-17） ----------
+
+/** ボードの更新の知らせを閉じる（その版は次のデーモンの起動まで出さない）。失敗しても画面からは消す */
+export async function dismissUpdate(version: string): Promise<void> {
+  const prev = queryClient.getQueryData<UpdateStatus>(keys.update());
+  if (prev) queryClient.setQueryData(keys.update(), { ...prev, dismissed: version });
+  try {
+    const v = await unwrap<UpdateStatus>(api.api.update.dismiss.$post({ json: { version } }));
+    queryClient.setQueryData(keys.update(), v);
+  } catch {
+    // 古いデーモン（口が無い）: この画面の間だけ閉じたままにする
   }
 }
 

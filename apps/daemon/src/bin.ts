@@ -19,6 +19,7 @@ import type { DaemonExtensionFactory } from "./ext/types.ts";
 import { SystemGh } from "./github/pr-poller.ts";
 import { assetsFromDir, type StaticAssets } from "./http/static.ts";
 import { runAppSetup } from "./install/index.ts";
+import { openDesktopInBackground } from "./install/relaunch.ts";
 import { FileLogger } from "./log.ts";
 import { startDaemon } from "./main.ts";
 import { SYSTEM_SETTINGS_URL } from "./onboarding/service.ts";
@@ -92,7 +93,8 @@ export async function runDaemon(
         feedUrl: resolveUpdateFeed(process.env),
         feedOverridden: isUpdateFeedOverridden(process.env),
       },
-      install: { ...install, pathVar: process.env.PATH },
+      // 更新の後のアプリの起こし直し（M6-17）は配布版（mode が app）だけ InstallService が行う
+      install: { ...install, pathVar: process.env.PATH, openDesktop: openDesktopInBackground },
     });
   } catch (e) {
     logger.error("daemon.start_failed", errorFields(e, { includeMessage: true }));

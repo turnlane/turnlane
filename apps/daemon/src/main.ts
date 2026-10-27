@@ -28,6 +28,7 @@ import {
   updateChannel,
   VERSION,
 } from "@turnlane/core";
+import { updateMenuItem } from "@turnlane/core/web";
 import { type AiSystem, createAiSystem } from "./ai.ts";
 import { type BridgeSocket, HelperBridge } from "./calendar/bridge.ts";
 import { type CalendarSystem, createCalendar } from "./calendar/index.ts";
@@ -170,6 +171,8 @@ export interface StartOptions {
     homebrewCandidates?: readonly string[];
     readBuild?: (appPath: string) => string | null;
     exit?: () => void;
+    /** 更新の後にアプリを背景で起こす（M6-17）。省略時は起こさない。bin.ts は openDesktopInBackground を渡す */
+    openDesktop?: () => Promise<boolean>;
   };
 }
 
@@ -233,6 +236,8 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
           const st = calendar?.service.status();
           return st?.connected ? st.helperVersion : null;
         },
+        // 更新の後の起こし直し（M6-17）。hub は下で作る（呼ばれるのはバンドルの監視の中）
+        desktopSeenWithin: (ms) => hub.desktopSeenWithin(ms),
       })
     : null;
   const hooksCli = install?.hooksCli ?? (opts.launch ? opts.launch.cliPath : null);
@@ -276,7 +281,11 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
   };
   // 表示の「今日」は暦日（D-054）
   const displayTodayNow = () => toLocalDate(clock.now(), settingsNow().tz, 0);
-  const hub = new SseHub({ today: todayNow, displayToday: displayTodayNow });
+  const hub = new SseHub({
+    today: todayNow,
+    displayToday: displayTodayNow,
+    now: () => clock.now(),
+  });
   const dayBoundarySetting = getSetting<string>(db, "day_boundary");
   const backupJob = new BackupJob({
     db: sqlite,
@@ -650,6 +659,7 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
     limits: () => claudeLimits,
     onboarding: () => onboarding ?? undefined,
     update: () => updater,
+    updateMenu: () => updateMenuItem(updater.status(), uiLocale()),
     install: () => install ?? undefined,
     ...(ai ? { recordUserOp: ai.recordUserOp } : {}),
   };

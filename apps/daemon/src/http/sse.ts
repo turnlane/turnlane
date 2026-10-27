@@ -60,6 +60,9 @@ export class SseHub {
   #rev = 0;
   /** デスクトップアプリの購読（購読ごとの言語） */
   readonly #desktop = new Map<symbol, string>();
+  /** 最後のデスクトップアプリの購読が切れた時刻（更新の後の起こし直し。M6-17） */
+  #desktopLeftAt: number | null = null;
+  readonly #now: () => number;
   readonly bootId: string = crypto.randomUUID();
 
   constructor(
@@ -69,12 +72,15 @@ export class SseHub {
       today?: () => string;
       /** 表示の「今日」（暦日。D-054） */
       displayToday?: () => string;
+      /** 時計（デスクトップアプリが切れた時刻） */
+      now?: () => number;
     } = {},
   ) {
     this.#heartbeatMs = opts.heartbeatMs ?? 15_000;
     this.#bundleMs = opts.bundleMs ?? 250;
     this.#today = opts.today ?? (() => "");
     this.#displayToday = opts.displayToday ?? this.#today;
+    this.#now = opts.now ?? Date.now;
   }
 
   get size(): number {
@@ -84,6 +90,12 @@ export class SseHub {
   /** つながっているデスクトップアプリの数 */
   get desktopClients(): number {
     return this.#desktop.size;
+  }
+
+  /** デスクトップアプリがつながっている、または ms 以内まではつながっていたか */
+  desktopSeenWithin(ms: number): boolean {
+    if (this.#desktop.size > 0) return true;
+    return this.#desktopLeftAt !== null && this.#now() - this.#desktopLeftAt <= ms;
   }
 
   /** 最後につないだデスクトップアプリの言語（例 ja-JP）。いなければ null */
@@ -176,6 +188,7 @@ export class SseHub {
         clearInterval(heartbeat);
         unsubscribe();
         if (this.#desktop.delete(me) && this.#desktop.size === 0) {
+          this.#desktopLeftAt = this.#now();
           this.publish("follow_up", { ids: [], workItemIds: [] });
         }
       }

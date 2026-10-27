@@ -16,7 +16,7 @@ import type {
   ReadMeta,
 } from "@turnlane/core/api";
 import { mergeWorkItemInput, snoozeInput } from "@turnlane/core/api";
-import { queueSummary } from "@turnlane/core/web";
+import { queueSummary, type UpdateMenuItem } from "@turnlane/core/web";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Answerer } from "../answer/index.ts";
@@ -196,6 +196,8 @@ export function createAiRoutes(
   desktopNotifier: () => boolean = () => false,
   /** 集中モード（QueueResponse.focus と、メニューバーの件数に足す表示。D-097） */
   focus: () => Pick<FocusService, "queueFocus" | "summaryExtras"> | undefined = () => undefined,
+  /** メニューバーの更新の知らせ（M6-17。新しい版が無ければ null） */
+  updateMenu: () => UpdateMenuItem | null = () => null,
 ) {
   const deps = () => {
     const d = get();
@@ -319,10 +321,12 @@ export function createAiRoutes(
       // メニューバーの件数（desktop-shell.md 4.1）。サイドバー・タブタイトルと同じ数（visibleQueue）
       .get("/queue/summary", (c) => {
         const d = deps();
+        const update = updateMenu();
         return c.json({
           ...queueSummary(d.queue()),
           rev: d.meta().rev,
           ...(focus()?.summaryExtras() ?? {}),
+          ...(update ? { update } : {}),
         } satisfies QueueSummaryResponse);
       })
       .post("/follow-ups/bulk-dismiss", zValidator("json", bulkInput, invalid), (c) =>

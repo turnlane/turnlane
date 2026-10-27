@@ -56,6 +56,13 @@ export const en = {
   "sources.tool.claude_desktop": "Claude Desktop",
   "banner.daemonDown": "Background recording has stopped.",
   "banner.unauthorized": "Lost connection to Turnlane. Reopen it with `turnlane open`.",
+  // 更新の知らせ（M6-17。onboarding.md 2.5）
+  "update.available": "Turnlane {version} is available",
+  "update.copy": "Copy {command}",
+  "update.copied": "Copied {command}",
+  "update.copyFailed": "Couldn't copy. Run {command} in Terminal.",
+  "update.open": "Open Releases",
+  "update.dismiss": "Dismiss",
   "dayDivider.nextWorkday": "Next workday",
   "board.addShort": "Add",
   "totals.free.def": "Time within your planning hours with no events or planned tasks",

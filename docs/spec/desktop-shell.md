@@ -324,6 +324,7 @@ interface NotifyPayload {
 - デーモンが再起動したら（SSE が切れて `hello` の `bootId` が変わる）、Rust は summary を取り直し、main は今の web の再接続で戻る。401 が返ったらトークンを読み直して `/auth` からやり直す（再インストールでトークンが変わった場合）。
 - 版の確認: `/api/health` の `version` とアプリの版の major.minor が違えば、メニューに `App needs an update · run turnlane self-install` を出す（表示だけ。動作は止めない）。
 - 更新の後（配布版。onboarding.md 2.5、M6-17）: アプリは起動時の自分のバンドルの識別（Info.plist の `TurnlaneBuild`）を覚えて 1 分ごとに見る。変わっていれば（動いている間に入れ替わった）、メニューに `Restart to Finish Update`（日本語は「再起動して更新を終える」）を出し、上の版の表示の代わりにする。押すと、このプロセスの終了を待って同じ場所のバンドルを開く小さなシェルを残して終わる（単一インスタンスなので先に開かない）。
+- 更新の知らせ（onboarding.md 2.5 の更新確認の行、M6-17）: 新しい版があれば、summary の `update`（文言と行き先はデーモン）でメニューに `Turnlane 0.7.1 is available · Copy brew upgrade --cask turnlane`（Homebrew 版。押すとクリップボードへ写し、メニューバーの文字を 2 秒 `Copied` にする）か `… · Open Releases`（zip の版。最新リリースのページを開く）を出す。アプリは決まった形（`brew upgrade ` で始まる 1 行、`https://github.com/` のページ）だけを受け付ける。`Restart to Finish Update` があればそちらを出す（優先）。SSE `update` で summary を取り直す。
 
 ### 6.2 turnlane コマンド
 

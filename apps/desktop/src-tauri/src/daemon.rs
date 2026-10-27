@@ -67,6 +67,9 @@ pub struct Summary {
     /// ネイティブのメニューの文言（ロケールはデーモン。古いデーモンには無い）
     #[serde(default)]
     pub native_menu: Option<crate::menu_text::NativeMenu>,
+    /// メニューバーの更新の知らせ（M6-17。新しい版が無い・dev・古いデーモンなら無い）
+    #[serde(default)]
+    pub update: Option<crate::menu_text::UpdateItem>,
 }
 
 #[derive(Clone, Default, Deserialize, PartialEq, Debug)]
@@ -262,7 +265,8 @@ fn connect_once(app: &AppHandle, tx: &mpsc::Sender<()>) -> Attempt {
 
 fn handle_event(app: &AppHandle, tx: &mpsc::Sender<()>, event: &str, data: &str) {
     match event {
-        "hello" | "follow_up" | "work_item" | "task" | "day_boundary" => {
+        // update: 更新確認の結果が変わった（メニューの更新の知らせを summary で取り直す。M6-17）
+        "hello" | "follow_up" | "work_item" | "task" | "day_boundary" | "update" => {
             let _ = tx.send(());
         }
         "settings" => {

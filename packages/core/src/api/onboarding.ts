@@ -210,6 +210,13 @@ export interface UpdateStatus {
   channel?: "homebrew" | "download" | "dev";
   /** homebrew のときの更新のコマンド（コピーできる形） */
   upgradeCommand?: string | null;
+  /** download のときに開く最新リリースのページ（それ以外は null。古いデーモンには無い） */
+  releasesUrl?: string | null;
+  /**
+   * ボードの更新の知らせを閉じた版（POST /api/update/dismiss。デーモンのプロセスの中だけ覚え、次の起動で忘れる）。
+   * 古いデーモンには無い
+   */
+  dismissed?: string | null;
   /**
    * 確認しない理由（null なら確認する）。setting は update.check、custom_build は拡張を組み込んだビルド、
    * dev_install は開発時の配置（公開版を勧めない）

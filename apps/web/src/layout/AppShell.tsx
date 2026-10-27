@@ -34,6 +34,7 @@ import { FocusBar } from "../components/FocusBar.tsx";
 import { clientName } from "../components/items.tsx";
 import { MiniCalendar } from "../components/MiniCalendar.tsx";
 import { TooltipLayer, tipProps } from "../components/Tooltip.tsx";
+import { UpdateBar } from "../components/UpdateBar.tsx";
 import { Button, MenuItem, Popover } from "../components/ui.tsx";
 import {
   useHealth,
@@ -91,6 +92,7 @@ export function AppShell({ conn }: { conn: ConnState }) {
         {unauthorized ? <Banner tone="error" k="banner.unauthorized" /> : null}
         {conn === "down" && !unauthorized ? <Banner tone="error" k="banner.daemonDown" /> : null}
         <FocusBar where="shell" />
+        <UpdateBar />
         <div className="flex min-h-0 flex-1">
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <PanelsAvailable.Provider value={true}>

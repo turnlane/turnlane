@@ -1,4 +1,6 @@
 /** 要対応キュー（GET /api/queue。m2-api.md 2.3）。M1 の形にフィールドを足したもの */
+
+import type { UpdateMenuItem } from "../desktop/menu-text.ts";
 import type { OpenWaitBrief } from "./answer.ts";
 import type { ChangeSize } from "./away.ts";
 import type { SourceBadge } from "./board.ts";
@@ -163,4 +165,6 @@ export interface QueueSummaryResponse extends Partial<FocusSummaryExtras> {
   error: number;
   yourTurn: number;
   rev: number;
+  /** メニューバーの更新の知らせ（M6-17）。新しい版が無い・dev なら null。古いデーモンには無い */
+  update?: UpdateMenuItem | null;
 }

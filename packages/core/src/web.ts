@@ -47,7 +47,12 @@ export {
   wallClock,
   wallToEpoch,
 } from "./dates.ts";
-export { NATIVE_MENU, type NativeMenuText } from "./desktop/menu-text.ts";
+export {
+  NATIVE_MENU,
+  type NativeMenuText,
+  type UpdateMenuItem,
+  updateMenuItem,
+} from "./desktop/menu-text.ts";
 export { EXT_API_VERSION } from "./ext.ts";
 export { hasMeetingLink, isMeetingHost, MEETING_HOSTS } from "./focus/meeting-link.ts";
 export {

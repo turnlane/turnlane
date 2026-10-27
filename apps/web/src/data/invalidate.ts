@@ -33,6 +33,8 @@ export const keys = {
   settings: () => ["settings"] as const,
   /** 集中モード（D-097。m2-api 25章） */
   focus: () => ["focus"] as const,
+  /** 更新確認（M6-12）の結果とボードの更新の知らせ（M6-17）。GET /api/update */
+  update: () => ["update"] as const,
   /** オンボーディング（onboarding.md 5.4）: 状態・検出・進捗・O3 の列・要約 */
   onboarding: (part: "state" | "detect" | "progress" | "board" | "summary") =>
     ["onboarding", part] as const,
@@ -155,6 +157,9 @@ export function shouldInvalidate(
     case "ext":
       // 拡張（ADR 0015）: そのキャッシュ（["ext", id, ...]）だけ
       return k === "ext" && typeof key[1] === "string" && (data.exts ?? []).includes(key[1]);
+    case "update":
+      // 更新確認の結果・知らせを閉じた版（M6-12・M6-17）
+      return k === "update";
     case "day_boundary":
       return true;
     default:

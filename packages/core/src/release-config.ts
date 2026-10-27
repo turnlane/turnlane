@@ -21,6 +21,8 @@ export const TAP_REPO_URL = `https://github.com/${GITHUB_OWNER}/${TAP_REPO}`;
 export const RELEASES_DOWNLOAD_URL = `${RELEASE_REPO_URL}/releases/download`;
 /** Releases のページ */
 export const RELEASES_PAGE_URL = `${RELEASE_REPO_URL}/releases`;
+/** 最新リリースのページ（更新の知らせの「リリースを開く」。zip で入れた人向け。GitHub が最新リリースへ転送する） */
+export const RELEASES_LATEST_PAGE_URL = `${RELEASES_PAGE_URL}/latest`;
 /** 更新確認の確認先（最新リリースに添付した latest.json。GitHub が最新リリースの添付へ転送する） */
 export const LATEST_JSON_URL = `${RELEASE_REPO_URL}/releases/latest/download/latest.json`;
 /**

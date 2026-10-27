@@ -90,3 +90,60 @@ export const NATIVE_MENU: { en: NativeMenuText; ja: NativeMenuText } = {
     window: { title: "ウインドウ", minimize: "しまう", close: "ウインドウを閉じる" },
   },
 };
+
+/**
+ * メニューバーの更新の知らせ（onboarding.md 2.5 の更新確認の行、M6-17）。/api/queue/summary の update で返す。
+ * homebrew は押すと `brew upgrade --cask turnlane` をクリップボードに写し（copied を短く出す）、download は最新リリースの
+ * ページを開く。dev・新しい版が無いときは null（メニューに出さない）。Restart to Finish Update があればアプリがそちらを出す
+ */
+export interface UpdateMenuItem {
+  label: string;
+  action: "copy" | "open";
+  /** copy なら写すコマンド、open なら開く URL */
+  value: string;
+  /** 写した直後にメニューバーに短く出す文言 */
+  copied: string;
+}
+
+const UPDATE_MENU = {
+  en: {
+    copy: "Turnlane {version} is available · Copy {command}",
+    open: "Turnlane {version} is available · Open Releases",
+    copied: "Copied",
+  },
+  ja: {
+    copy: "Turnlane {version} に更新できます · {command} をコピー",
+    open: "Turnlane {version} に更新できます · リリースのページを開く",
+    copied: "コピーしました",
+  },
+} as const;
+
+export function updateMenuItem(
+  s: {
+    available: boolean;
+    latest: { version: string } | null;
+    channel?: "homebrew" | "download" | "dev";
+    upgradeCommand?: string | null;
+    releasesUrl?: string | null;
+  },
+  locale: "en" | "ja",
+): UpdateMenuItem | null {
+  if (!s.available || !s.latest) return null;
+  const t = UPDATE_MENU[locale];
+  const version = s.latest.version;
+  if (s.channel === "homebrew" && s.upgradeCommand)
+    return {
+      label: t.copy.replace("{version}", version).replace("{command}", s.upgradeCommand),
+      action: "copy",
+      value: s.upgradeCommand,
+      copied: t.copied,
+    };
+  if (s.channel === "download" && s.releasesUrl)
+    return {
+      label: t.open.replace("{version}", version),
+      action: "open",
+      value: s.releasesUrl,
+      copied: t.copied,
+    };
+  return null;
+}

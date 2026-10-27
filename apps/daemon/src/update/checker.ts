@@ -6,8 +6,10 @@
  * - 送るのは HTTP の GET だけ。User-Agent は `turnlane/<version>`。Cookie・端末やユーザーの識別子・利用状況・
  *   クエリ文字列は付けない
  * - 設定 `update.check`（既定オン）が false なら接続のコードを通らない（確認の直前に毎回見る）
- * - 新しい版があれば UI（GET /api/update と SSE `update`）と `turnlane doctor` に知らせるだけ。ダウンロード・
- *   入れ替えはしない（Homebrew 版は brew upgrade --cask を案内する。M6-17）
+ * - 新しい版があれば UI（GET /api/update と SSE `update`。ボードの上部の 1 行とメニューバーの 1 項目）と `turnlane doctor` に
+ *   知らせるだけ。ダウンロード・入れ替えはしない（Homebrew 版は brew upgrade --cask を案内し、zip の版は最新リリースの
+ *   ページを開く。M6-17）
+ * - ボードの知らせを閉じた版（dismiss）はこのプロセスの中だけ覚える（次の起動でまた出す。設定に残さない）
  */
 import { errorFields, type MetaOnlyLogger, meta } from "@turnlane/collectors";
 import {
@@ -16,6 +18,7 @@ import {
   HOMEBREW_UPGRADE_COMMAND,
   type LatestRelease,
   parseLatest,
+  RELEASES_LATEST_PAGE_URL,
   UPDATE_CHECK_INTERVAL_MS,
   type UpdateOffReason,
 } from "@turnlane/core";
@@ -86,6 +89,8 @@ export class UpdateChecker {
   #first: ReturnType<typeof setTimeout> | null = null;
   #tick: ReturnType<typeof setInterval> | null = null;
   #inflight: Promise<void> | null = null;
+  /** ボードの知らせを閉じた版（次の起動まで） */
+  #dismissed: string | null = null;
 
   constructor(o: UpdateCheckerOptions) {
     this.#o = o;
@@ -199,9 +204,19 @@ export class UpdateChecker {
       this.#o.logger.info("update.available", { version: meta(next.latest?.version ?? "") });
   }
 
+  /** ボードの更新の知らせを閉じる（POST /api/update/dismiss）。その版はこのプロセスの間は出さない */
+  dismiss(version: string): UpdateStatus {
+    if (this.#dismissed !== version) {
+      this.#dismissed = version;
+      this.#o.publish();
+    }
+    return this.status();
+  }
+
   status(): UpdateStatus {
     const s = this.#o.load();
     const latest = s?.latest ?? null;
+    const channel = this.#o.channel?.() ?? "dev";
     return {
       enabled: this.#setting(),
       configured: this.configured,
@@ -210,8 +225,10 @@ export class UpdateChecker {
       available: latest !== null && (compareVersions(latest.version, this.#o.version) ?? 0) > 0,
       checkedAt: s?.checkedAt ?? null,
       error: s?.error ?? null,
-      channel: this.#o.channel?.() ?? "dev",
-      upgradeCommand: this.#o.channel?.() === "homebrew" ? HOMEBREW_UPGRADE_COMMAND : null,
+      channel,
+      upgradeCommand: channel === "homebrew" ? HOMEBREW_UPGRADE_COMMAND : null,
+      releasesUrl: channel === "download" ? RELEASES_LATEST_PAGE_URL : null,
+      dismissed: this.#dismissed,
       off: this.#off(),
     };
   }

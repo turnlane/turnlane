@@ -9,6 +9,8 @@
  *   古いヘルパが動いたまま）、アプリの `--setup reregister calendarHelper` で登録をし直す（解除で launchd が古いほうを止め、
  *   登録で新しいバンドルの plist から起こす。SMAppService を呼べるのはアプリのプロセスだけ。onboarding.md 2.5）。
  *   同じ組み合わせ（動いている版 → 同梱の版）では1回だけ試す
+ * - app のとき、更新で終わる前にデスクトップアプリがつながっていれば印を残し、新しい版の起動でアプリを背景で起こす
+ *   （relaunch.ts。onboarding.md 2.5）
  * - `turnlane` を PATH に置く（`~/.local/bin/turnlane` のリンク。O8 の Install ▸、設定 › 一般）。Homebrew 版では要らない
  */
 import {
@@ -37,6 +39,7 @@ import {
   readInstallInfo,
   writeInstallInfo,
 } from "@turnlane/core";
+import { DESKTOP_RECENT_MS, takeRelaunchMark, writeRelaunchMark } from "./relaunch.ts";
 
 export interface InstallOptions {
   mode: InstallMode;
@@ -129,6 +132,13 @@ export interface InstallServiceOptions extends InstallOptions {
   /** 同梱のヘルパの版の読み取り（既定は bundledHelperVersion）と、登録のし直し（既定は runAppSetup） */
   readHelperVersion?: (appPath: string) => string | null;
   reregisterHelper?: (appPath: string) => Promise<boolean>;
+  /**
+   * デスクトップアプリがつながっている、または直前（引数の ms 以内）までつながっていたか（更新の後の起こし直し。M6-17）。
+   * 省略時は印を残さない
+   */
+  desktopSeenWithin?: (ms: number) => boolean;
+  /** アプリを背景で起こす（既定なし: 起こさない。bin.ts が openDesktopInBackground を渡す。テストが実行環境のアプリを開かないように） */
+  openDesktop?: () => Promise<boolean>;
 }
 
 export class InstallService {
@@ -168,6 +178,7 @@ export class InstallService {
       logger.warn("install.write_failed", errorFields(e));
     }
     if (mode !== "app" || !appPath) return;
+    void this.relaunchDesktop();
     try {
       const r = ensureSymlink(bundledCliLinkPath(dataDir), bundledBinary(appPath, "turnlane"));
       if (r !== "unchanged") logger.info("install.cli_link", { result: meta(r) });
@@ -240,6 +251,29 @@ export class InstallService {
     return ok;
   }
 
+  /**
+   * 起動時: 前の版のデーモンが残した印（更新で終わる前にアプリがつながっていた）があれば消し、10 分以内のものならアプリを
+   * 背景で起こす。起こしたら true。app 以外・印が無い・古い印・起こす口が無いなら何もしない。失敗はログに残して続ける
+   */
+  async relaunchDesktop(): Promise<boolean> {
+    if (this.#o.mode !== "app" || !this.#o.appPath) return false;
+    let mark: ReturnType<typeof takeRelaunchMark>;
+    try {
+      mark = takeRelaunchMark(this.#o.dataDir, this.#o.now());
+    } catch (e) {
+      this.#o.logger.warn("install.relaunch_mark_failed", errorFields(e));
+      return false;
+    }
+    if (mark === "none") return false;
+    if (mark === "stale" || !this.#o.openDesktop) {
+      this.#o.logger.info("install.desktop_relaunch_skipped", { reason: meta(mark) });
+      return false;
+    }
+    const ok = await this.#o.openDesktop().catch(() => false);
+    this.#o.logger[ok ? "info" : "warn"]("install.desktop_relaunched", { ok });
+    return ok;
+  }
+
   /** バンドルの版が起動時と違えば終わる（入れ替えの後。launchd が新しい版で起こす）。違ったら true */
   checkBundle(started: string): boolean {
     const appPath = this.#o.appPath;
@@ -248,6 +282,15 @@ export class InstallService {
     // 入れ替えの途中（読めない）は次の回に見る
     if (now === null || now === started) return false;
     this.#o.logger.info("install.bundle_changed", {});
+    // アプリがつながっていた（cask の uninstall が quit したばかり）なら、新しい版のデーモンに起こしてもらう印を残す
+    if (this.#o.mode === "app" && this.#o.desktopSeenWithin?.(DESKTOP_RECENT_MS)) {
+      try {
+        writeRelaunchMark(this.#o.dataDir, this.#o.now());
+        this.#o.logger.info("install.relaunch_mark_written", {});
+      } catch (e) {
+        this.#o.logger.warn("install.relaunch_mark_failed", errorFields(e));
+      }
+    }
     this.stop();
     (this.#o.exit ?? (() => process.exit(0)))();
     return true;

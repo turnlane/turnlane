@@ -12,6 +12,7 @@ import type {
   ProjectView,
   QueueResponse,
   SearchResponse,
+  UpdateStatus,
   WorkItemDetail,
 } from "@turnlane/core/web";
 import type {
@@ -122,6 +123,15 @@ export function useFocus() {
     queryKey: keys.focus(),
     queryFn: () => unwrap<FocusView>(api.api.focus.$get()),
     refetchInterval: 60_000,
+    retry: false,
+  });
+}
+
+/** 更新確認の結果（M6-12）。ボードの上部の更新の知らせ（M6-17）が読む。鮮度は SSE update（デーモンは接続しない） */
+export function useUpdateStatus() {
+  return useQuery({
+    queryKey: keys.update(),
+    queryFn: () => unwrap<UpdateStatus>(api.api.update.$get()),
     retry: false,
   });
 }

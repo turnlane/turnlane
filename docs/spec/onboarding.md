@@ -109,9 +109,9 @@ hooks の command は今の形（phase0-plan 3.6.1）のまま、パスだけが
 
 | 場面 | 起きること | Turnlane の動き |
 |---|---|---|
-| `brew upgrade --cask turnlane` | 旧版の `uninstall`（`quit` でアプリを終了）→ 新しい .app に置き換え | デーモン: 1分以内にバンドルの版の変化に気づき終了 → launchd が新版で起動 → 更新前にデスクトップがつながっていれば `open -g -b dev.turnlane.desktop` でアプリを起こす。ヘルパ: デーモンが、接続しているヘルパの版と同梱のヘルパの版の違いを見て、アプリの `--setup reregister calendarHelper` で登録をし直す（解除で launchd が古いほうを止め、登録で新しいバンドルから起こす。古いヘルパに止める口が無くても入れ替わる。同じ組み合わせは1回だけ） |
+| `brew upgrade --cask turnlane` | 旧版の `uninstall`（`quit` でアプリを終了）→ 新しい .app に置き換え | デーモン: 1分以内にバンドルの版の変化に気づき終了 → launchd が新版で起動 → 更新前にデスクトップがつながっていれば（終わる時につながっているか、切れてから 5 分以内）、古いデーモンが `<データ>/relaunch-desktop` に印を残し、新しいデーモンが起動時に印を消して、10 分以内の印なら `open -g -b dev.turnlane.desktop --args --background` でアプリをメニューバーだけで起こす（配布版だけ。open の失敗はログに残して続ける。`apps/daemon/src/install/relaunch.ts`）。ヘルパ: デーモンが、接続しているヘルパの版と同梱のヘルパの版の違いを見て、アプリの `--setup reregister calendarHelper` で登録をし直す（解除で launchd が古いほうを止め、登録で新しいバンドルから起こす。古いヘルパに止める口が無くても入れ替わる。同じ組み合わせは1回だけ） |
 | Releases の zip で手で置き換え | アプリは動いたまま | 上のデーモン・ヘルパの動きに加え（版が同じでもビルドが違えば、デーモンがヘルパの登録を 1 回し直す。ad-hoc 署名では cdhash が変わり、登録のままだと launchd が起こせないため）、アプリが自分の版の変化に気づく: ウインドウを閉じていれば自分で再起動、開いていればメニューに `Restart to finish update` |
-| 更新確認（M6-12） | 新しい版がある | ボードの上部とメニューに `Turnlane 0.4.0 is available`。Homebrew 版は `brew upgrade --cask turnlane` をコピーできる形で、それ以外は Releases を開くボタン |
+| 更新確認（M6-12） | 新しい版がある | ボードの上部とメニューに `Turnlane 0.4.0 is available`（日本語は「Turnlane 0.4.0 に更新できます」）。Homebrew 版は `brew upgrade --cask turnlane` をコピーするボタン（メニューは押すとクリップボードへ写し、メニューバーに短く `Copied`）、zip の版は最新リリースのページ（`releases/latest`）を開くボタン。開発時の配置では出さない。ボードの × で閉じた版は次のデーモンの起動まで出さない（デーモンのプロセスの中だけ覚える。`POST /api/update/dismiss`）。メニューは `Restart to Finish Update` があればそちらを出す。SSE `update` で確認の直後に出る。実装済み（`apps/web/src/components/UpdateBar.tsx`、`/api/queue/summary` の `update`、`apps/desktop/src-tauri/src/tray.rs`） |
 | デーモンとアプリの版がずれたまま | 再起動の失敗など | 今の `Version mismatch` の表示（desktop-shell 6.1）を残す。文言は `Restart Turnlane` に改める |
 
 DB のマイグレーションは今のまま、新しいデーモンの起動時に前進のみで行う（適用前に `VACUUM INTO` のバックアップ）。

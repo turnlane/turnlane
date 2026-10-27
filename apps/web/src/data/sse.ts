@@ -29,6 +29,8 @@ const TYPES: SseEventType[] = [
   "import_progress",
   // 拡張（ADR 0015）のキャッシュ
   "ext",
+  // 更新確認の結果（ボードの上部の更新の知らせ。M6-17）
+  "update",
   // 集中の終わりのまとめ（focus-summary）をブラウザ通知に出す（D-097。他の notify は無視する）
   "notify",
 ];
