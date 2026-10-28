@@ -14,7 +14,9 @@ export type GlanceUnavailable =
   | "unreadable"
   /** hooks が無く、許可待ちは推定（中身は読めたときだけ出す） */
   | "no_hooks"
-  /** まだ読まない取り込み元（Codex は後から。D-207 (7)） */
+  /**
+   * 読まない取り込み元・待ち（Codex の許可待ち・エラー。Codex の返答待ちの問いは読む）。Claude Code・Codex 以外の取り込み元
+   */
   | "unsupported"
   /** 設定「行に中身を出す」がオフ */
   | "off";

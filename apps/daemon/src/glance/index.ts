@@ -5,7 +5,8 @@
  * - 読んだものは返すだけ。DB・ログ・SSE・MCP・通知・記録・エクスポートに渡さない。このモジュールはロガーを受け取らない
  *   （JSON のパースの失敗の文もトークンの一部を含むので、理由はコードだけにする）
  * - 文字列は返す前に伏せ字を通す（redact）。Edit / Write の中身・MCP の引数の値は読まない（パスとキー名だけ）
- * - Claude Code だけ。Codex は後から（D-207 (7)）。読めなければ unavailable の理由だけを返し、状態の判定には影響させない
+ * - Claude Code と、Codex の返答待ちの問い（最後の発言。codex.ts。保存しない）。Codex の許可待ち・エラー・件名の指示は
+ *   読まない（unsupported）。読めなければ unavailable の理由だけを返し、状態の判定には影響させない
  * - 設定「待ちの中身を保存する」（turn.store_detail。ADR 0018）がオンなら、先に DB を読む: 件名はその日の最初に保存した
  *   自分の指示（ai_instruction。無ければ直近の保存した指示）、待ちの中身は自分の番を作ったときに保存したもの（wait_detail）。
  *   DB に無いときだけ記録を読む。保存は snapshotWaitDetails（デーモンの判定の後）とシンク（指示）が行う
@@ -34,6 +35,7 @@ import type {
 import { errorKindOf } from "@turnlane/core/api";
 import { redact } from "@turnlane/core/web";
 import { cleanSubject, storedSubject } from "../derive/stored-subject.ts";
+import { readCodexLastText } from "./codex.ts";
 
 /** 自分の番に出るフォローアップの種類と代表の順（core の primaryFollowUp と同じ） */
 const RANK: Record<string, number> = {
@@ -71,6 +73,11 @@ export interface GlanceOptions {
   sessionWait?: { kind: "question" | "ask" | "permission"; turnId: string } | null;
   /** 保存した中身を先に読む（ADR 0018）。day は件名の論理日（その日の最初の指示） */
   stored?: { day: string };
+  /**
+   * Codex の問いを記録から読む（既定 true）。待ちの中身の保存（snapshotWaitDetails）は false: Codex の問いは表示の瞬間に
+   * 読むだけで保存しない（ADR 0018 の保存の範囲は Claude Code のまま）
+   */
+  readCodex?: boolean;
 }
 
 export interface Target {
@@ -477,6 +484,27 @@ function fromStored(base: GlanceResponse, w: WaitDetailRow): GlanceResponse {
 }
 
 /**
+ * Codex の待ち（D-207 (7) の「後から」の分）: 返答待ちの問いだけを記録から読む。Codex の問いは最後の発言そのもの
+ * （codexLastReply）で、行と詳細の抜き出し（questionExcerpt）と伏せ字は Claude Code と同じ。AskUserQuestion は無い。
+ * 許可待ち（approval）・エラーは今までどおり読まない（unsupported）。件名の指示も読まない
+ */
+function codexGlance(out: GlanceResponse, s: SessionRow, t: Target): GlanceResponse {
+  if (t.kind !== "reply" || t.artifactRef.endsWith(":ask"))
+    return { ...out, unavailable: "unsupported" };
+  const r = readCodexLastText(s);
+  if ("fail" in r) return { ...out, unavailable: r.fail };
+  const q = questionExcerpt(r.text);
+  if (!q) return { ...out, unavailable: "unreadable" };
+  const row = redact(q.row);
+  const detail = redact(q.detail);
+  return {
+    ...out,
+    kind: "question",
+    question: { row: row.text, detail: detail.text, masked: row.masked || detail.masked },
+  };
+}
+
+/**
  * glance の本体。AI 項目が無ければ null（404）。読めなければ kind: "none" と unavailable の理由
  */
 export function readGlance(
@@ -522,6 +550,8 @@ export function readGlance(
   const error: ErrorKind | null =
     t.kind === "resume_error" ? errorKindOf(lastHook(db, s.id, "StopFailure", "error_type")) : null;
   const withError = error ? { error } : {};
+  if (s.tool === "codex" && o.readCodex !== false)
+    return codexGlance({ ...base, ...withError }, s, t);
   if (s.tool !== "claude_code") return { ...base, ...withError, unavailable: "unsupported" };
   const path = findClaudeTranscript(s.root_path, s.file_path, s.external_id);
   if (!path) return { ...base, ...withError, unavailable: "missing" };
@@ -632,6 +662,7 @@ export function snapshotWaitDetails(
     const g = readGlance(db, r.work_item_id, {
       now: o.now,
       showDetail: true,
+      readCodex: false,
       ...(o.home ? { home: o.home } : {}),
       followUpId: r.id,
     });

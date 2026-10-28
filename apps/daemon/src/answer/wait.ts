@@ -5,7 +5,8 @@
  * - 読むのは glance と同じ記録（Claude Code のトランスクリプト）。問いの全文（2,000 字まで）は返すだけで保存しない。
  *   DB・ログ・SSE・MCP・通知に渡さない。このモジュールはロガーを受け取らない（ADR 0005 の追記 2、ADR 0018）
  * - 文字列は返す前に伏せ字を通す（redact）。許可待ちの中身は glance と同じ（permissionOf）
- * - Codex は記録を読まない（glance と同じ。D-207 (7)）。待ちの種類だけを返し、開いているかは DB の状態だけで見る
+ * - Codex は返答待ちの問いだけ記録から読む（最後の発言。glance と同じ codex.ts）。許可待ち・エラーは読まない。開いているかは
+ *   DB の状態だけで見る
  * - 待ちの対象は core の `derive.openWaitOf`（D-240）: 開いているフォローアップ → 無ければセッションの待ち（runner が
  *   判定のたびに作る。猶予の間の問いもここに入る）
  */
@@ -23,6 +24,7 @@ import { derive, numberedOptions, WAIT_QUESTION_MAX } from "@turnlane/core";
 import type { ErrorKind, GlancePermission, GlanceUnavailable, WaitKind } from "@turnlane/core/api";
 import { errorKindOf } from "@turnlane/core/api";
 import { redact } from "@turnlane/core/web";
+import { readCodexLastText } from "../glance/codex.ts";
 import {
   askOf,
   carryOf,
@@ -128,6 +130,13 @@ export function readWait(
   }
   if (!o.showDetail) return { ...out, unavailable: "off" };
   if (!s) return { ...out, unavailable: "missing" };
+  if (s.tool === "codex" && kind === "question") {
+    // Codex の問いは最後の発言そのもの（glance と同じ読み方。codex.ts）。許可待ち・エラーは今までどおり読まない
+    const r = readCodexLastText(s);
+    if ("fail" in r) return { ...out, unavailable: r.fail };
+    if (!r.text) return { ...out, unavailable: "unreadable" };
+    return withQuestion(out, r.text);
+  }
   if (s.tool !== "claude_code") return { ...out, unavailable: "unsupported" };
   if (kind === "error") return out;
   const path = findClaudeTranscript(s.root_path, s.file_path, s.external_id);
@@ -171,7 +180,12 @@ export function readWait(
     ? readAt(path, hints?.textAt ?? null, (rec) => claudeLastText(rec), questionInTail)
     : readAt(path, null, () => null, questionInTail);
   if (!q.value) return { ...out, unavailable: q.fail ?? "unreadable" };
-  const r = redact(q.value.trim());
+  return withQuestion(out, q.value);
+}
+
+/** 問いの全文（伏せ字の後に 2,000 字で切る）と、文の最後の番号付きの選択肢 */
+function withQuestion(out: WaitRead, text: string): WaitRead {
+  const r = redact(text.trim());
   out.question = { ...cutText(r.text), masked: r.masked };
   const opts = numberedOptions(r.text);
   if (opts.length > 0) out.options = opts;

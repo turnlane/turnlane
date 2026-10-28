@@ -1289,7 +1289,7 @@ interface WaitResponse {
 }
 ```
 
-- 問いの全文は表示の瞬間に記録から読む。保存しない（ADR 0005 の追記 2・ADR 0019）。Codex は読まない（`unavailable: "unsupported"`。答えは送れる）
+- 問いの全文は表示の瞬間に記録から読む。保存しない（ADR 0005 の追記 2・ADR 0019）。Codex は返答待ちの問いだけを rollout の最後の発言から読む（34章と同じ `codexLastReply`。`apps/daemon/src/glance/codex.ts`）。glance の `question`（行・詳細）も同じ。Codex の許可待ち・エラーは読まない（`unavailable: "unsupported"`。答えは送れる）。rollout が無ければ `missing`。Codex の問いは `wait_detail` に保存しない
 - 届け先は「開く」と同じ居場所（desktop-shell.md 4.4）から決める。動いていないセッションは `not_live`
 
 ### 31.2 `POST /api/work-items/:id/answer`

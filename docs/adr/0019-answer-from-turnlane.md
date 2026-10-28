@@ -45,6 +45,7 @@
    - ボードの行・自分の番の帯・MCP（`get_ai_work` など）・通知には出さない。
    - Codex: 問いの全文・待ちの中身（Decision 4、ADR 0018 の Consequences）は今までどおり読まないが、最後の返答は Codex の rollout も読む（`item_completed` の AgentMessage、無ければ `response_item` の assistant の message、それも無ければ `task_complete` の `last_agent_message`）。
    - 文は Markdown として出す（web の小さな描画器。HTML のタグは解釈せず文字のまま、リンクは http(s) だけ、画像は読み込まない）。「答える」の問いの全文も同じ描画器で出す。
+   - **Codex の問いも記録から読む**（Issue #8 の延長。2026-10-28）: 上の Codex の項の「問いの全文・待ちの中身は読まない」を改め、Codex の返答待ちの問いは、最後の返答と同じ rollout の読み方（`codexLastReply`）で最後の発言を読む（Codex の問いは最後の発言そのもの）。「答える」の問いの全文（Decision 4。2,000 字・伏せ字・no-store・保存しない）と glance の行・詳細の抜き出しに入れる。AskUserQuestion に当たるものは無いので問いの文と、文の最後の番号付きの選択肢だけ。許可待ち（approval）・エラー・件名の指示は今までどおり読まない。ADR 0018 の保存（`wait_detail`）は Claude Code のままで、Codex の問いは保存しない（表示の瞬間に読むだけ）。
 
 - 送れる端末: tmux の中（外側の端末に関係なく）・iTerm2・Terminal（ターミナル.app。Decision 8）・Ghostty（1.3 以降。Decision 9）・Orca。送れない端末（Warp・Kitty、AppleScript を切っている・古い Ghostty など）は「この端末には送れません」と「開く」だけ。Turnlane が起動するセッション（AI に頼む・時刻起動）は、送れない端末では tmux の新しいセッションの中で起動する（設定 `launch.tmux_wrap`、既定オン。tmux があるときだけ）。
 - 複数行の答え: tmux の Claude Code は改行を LF（Ctrl+J。Claude Code の文書にある改行の入れ方）のまま送る。ほかは 1 行に畳む（改行を空白に）。改行を Enter にしない。

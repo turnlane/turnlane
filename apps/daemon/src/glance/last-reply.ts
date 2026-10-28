@@ -8,25 +8,11 @@
  * - 設定「行に中身を出す」（turn.show_detail）がオフなら記録を読まない（off）
  */
 import type { Database } from "bun:sqlite";
-import {
-  claudeLastReply,
-  codexLastReply,
-  findClaudeTranscript,
-  readTailRecords,
-} from "@turnlane/collectors";
+import { claudeLastReply, findClaudeTranscript, readTailRecords } from "@turnlane/collectors";
 import { type LastReplyBody, lastReplyOf, lastReplyState } from "@turnlane/core";
 import type { LastReplyResponse } from "@turnlane/core/api";
+import { readCodexLastText } from "./codex.ts";
 import { type SessionRow, sessionOf } from "./index.ts";
-
-/** Codex の rollout の場所（DB の file_path は絶対パス）。アーカイブに動いていれば archived_sessions/ の同じ名前 */
-function codexRolloutPath(s: SessionRow): string[] {
-  const root = s.root_path.replace(/\/+$/, "");
-  const p = s.file_path;
-  // 取り込み元のルートの外は読まない
-  if (!p?.startsWith(`${root}/`) || p.includes("/../")) return [];
-  const name = p.slice(p.lastIndexOf("/") + 1);
-  return [p, `${root}/archived_sessions/${name}`];
-}
 
 function bodyOf(s: SessionRow): LastReplyBody {
   if (s.tool === "claude_code") {
@@ -37,12 +23,10 @@ function bodyOf(s: SessionRow): LastReplyBody {
     return lastReplyOf(claudeLastReply(tail.records));
   }
   if (s.tool === "codex") {
-    for (const path of codexRolloutPath(s)) {
-      const tail = readTailRecords(path);
-      if (tail.ok) return lastReplyOf(codexLastReply(tail.records));
-      if (tail.reason !== "missing") return lastReplyState("unreadable");
-    }
-    return lastReplyState("gone");
+    const r = readCodexLastText(s);
+    return "fail" in r
+      ? lastReplyState(r.fail === "missing" ? "gone" : "unreadable")
+      : lastReplyOf(r.text);
   }
   return lastReplyState("unreadable");
 }
