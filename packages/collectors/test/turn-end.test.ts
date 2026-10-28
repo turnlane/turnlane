@@ -2,7 +2,7 @@
  * 次の指示を送ってよいか（ADR 0019 の Decision 11）: 記録の末尾がターンの終わりか、と最後の人の指示の目印。合成のダミー
  */
 import { describe, expect, test } from "bun:test";
-import { claudeTurnEnd, codexTurnEnd, lastPromptMark } from "../src/last-reply.ts";
+import { claudeLastReply, claudeTurnEnd, codexTurnEnd, lastPromptMark } from "../src/last-reply.ts";
 
 const newestFirst = (rs: object[]) => [...rs].reverse();
 const human = (uuid: string) => ({
@@ -124,5 +124,66 @@ describe("lastPromptMark", () => {
         ]),
       ),
     ).toBe("t2");
+  });
+});
+
+describe("自動圧縮の要約（isCompactSummary）は指示ではない", () => {
+  /** 実機で見た末尾の形（古い順）。本文はダミー */
+  const compacted = [
+    human("u1"),
+    {
+      type: "assistant",
+      uuid: "a1",
+      message: { stop_reason: null, content: [{ type: "text", text: "(final reply)" }] },
+    },
+    turnDuration,
+    { type: "system", subtype: "away_summary" },
+    { type: "system", subtype: "compact_boundary", compactMetadata: {}, logicalParentUuid: "a1" },
+    {
+      type: "user",
+      uuid: "cs1",
+      promptId: "p-cs1",
+      isCompactSummary: true,
+      isVisibleInTranscriptOnly: true,
+      message: { role: "user", content: "(compact summary)" },
+    },
+    ...Array.from({ length: 12 }, () => ({ type: "attachment", attachment: { type: "x" } })),
+    { type: "system", subtype: "informational" },
+    ...["frame-link", "atis-latch", "permission-mode", "mode", "ai-title", "last-prompt"].map(
+      (type) => ({ type }),
+    ),
+  ];
+
+  test("圧縮の後に何も続いていなければターンの終わり（ended）", () => {
+    expect(claudeTurnEnd(newestFirst(compacted))).toBe("ended");
+  });
+
+  test("圧縮の直後に AI が続いていれば running のまま", () => {
+    expect(
+      claudeTurnEnd(
+        newestFirst([...compacted, assistant("tool_use", [{ type: "tool_use", id: "x" }])]),
+      ),
+    ).toBe("running");
+    expect(claudeTurnEnd(newestFirst([...compacted, human("u2")]))).toBe("running");
+  });
+
+  test("origin の無い文字列の user（指示ではない）も読み飛ばす", () => {
+    expect(
+      claudeTurnEnd(
+        newestFirst([
+          human("u1"),
+          assistant("end_turn"),
+          { type: "user", message: { content: "(note)" } },
+        ]),
+      ),
+    ).toBe("ended");
+  });
+
+  test("lastPromptMark は圧縮の要約の uuid・promptId を返さない", () => {
+    expect(lastPromptMark("claude_code", newestFirst(compacted))).toBe("u1");
+  });
+
+  test("claudeLastReply は圧縮の後も最後の返答を返す", () => {
+    expect(claudeLastReply(newestFirst(compacted))).toBe("(final reply)");
   });
 });

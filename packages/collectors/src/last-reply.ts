@@ -143,8 +143,9 @@ export function codexLastReply(records: readonly unknown[]): string | null {
 
 /**
  * 記録の末尾（新しい順）がターンの終わりか（次の指示を送ってよいか。ADR 0019 の Decision 11）。パーサのターンの終わりと同じ:
- * Claude Code は system の turn_duration・stop_reason が end_turn の assistant・API エラー・中断の印。人の指示・ツールの結果・
- * 途中の発言（end_turn でない assistant）が先に来れば動作中（running）。どれも無ければ unknown
+ * Claude Code は system の turn_duration・stop_reason が end_turn の assistant・API エラー・中断の印。人の指示
+ * （origin.kind が human / task-notification）・ツールの結果・途中の発言（end_turn でない assistant）が先に来れば動作中
+ * （running）。自動圧縮の要約（isCompactSummary）・メタの user は指示ではないので読み飛ばす。どれも無ければ unknown
  */
 export function claudeTurnEnd(records: readonly unknown[]): "ended" | "running" | "unknown" {
   for (const r0 of records) {
@@ -159,13 +160,18 @@ export function claudeTurnEnd(records: readonly unknown[]): "ended" | "running" 
       return rec(r.message).stop_reason === "end_turn" ? "ended" : "running";
     }
     if (r.type === "user") {
-      if (r.isMeta === true) continue;
+      if (r.isMeta === true || r.isCompactSummary === true) continue;
       const content = rec(r.message).content;
       const first = Array.isArray(content)
         ? rec(content.find((c) => rec(c).type === "text")).text
         : content;
       if (typeof first === "string" && first.startsWith("[Request interrupted")) return "ended";
-      return "running";
+      // 動作中の根拠になる user はパーサのターンの始まりと同じもの（人の指示・task-notification）と、ツールの結果だけ。
+      // 自動圧縮の要約（isCompactSummary。origin 無し・本文は文字列）などほかの user は指示ではないので読み飛ばす
+      const origin = rec(r.origin).kind;
+      if (origin === "human" || origin === "task-notification") return "running";
+      if (Array.isArray(content) && content.some((c) => rec(c).type === "tool_result"))
+        return "running";
     }
   }
   return "unknown";
