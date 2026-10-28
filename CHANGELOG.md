@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-28
+
 ### Added
 
 - When a new version is available, the board shows "Turnlane x.y.z is available" at the top and the menu bar menu gets the same item: copy `brew upgrade --cask turnlane` (Homebrew) or open the Releases page (zip).
@@ -38,5 +40,6 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/turnlane/turnlane/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/turnlane/turnlane/releases/tag/v0.7.0
