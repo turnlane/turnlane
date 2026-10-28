@@ -54,10 +54,6 @@ describe("ブロック", () => {
   test("閉じていないフェンスは最後までコード", () => {
     expect(parseMarkdown("```\na\nb")).toEqual([{ k: "code", text: "a\nb" }]);
   });
-
-  test("表は解釈しない（段落として改行を保つ）", () => {
-    expect(bare("| a | b |\n|---|---|\n| 1 | 2 |")).toBe("<p>| a | b |\n|---|---|\n| 1 | 2 |</p>");
-  });
 });
 
 describe("インライン", () => {
@@ -115,5 +111,86 @@ describe("作り", () => {
   test("dangerouslySetInnerHTML を使わない", () => {
     const src = readFileSync(join(import.meta.dir, "../src/components/Markdown.tsx"), "utf8");
     expect(src).not.toContain("dangerouslySetInnerHTML");
+  });
+});
+
+describe("表（GFM の pipe table）", () => {
+  const count = (out: string, tag: string) =>
+    (out.match(new RegExp(`<${tag}[ >]`, "g")) ?? []).length;
+
+  test("見出し行と区切り行で表。thead / tbody / th / td の数", () => {
+    const out = html("| 指摘 | 対応 | 確認結果 |\n|---|---|---|\n| a | b | c |\n| d | e | f |");
+    expect(count(out, "table")).toBe(1);
+    expect(count(out, "thead")).toBe(1);
+    expect(count(out, "tbody")).toBe(1);
+    expect(count(out, "th")).toBe(3);
+    expect(count(out, "td")).toBe(6);
+    expect(out).toContain("指摘");
+    expect(out).not.toContain("|---|");
+  });
+
+  test("両端のパイプは省略できる", () => {
+    expect(parseMarkdown("a | b\n--- | ---\n1 | 2")).toEqual([
+      { k: "table", align: ["none", "none"], head: ["a", "b"], rows: [["1", "2"]] },
+    ]);
+  });
+
+  test("区切り行のコロンで揃え", () => {
+    const out = html("| l | c | r | n |\n|:--|:-:|--:|---|\n| 1 | 2 | 3 | 4 |");
+    expect(parseMarkdown("| l | c | r | n |\n|:--|:-:|--:|---|")[0]).toMatchObject({
+      align: ["left", "center", "right", "none"],
+    });
+    const tds = [...out.matchAll(/<td class="([^"]*)"/g)].map((m) => m[1] as string);
+    expect(tds.map((c) => c.match(/text-(left|center|right)/)?.[1])).toEqual([
+      "left",
+      "center",
+      "right",
+      "left",
+    ]);
+  });
+
+  test("列数が合わなければ表にしない（段落のまま）。区切り行だけも段落", () => {
+    expect(parseMarkdown("| a | b |\n|---|---|---|\n| 1 | 2 |")).toEqual([
+      { k: "para", text: "| a | b |\n|---|---|---|\n| 1 | 2 |" },
+    ]);
+    expect(parseMarkdown("|---|---|")).toEqual([{ k: "para", text: "|---|---|" }]);
+  });
+
+  test("\\| はセルの中の |", () => {
+    expect(parseMarkdown("| 式 | 意味 |\n|---|---|\n| a \\| b | または |")[0]).toMatchObject({
+      rows: [["a | b", "または"]],
+    });
+  });
+
+  test("セルが足りない行は空で埋め、多い行は切る", () => {
+    expect(parseMarkdown("| a | b |\n|---|---|\n| 1 |\n| 2 | 3 | 4 |")[0]).toMatchObject({
+      rows: [
+        ["1", ""],
+        ["2", "3"],
+      ],
+    });
+  });
+
+  test("セルの中のリンク・コード・強調は効く（http(s) 以外のリンクは文字のまま）", () => {
+    const out = html(
+      "| 項目 | 内容 |\n|---|---|\n| [PR](https://example.com/pull/8) | `bun test` と **通過** |\n| x | [y](javascript:alert(1)) |",
+    );
+    expect(out).toContain('<a href="https://example.com/pull/8"');
+    expect(out).toContain(">bun test</code>");
+    expect(out).toContain("<strong>通過</strong>");
+    expect(out).toContain("[y](javascript:alert(1))");
+    expect(out).not.toContain('href="javascript');
+  });
+
+  test("表の直後に段落・箇条書きが続く。段落の直後の表も拾う", () => {
+    expect(
+      parseMarkdown("結果です:\n| a | b |\n|---|---|\n| 1 | 2 |\n- 次へ\n\n終わり").map((b) => b.k),
+    ).toEqual(["para", "table", "list", "para"]);
+  });
+
+  test("狭いパネル向け: 幅いっぱい・上揃え・横スクロールの保険", () => {
+    const out = html("| a |\n|---|\n| 1 |");
+    expect(out).toContain('<div class="overflow-x-auto"><table class="w-full');
+    expect(out).toMatch(/<td class="[^"]*align-top[^"]*break-words/);
   });
 });
