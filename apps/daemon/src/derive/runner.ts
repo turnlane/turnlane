@@ -576,6 +576,21 @@ export class DeriveRunner {
         ? w.repo_root
         : (ts.map((t) => repoOf(t.cwd)).find((r) => r) ?? null);
       const defaultBranchCard = key.startsWith("session:") && !!repo;
+      const dirty =
+        defaultBranchCard && repo && ts.some((t) => t.edited_files_count > 0)
+          ? git.isDirty(repo)
+          : null;
+      // 汚れているときだけ、セッションの最後の編集ありのターンがその後にコミットされたかを見る（返答タスクの resolved:commit と
+      // 同じ git の源）。別のセッションの編集で汚れても、コミット済みの編集を確認待ちに戻さない
+      const editsCommitted = new Set<string>();
+      if (dirty === true)
+        for (const sid of sessIds) {
+          const last = [...ts].reverse().find((t) => t.session_id === sid);
+          const r = last ? repoOf(last.cwd) : null;
+          if (!last || last.edited_files_count === 0 || !r || !last.git_branch) continue;
+          if (git.firstCommitAfter(r, last.git_branch, last.ended_at ?? last.started_at) !== null)
+            editsCommitted.add(last.id);
+        }
       return {
         workItemId: wiId,
         kind: key.startsWith("branch:") ? "branch" : "session",
@@ -587,10 +602,8 @@ export class DeriveRunner {
         hooks: sess.flatMap((s) => hooksBySession.get(s.external_id) ?? []),
         prs: ps.map(toPrFact),
         manualDoneAt: w.manual_done_at,
-        dirty:
-          defaultBranchCard && repo && ts.some((t) => t.edited_files_count > 0)
-            ? git.isDirty(repo)
-            : null,
+        dirty,
+        ...(editsCommitted.size > 0 ? { editsCommitted } : {}),
         followUps: followUps.filter((f) => f.work_item_id === wiId).map(toFollowUpFact),
         launch: (() => {
           const l = launchOf(wiId);

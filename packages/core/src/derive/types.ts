@@ -157,6 +157,12 @@ export interface WorkItemFacts {
   manualDoneAt: number | null;
   /** 既定ブランチの session カードの「今も未コミットの変更がある」（git status。分からなければ null） */
   dirty: boolean | null;
+  /**
+   * 編集がコミットで解決済みのターン（既定ブランチの session カードで dirty のとき、セッションの最後の編集ありのターンのうち、
+   * その終わりより後に同じリポジトリ・ブランチでコミットがあるもの。runner が git で調べる。返答タスクの resolved:commit と
+   * 同じ源）。無ければ省略
+   */
+  editsCommitted?: ReadonlySet<string>;
   /** このカードのフォローアップ（全状態） */
   followUps: FollowUpFact[];
   /**

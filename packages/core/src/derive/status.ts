@@ -453,6 +453,20 @@ export function handledTurnIds(f: WorkItemFacts): Set<string> {
   );
 }
 
+/**
+ * ターンの編集が解決済みか: 同じターンを trigger にした確認のタスク（check_changes）が auto:resolved:* で閉じている、または
+ * ターンの終わりより後にコミットがある（WorkItemFacts.editsCommitted）
+ */
+export function editsResolved(f: WorkItemFacts, turnId: string): boolean {
+  if (f.editsCommitted?.has(turnId)) return true;
+  return f.followUps.some(
+    (x) =>
+      x.kind === "check_changes" &&
+      x.triggerTurnId === turnId &&
+      (x.closeReason ?? "").startsWith("auto:resolved:"),
+  );
+}
+
 /** ターンの「終わった時刻」。終わっていない古いターンは最後の活動の時刻で終わったとみなす */
 function endOf(t: TurnFact, s: SessionFact): number {
   return t.endedAt ?? Math.max(t.startedAt, s.lastActivityAt);
@@ -505,7 +519,9 @@ export function yourTurnCandidates(
     }
     if (last.editedFiles > 0) {
       const expired = f.nonGit && now - end >= settings.nonGitEditExpireMs;
-      const ok = f.defaultBranchCard ? f.dirty === true : true;
+      // 既定ブランチの session カードはリポジトリが汚れている間だけ。ただしこのターンの編集が解決済み（同じターンの確認の
+      // タスクが auto:resolved:* で閉じた・ターンの終わりより後にコミットがある）なら、別の作業で汚れても数えない
+      const ok = f.defaultBranchCard ? f.dirty === true && !editsResolved(f, last.id) : true;
       if (!expired && ok) reasons.push("edits");
     }
     if (reasons.length > 0) out.push({ turn: last, session: s, reasons, stopAt });
