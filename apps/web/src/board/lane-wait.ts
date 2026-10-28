@@ -9,12 +9,15 @@
 import {
   isGrace,
   type OpenWaitBrief,
+  type QueueItem,
   type QueueResponse,
   turnRows,
   type WorkItemStatus,
 } from "@turnlane/core/web";
 import { useMemo } from "react";
 import { useQueue } from "../data/queries.ts";
+import type { MessageKey } from "../i18n/index.tsx";
+import { deferredTurn, laterShortKey } from "../lib/later-text.ts";
 
 /** レーンの項目の開いている待ち */
 export interface LaneWait {
@@ -60,4 +63,23 @@ export function laneStatus(status: WorkItemStatus, wait: LaneWait | undefined): 
 export function useLaneWaits(): Map<string, LaneWait> {
   const q = useQueue();
   return useMemo(() => laneWaitsOf(q.data), [q.data]);
+}
+
+/**
+ * queue から 項目 → 後でにした自分の番の札（`明日へ` / `後で`）。帯・件数から外れた（open なフォローアップの無い）カードだけ。
+ * レーンの札は放置の長さの代わりにこれを出す（スヌーズ中は放置に数えない）
+ */
+export function laneLatersOf(
+  q: Pick<QueueResponse, "items" | "today"> | undefined,
+): Map<string, MessageKey> {
+  const out = new Map<string, MessageKey>();
+  for (const x of q?.items ?? [])
+    if (deferredTurn(x as QueueItem)) out.set(x.workItemId, laterShortKey(x, q?.today ?? ""));
+  return out;
+}
+
+/** 画面の queue から 項目 → 後での札 */
+export function useLaneLaters(): Map<string, MessageKey> {
+  const q = useQueue();
+  return useMemo(() => laneLatersOf(q.data), [q.data]);
 }

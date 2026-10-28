@@ -5,20 +5,13 @@
  * 暦の今日でなければ時刻の前に日付）。帯・件数・通知には入れない。
  * 操作は 今やる（上限待ちには出さない）・開く・対応不要・詳細（1 クリック）
  */
-import {
-  fmtClock,
-  fmtDuration,
-  laterFollowUp,
-  laterKind,
-  type QueueItem,
-  wallClock,
-} from "@turnlane/core/web";
+import { fmtClock, laterFollowUp, laterKind, type QueueItem } from "@turnlane/core/web";
 import { Ban, Undo2 } from "lucide-react";
 import { useRef } from "react";
 import { useItemActions } from "../actions/item-actions.tsx";
 import { useGlance, useSeen, useShowDetail } from "../data/glance.ts";
 import { useI18n } from "../i18n/index.tsx";
-import { clockOrDate } from "../lib/back-time.ts";
+import { laterTextOf } from "../lib/later-text.ts";
 import { whereName } from "../lib/where.ts";
 import { HoverToolbar } from "./HoverToolbar.tsx";
 import { titleText } from "./items.tsx";
@@ -54,7 +47,7 @@ export function limitText(
   });
 }
 
-/** 右端の戻る時刻の言葉 */
+/** 右端の戻る時刻の言葉（AI の詳細パネルの補足と同じ。lib/later-text.ts） */
 export function laterLabel(
   item: QueueItem,
   today: string,
@@ -62,31 +55,9 @@ export function laterLabel(
   tz: string,
   t: Translate,
 ): string {
-  const kind = laterKind(item, today);
-  if (kind === "limit" && item.limitWait) return limitText(item.limitWait, tz, t);
-  const f0 = laterFollowUp(item);
-  if (kind === "scheduled" && f0?.scheduledAt !== undefined)
-    return t("queue.later.scheduled", { time: clockOrDate(f0.scheduledAt, now, tz) });
-  const until = f0?.snoozeUntil ?? null;
-  if (kind === "tomorrow") {
-    // 日付は相対でなく実際の日付（`10/24 10:00`）。時刻が分からなければタスクの日付
-    const f = laterFollowUp(item);
-    const date =
-      until !== null
-        ? (() => {
-            const w = wallClock(until, tz);
-            return `${w.month}/${w.day} ${fmtClock(until, tz)}`;
-          })()
-        : (f?.taskDate ?? "")
-            .slice(5)
-            .split("-")
-            .map((x) => String(Number(x)))
-            .join("/");
-    return t("queue.later.tomorrow", { date });
-  }
-  return until !== null
-    ? t("queue.later.snoozed", { time: clockOrDate(until, now, tz) })
-    : t("queue.later.snoozedNoTime");
+  if (laterKind(item, today) === "limit" && item.limitWait) return limitText(item.limitWait, tz, t);
+  const x = laterTextOf(item, today, now, tz);
+  return x ? t(x.key, x.params) : "";
 }
 
 export function LaterRow({

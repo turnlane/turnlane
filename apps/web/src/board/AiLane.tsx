@@ -28,13 +28,13 @@ import { aiHoverOf } from "../components/AiHoverCard.tsx";
 import { AiRunBlock } from "../components/items.tsx";
 import { Nums } from "../components/Nums.tsx";
 import { TimelineMarks, useTimelineMarks } from "../ext/marks.tsx";
-import { useI18n } from "../i18n/index.tsx";
+import { type MessageKey, useI18n } from "../i18n/index.tsx";
 import { countedInDate, laneTopOf, type Placement } from "./day-split.ts";
 import { DraggableAi } from "./dnd.tsx";
 import { HOUR_PX, yOf } from "./geometry.ts";
 import { LABEL_PX } from "./labels.ts";
 import { belowNow, placeTags, type TagRequest } from "./lane-labels.ts";
-import { laneRank, laneStatus, questionWait, useLaneWaits } from "./lane-wait.ts";
+import { laneRank, laneStatus, questionWait, useLaneLaters, useLaneWaits } from "./lane-wait.ts";
 import { WaitDots } from "./WaitDots.tsx";
 import { openWaitKeys, type WaitEnd, waitEndsOf, waitEndText } from "./wait-ends.ts";
 
@@ -204,6 +204,8 @@ export function AiLane({
   const marks = useTimelineMarks({ from: axis.start, to: axis.end });
   // 開いている待ち（D-240 の wait。猶予中を含む）。対応が要るものを前に、問いの印を自分の番に（D-246）
   const waits = useLaneWaits();
+  // 後でにした自分の番（スヌーズ・明日へ・時間に置いた）の札
+  const laters = useLaneLaters();
   // 前日からの持ち越し（今日の実行が無く待ちだけ）はレーンに描かない。対応待ちの行に出ている（確定デザインの3日ボード。D-114）
   const blocks = blocksOf(day, now).filter((b) => !b.carried);
   // 列はブロックの後に続く待ちの線の分も取る（待ちの点線とほかの AI の線を同じ x に重ねない。確定デザインの3日ボード。D-114）
@@ -344,7 +346,7 @@ export function AiLane({
     const chain = chainById.get(p.id);
     if (!chain) continue;
     const tail = chain.blocks.at(-1) as Block;
-    const m = metaOf(tail, now, day, t, tz);
+    const m = metaOf(tail, now, day, t, tz, laters.get(tail.item.id));
     // 問いで止まっている最後の線（猶予中を含む。D-246）: 右は `待ち 3m`（猶予中は `猶予 3m`）
     const tailWait = tail.last ? waits.get(tail.item.id) : undefined;
     const qWait =
@@ -634,6 +636,8 @@ export function metaOf(
   day: DayColumn,
   t: ReturnType<typeof useI18n>["t"],
   tz: string,
+  /** 後でにした自分の番の札（明日へ / 後で）。あれば放置の長さの代わりに出す */
+  later?: MessageKey | null,
 ): { right: string | null; sub: string | null; kind: "time" | "wait" } {
   if (b.carried) return { right: null, sub: null, kind: "wait" };
   // 上限待ち（利用枠で止まった）: 明ける時刻（`利用上限 · 15:00 まで`）、分からなければ止まってからの長さ
@@ -656,6 +660,8 @@ export function metaOf(
     };
   if (b.last && ws !== null && b.item.status === "error")
     return { right: `${t("status.error")} ${fmtDuration(now - ws)}`, sub: null, kind: "wait" };
+  // 後でにした自分の番（スヌーズ・明日へ・時間に置いた）: 放置の長さの代わりに `明日へ` / `後で`（スヌーズ中は放置に数えない）
+  if (b.last && later) return { right: fmtDuration(b.span.aiMs), sub: t(later), kind: "time" };
   // 自分の番も長さと放置（`2h29m · 放置 36m`。待ちの長さは対応待ちの行に出ている）
   let idle = 0;
   if (b.last)

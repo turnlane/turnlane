@@ -145,6 +145,7 @@ export const ja: Dict = {
   "board.limitUntil": "利用上限 · {time} まで",
   "board.limitWaiting": "利用上限 · 待ち {time}",
   "board.idleLabel": "放置 {time}",
+  "board.later": "後で",
   "board.countedIn": "{day} に計上",
   "board.inboxTray.show": "Inbox を表示",
   "board.inboxTray.hide": "Inbox を隠す",

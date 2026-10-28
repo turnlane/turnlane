@@ -51,6 +51,7 @@ import { useKeys } from "../keys/use-keys.ts";
 import { CheckRows, hasCheckRows, useCheck } from "../launch/CheckRows.tsx";
 import { api, unwrap } from "../lib/api.ts";
 import { useNow } from "../lib/clock.ts";
+import { deferredTurn, laterTextOf } from "../lib/later-text.ts";
 import { setUi, useUi } from "../lib/store.ts";
 import { whereName } from "../lib/where.ts";
 import { type AiHead, type AiText, aiHeadOf, prStateKey } from "./ai-state.ts";
@@ -94,11 +95,14 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
   const tz = d.tz;
   // 自分の番に出ていれば、待ちの長さは行と同じ始まりから（D-214 の §4）
   const item = useQueue().data?.items.find((x) => x.workItemId === id);
+  // 後でにした自分の番（スヌーズ・明日へ・時間に置いた）は補足に戻る時刻（自分の番の画面の「後で」の行と同じ文）
+  const later = deferredTurn(item) ? laterTextOf(item, d.today, now, tz) : null;
   const head = aiHeadOf(
     d,
     now,
     { clock: (ms) => fmtClock(ms, tz), dur: fmtDuration },
     item?.waitingSince,
+    later,
   );
   // 差し込んだ言葉が英字で始まるとき（「API の混雑」「Web へのアクセス」）は「が」の後に空白を入れる（D-214 の §4）
   const text = (x: AiText) =>
@@ -157,7 +161,7 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
           {text(head.todo)}
         </p>
         {head.hint ? (
-          <p className="text-fg2 text-meta">
+          <p className="text-fg2 text-meta" data-testid="ai-hint">
             <Nums text={text(head.hint)} />
           </p>
         ) : null}

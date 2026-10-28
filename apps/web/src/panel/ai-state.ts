@@ -23,7 +23,7 @@ export interface AiHead {
   durMs: number | null;
   /** すること（文） */
   todo: AiText;
-  /** 補足（「最後の動き 10 秒前」「あと 3m で放置に数えます」「10:51 に終了」） */
+  /** 補足（「最後の動き 10 秒前」「あと 3m で放置に数えます」「10:51 に終了」「スヌーズ · 15:00 に戻る」） */
   hint: AiText | null;
   /** ブロック中だけ状態の面を琥珀にする（R4） */
   blocked: boolean;
@@ -70,7 +70,20 @@ export type Fmt = { clock: (ms: number) => string; dur: (ms: number) => string }
  * waitingSince: 自分の番に出ている項目は、行と同じ待ちの始まり（QueueItem.waitingSince）を使う（同じ瞬間に行と詳細で
  * 待ちの分がずれないように。D-214 の §4）。無ければ開いている待ちの区間の始まり
  */
-export function aiHeadOf(d: Detail, now: number, fmt: Fmt, waitingSince?: number): AiHead {
+export function aiHeadOf(
+  d: Detail,
+  now: number,
+  fmt: Fmt,
+  waitingSince?: number,
+  later?: AiText | null,
+): AiHead {
+  const h = baseHead(d, now, fmt, waitingSince);
+  // 後でにした自分の番（スヌーズ・明日へ・時間に置いた開始の前）: 補足は「後で」の行と同じ戻る時刻の文。スヌーズ中は放置に
+  // 数えないので猶予の文より優先する。見出しと待ちの長さは事実なのでそのまま
+  return later && h.status !== "running" ? { ...h, hint: later } : h;
+}
+
+function baseHead(d: Detail, now: number, fmt: Fmt, waitingSince?: number): AiHead {
   const w = d.workItem;
   const pr = d.artifacts.filter((a) => a.kind === "pr").at(-1) ?? null;
   const waitFrom = waitingSince ?? openWaitStart(d);

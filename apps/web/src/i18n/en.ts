@@ -151,6 +151,7 @@ export const en = {
   "board.limit": "Usage limit",
   "board.limitUntil": "Usage limit · until {time}",
   "board.limitWaiting": "Usage limit · waiting {time}",
+  "board.later": "Later",
   "board.idleLabel": "idle {time}",
   "board.countedIn": "Counted in {day}",
   "board.inboxTray.show": "Show Inbox",
