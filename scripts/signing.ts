@@ -178,9 +178,9 @@ export function parseSubmit(
   }
 }
 
-/** staple を何回まで試すか（既定の待ち 30 秒で合計 5 分弱） */
-export const STAPLE_ATTEMPTS = 10;
-export const STAPLE_RETRY_WAIT_MS = 30_000;
+/** staple を何回まで試すか（既定の待ち 60 秒で合計 30 分弱。0.7.1 の公開で 5 分では足りなかった） */
+export const STAPLE_ATTEMPTS = 30;
+export const STAPLE_RETRY_WAIT_MS = 60_000;
 
 /**
  * stapler の一時的な失敗か。公証が Accepted になった直後は票がまだ Apple の配布網に出ておらず、

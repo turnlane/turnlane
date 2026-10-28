@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI: the startup health test now allows up to two responses over 100 ms (none over 1000 ms), so a single runner hiccup no longer fails the build.
 - CI: `actions/checkout` updated from v4 to v5 (Node.js 20 deprecation).
+- Release script: after notarization, stapling is retried for up to 30 minutes instead of 5 while Apple publishes the ticket.
 
 ### Fixed
 

@@ -311,7 +311,7 @@ describe("staple の再試行（票の配布待ち）", () => {
     expect(r.id).toBe(ID);
     expect(f.staples()).toBe(2);
     expect(f.calls.at(-1)).toEqual(["xcrun", "stapler", "validate", "/s/A.app"]);
-    expect(logs).toContain("staple: attempt 1/10 failed (Error 73), retrying in 0s");
+    expect(logs).toContain("staple: attempt 1/30 failed (Error 73), retrying in 0s");
   });
 
   test("Error 65 も再試行する", () => {
@@ -323,7 +323,7 @@ describe("staple の再試行（票の配布待ち）", () => {
     expect(f.staples()).toBe(2);
   });
 
-  test("10 回とも Error 73: 提出 ID と手でやり直す手順を含む StapleError（validate しない）", () => {
+  test("30 回とも Error 73: 提出 ID と手でやり直す手順を含む StapleError（validate しない）", () => {
     const f = fake([err73]);
     const logs: string[] = [];
     let thrown: unknown;
@@ -339,8 +339,8 @@ describe("staple の再試行（票の配布待ち）", () => {
     expect(e.message).toContain('xcrun stapler staple "/s/A.app"');
     expect(e.message).toMatch(/Wait a few minutes/);
     expect(f.staples()).toBe(STAPLE_ATTEMPTS);
-    expect(STAPLE_ATTEMPTS).toBe(10);
-    expect(logs.filter((l) => l.startsWith("staple: attempt"))).toHaveLength(9);
+    expect(STAPLE_ATTEMPTS).toBe(30);
+    expect(logs.filter((l) => l.startsWith("staple: attempt"))).toHaveLength(29);
     expect(f.calls.some((c) => c.includes("validate"))).toBe(false);
   });
 
