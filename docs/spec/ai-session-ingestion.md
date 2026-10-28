@@ -323,6 +323,7 @@ FollowUp       (id, work_item_id, kind[review_pr|merge_pr|reply|approve|check_fa
   - 疑問の終止形（「〜しますか」「〜でしょうか」「どちらが〜」等。`？` が無いもの）
   - 問いの見出し（「決めていただきたいこと」「ご判断いただきたい点」「確認したいこと」「質問」「Questions for you」「Decisions I need from you」）、判断待ちの条件文、「〜にするか」「〜してよいか」「〜かどうか」で終わる・whether で始まる箇条書きの項目。表示の抜き出し（questionExcerpt）も同じ対象から問いの文を選ぶ
   - 「〜してください」という作業の依頼（「確認してください」「実行してください」「ご確認いただければ」）は質問にしない
+  - 未来の出来事を待つ条件節（「グラフが出たら」「結果が分かったら」「ビルドが終わったら」「結果次第」「once the graph is up」「when the results are available」）を含む文は、データを求める依頼・質問でも今答えるものではないので質問にしない（2026-10-28）。相手の動作・判断を待つ形（「貼ってもらえれば判断します」「決まったら〜します」）は今までどおり判断待ちの条件文
 - 締めの決まり文句の質問（「他に何かありますか？」「必要であれば〜してください」「他に何かあれば」「Anything else?」「Let me know if you need anything」「if you need anything else」など）も同じくパース時にだけ判定し、`ai_turn.closing_question` に真偽値を残す。上の判定に当たった文がすべて締めの決まり文句なら締めとし、返答タスクを作らず、(c) にも数えない（PO 決定 D-021。判定表は `packages/collectors/src/closing-question.ts`、phase0-plan 3.3.1）。
 - 判定を変えたら、アダプタの `parserVersion` を上げる。デーモンは起動時に版の違うカーソルを捨てて先頭から読み直し（`turnlane reingest` と同じ upsert。行は消さない）、残っているトランスクリプトのターンの真偽値を新しい判定で書き直す。元ファイルが消えたターンは書き直せないので古い判定のまま残る（D-066 で claude-code・codex を版 2 にした）。
 - 判定漏れの手段として、AI カードで `y` を押すと、そのカードの返答タスクを手で作れる（D-066 (2)。phase0-plan 3.3、ux-mvp 6章）。

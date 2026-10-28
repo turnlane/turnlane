@@ -18,6 +18,9 @@
  *   礼や気持ちで終わるもの（「確認してもらえれば助かります」）は作業の依頼で、含めない
  * - データを求める依頼: 情報を受け取る動詞だけ（「貼ってください」「送ってください」「please send」）。作業の依頼
  *   （「確認してください」「試してください」「please review」）は含めない
+ * - 未来の出来事を待つ条件節（「グラフが出たら」「結果が分かったら」「結果次第」「once the graph is up」）を含む文は、データを
+ *   求める依頼・質問でも今答えるものではないので問いにしない。相手の動作・判断を待つ形（「貼ってもらえれば判断します」
+ *   「決まったら〜します」「ご判断次第」）は今までどおり判断待ち
  * - 締めの決まり文句: 「他に何かありますか？」「必要であれば〜」「Anything else?」「if you need anything else」等。
  *   質問の文がすべて締めの決まり文句なら締めとし、返答タスクを作らず your_turn の (c) にも数えない（D-021）
  */
@@ -85,6 +88,27 @@ const PENDING_JA_GENERAL =
   /[てで](もらえ|いただけ|頂け|くれ|もらっ|いただい|頂い|くださっ)(れば|たら|次第)/;
 const PENDING_JA_GENERAL_TAIL =
   /(します|できます|しておきます|進みます|進めます|比べます|調べます|まとめます|切り分けます|考えます|作ります|書きます|続けます|戻します|決めます|絞ります|整えます|見ます|探します)$/;
+
+/**
+ * 未来の出来事を待つ条件節（日本語）: 「〜が出たら / できたら / 来たら / 届いたら / 分かったら / 終わったら / 上がったら /
+ * 揃ったら / 取れたら」（主語の「が」「は」があるものだけ。「できたら教えてください」の「できれば」の意味は外す）と「〜次第」。
+ * 相手の動作・判断を待つ形（「〜してもらえたら」「決まり次第」「ご判断次第」「いただき次第」）は入れない
+ */
+const FUTURE_JA: RegExp[] = [
+  /[がは][^、。]{0,12}?(出|でき|来|届い|分かっ|わかっ|終わっ|上がっ|揃っ|そろっ|取れ|反映され|公開され|出揃っ)たら/,
+  /(?<!(決まり|判断|指示|返事|返答|回答|都合|意見|確認|いただき|頂き|もらい|くれ))次第/,
+];
+/** 未来の出来事を待つ条件節（英語。小文字にして比べる）: "once / when / after X is (ready|available|in|up|out) …" */
+const FUTURE_EN =
+  /\b(once|when|after)\s+(?!you\b|i\b|we\b)[^,.;:]{1,60}?\b(is|are|has been|have been|gets|get|comes|come)\s+(ready|available|in|up|out|done|finished|back|published|deployed|live)\b/;
+
+/** 未来の出来事を待つ条件節を含む文か（今答えるものではない） */
+export function isFutureWaitSentence(s: string): boolean {
+  const body = s.replace(/[。.!！]+$/, "");
+  if (PENDING_JA_GENERAL.test(body) || PENDING_JA.some((re) => re.test(body))) return false;
+  if (FUTURE_JA.some((re) => re.test(body))) return true;
+  return FUTURE_EN.test(lower(s));
+}
 
 /** 相手の判断待ちの条件文（英語。小文字にして比べる） */
 const PENDING_EN: RegExp[] = [
@@ -270,6 +294,8 @@ export function isPendingSentence(s: string): boolean {
 
 /** 答え・判断を求める文か */
 export function isAskingSentence(s: string): boolean {
+  // 未来の出来事を待つ依頼・質問（「グラフが出たら見せてください」）は今答えるものではない
+  if (isFutureWaitSentence(s)) return false;
   if (QUESTION_MARK.test(s)) return true;
   const body = s.replace(/[。.!！]+$/, "");
   if (QUESTION_TAIL.test(body)) return true;

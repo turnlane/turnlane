@@ -247,3 +247,49 @@ describe("条件文の一般化・データを求める依頼", () => {
     expect(isClosingQuestion("I can also add tests if you need anything else.")).toBe(true);
   });
 });
+
+describe("未来の出来事を待つ条件節は問いにしない", () => {
+  /** 実機で問いと取り違えた返答の形（合成の言い換え） */
+  const REPORT = [
+    "まだ分からないこと",
+    "- 効いたのが A なのか B なのかは、まだ切り分けられません。明日から同じ見た目で別の回が続きます。",
+    "- 平均が 11 秒で、全体の 14 秒より短いです。グラフはまだ出ていません（最大 2 日かかります）。グラフが出たら、20 秒あたりから落ちていないかスクショで見せてください。後半で落ちているなら、締めを短くします。",
+  ].join("\n");
+
+  test("合成の報告: 問いにならない", () => {
+    expect(textTraits(REPORT)).toEqual({ question: false, closing: false });
+  });
+
+  const NOT_NOW = [
+    "グラフが出たら教えてください。",
+    "結果が分かったら貼ってください。",
+    "ビルドが終わったら、ログを送ってください。",
+    "データが揃ったら、どちらにするか教えてください。",
+    "数字が取れたら共有してください。",
+    "結果次第で、ログを貼ってください。",
+    "Once the graph is up, please send me a screenshot.",
+    "When the results are available, please paste them here.",
+    "After the report is out, please share the numbers.",
+  ];
+  test.each(NOT_NOW)("今答えるものではない: %j", (s) => expect(endsWithQuestion(s)).toBe(false));
+
+  const STILL_ASKING = [
+    "貼ってもらえれば判断します。",
+    "どちらにしますか？",
+    "ログを送っていただけたら、原因を調査します。",
+    "決まったらお見せします。",
+    "ご判断いただければ進めます。",
+    "できたら、A と B のどちらがよいか教えてください。",
+    "If you paste the numbers here, I'll compare them.",
+    "Once you decide, I'll update the layout.",
+    "Which one do you prefer?",
+  ];
+  test.each(STILL_ASKING)("今までどおり問い: %j", (s) => expect(endsWithQuestion(s)).toBe(true));
+
+  test("「〜なら、〜します」（AI 自身の次の動作の条件）は問いではない", () => {
+    expect(endsWithQuestion("後半で落ちているなら、締めを短くします。")).toBe(false);
+    expect(endsWithQuestion("If it drops in the second half, I'll shorten the ending.")).toBe(
+      false,
+    );
+  });
+});
