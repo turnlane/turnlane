@@ -19,6 +19,7 @@ import { useQueue } from "../data/queries.ts";
 import { useI18n } from "../i18n/index.tsx";
 import { isImeKey } from "../lib/ime.ts";
 import { setUi, useUi } from "../lib/store.ts";
+import { Markdown } from "./Markdown.tsx";
 import { Button } from "./ui.tsx";
 
 /** その項目の「答える」の節を開く（行の「答える」・`a`） */
@@ -308,12 +309,13 @@ function Question({ w, workItemId }: { w: WaitResponse; workItemId: string }) {
       <div
         ref={ref}
         style={{ maxHeight: QUESTION_MAX }}
-        className="resize-y overflow-auto whitespace-pre-wrap break-words rounded-[8px] bg-sunken px-3 py-2 text-body text-fg"
+        className="resize-y overflow-auto break-words rounded-[8px] bg-sunken px-3 py-2 text-body text-fg"
         data-testid="answer-question"
         // biome-ignore lint/a11y/noNoninteractiveTabindex: 長い問いをキーでスクロールする
         tabIndex={0}
       >
-        {w.question.text}
+        {/* AI の文の Markdown（HTML は解釈しない。Issue #8） */}
+        <Markdown text={w.question.text} />
       </div>
       {w.question.truncated ? (
         <span className="text-[11px] text-fg3">{t("answer.truncated")}</span>

@@ -9,6 +9,7 @@ import type {
   AiLiveResponse,
   AwayResponse,
   GlanceResponse,
+  LastReplyResponse,
   LiveItem,
   OpenAction,
   QueueResponse,
@@ -54,6 +55,11 @@ export interface AiDeps {
    * ログ・SSE・MCP・通知には出さない
    */
   glance(id: string): GlanceResponse | null;
+  /**
+   * AI の最後の発言を表示の瞬間に読む（ADR 0019 の Decision 10）。AI 項目が無ければ null。結果は応答にだけ入れ、
+   * ログ・SSE・MCP・通知には出さない
+   */
+  lastReply(id: string): LastReplyResponse | null;
   /** 保存した待ちの中身の件数（設定 › データ。ADR 0018） */
   storedDetail(): { instructions: number; waits: number };
   /** 保存した待ちの中身を消す（指示の 1 行目と待ちの中身。ADR 0018） */
@@ -226,6 +232,12 @@ export function createAiRoutes(
         c.header("Cache-Control", "no-store");
         const g = deps().glance(c.req.param("id"));
         return g ? c.json(g) : c.json({ error: "not_found" }, 404);
+      })
+      // 最後の返答（ADR 0019 の Decision 10）: 開いた瞬間に記録から読む。保存しない。ブラウザ・WebView にも残さない（no-store）
+      .get("/work-items/:id/last-reply", (c) => {
+        c.header("Cache-Control", "no-store");
+        const r = deps().lastReply(c.req.param("id"));
+        return r ? c.json(r) : c.json({ error: "not_found" }, 404);
       })
       // Turnlane から答える（D-238）: 待ちの中身（問いの全文は表示の瞬間に読む。保存しない）と届け先。no-store
       .get("/work-items/:id/wait", async (c) => {

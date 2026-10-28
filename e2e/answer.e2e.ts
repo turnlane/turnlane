@@ -75,7 +75,7 @@ async function run(t: Ctx) {
   const q = await page.getByTestId("answer-question").innerText();
   t.check(
     "the full question is shown",
-    q.includes("What should I do?") && q.includes("3. Leave it as is"),
+    q.includes("What should I do?") && q.includes("Leave it as is"),
     q,
   );
   // 問いの枠は右下のつまみで手で広げられる（自動では広げない）。広げても答えの欄と送るボタンは画面内

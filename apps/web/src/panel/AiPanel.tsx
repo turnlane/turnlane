@@ -4,7 +4,8 @@
  * 1. 状態とすること（「自分の番 · 返答待ち · 1h24m」と文）→ 2. リポジトリ · ブランチと開く先（主のボタン1つ・他の開き方 ▾・⋯）
  * → 3. 成果（PR とレビューの判定、確認支援の CI・変更の量・テスト・worktree。M5-B）→ 4. この項目の流れと合計（直近だけ、古い区間は畳む）。
  * ターンの一覧・ツール呼び出しの数・取り込み元の札・壁時計・内部の種類名は出さない。自分の番に出ているときだけ、待っている理由
- * （許可を求めているコマンド・AI の問い。表示の瞬間に手元の記録から読む。保存しない。D-207、ADR 0005 の追記 2）を出す
+ * （許可を求めているコマンド・AI の問い。表示の瞬間に手元の記録から読む。保存しない。D-207、ADR 0005 の追記 2）を出す。
+ * 状態を問わず、AI の最後の発言（「最後の返答」。表示の瞬間に記録から読む。保存しない。ADR 0019 の Decision 10）を出す
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { useState } from "react";
 import { AnswerSection, openAnswer, useAnswerOpen } from "../components/AnswerSection.tsx";
 import { ContextMenu, type MenuEntry } from "../components/ContextMenu.tsx";
 import { FlowSection } from "../components/Flow.tsx";
+import { LastReplySection } from "../components/LastReply.tsx";
 import { Nums } from "../components/Nums.tsx";
 import { openActionIcon, useOpenLabel } from "../components/OpenWith.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
@@ -182,6 +184,14 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
         ) : null}
         <Actions id={id} d={d} head={head} answer={canAnswer} answering={answering} />
       </div>
+      {/* 最後の返答（Issue #8）: 開いた瞬間に記録から読む。答えている間の問いは「答える」の節が全文で出すので出さない */}
+      {answering && wait?.kind !== "permission" ? null : (
+        <LastReplySection
+          key={id}
+          workItemId={id}
+          version={`${d.workItem.status}|${d.workItem.lastActivityAt}`}
+        />
+      )}
       {canAnswer ? <AnswerSection workItemId={id} wait={wait} /> : null}
       {pr || checks ? (
         <section className="flex flex-col gap-2 border-line border-t pt-4" data-testid="ai-result">

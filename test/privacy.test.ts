@@ -245,6 +245,16 @@ async function sentinelRun(store: boolean) {
       waited += await r.text();
     }
     expect(waited).toContain('"kind":"permission"');
+    // 最後の返答（ADR 0019 の Decision 10）: AI の最後の発言も表示の瞬間に読むだけ（no-store。後の検査で DB・ログ・SSE・MCP に出ない）
+    let replied = "";
+    for (const id of ids) {
+      const r = await fetch(`${daemon.url}/api/work-items/${id}/last-reply`, { headers: auth });
+      expect(r.headers.get("cache-control")).toBe("no-store");
+      replied += await r.text();
+    }
+    // フィクスチャの番兵はでたらめな長い文字列を含むので伏せ字になる（読めて、伏せ字を通したことを見る）
+    expect(replied).toContain('"state":"ok"');
+    expect(replied).toContain('"masked":true');
     // 判定・取り込みをもう一度回す（glance の後でも DB に何も書かれない）
     await ai.supervisor.scanAll();
     await ai.supervisor.whenIdle();

@@ -30,6 +30,7 @@ export {
   trimCodexScratchCwd,
 } from "./hook-allowlist.ts";
 export { isForbiddenFile } from "./io.ts";
+export { claudeLastReply, codexLastReply } from "./last-reply.ts";
 export {
   errorFields,
   type LogFields,

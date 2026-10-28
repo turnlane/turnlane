@@ -12,6 +12,8 @@ export interface ClaudeWriter {
   /** ツール生成のタイトル（ai-title） */
   aiTitle(at: number, title: string): void;
   assistantEnd(at: number, text: string, opts?: { edits?: number; durationMs?: number }): void;
+  /** ターンの途中の AI の文（ツール呼び出しの前の説明など。ターンは終わらない） */
+  assistantText(at: number, text: string): void;
   prLink(at: number, repo: string, n: number): void;
   /** API エラーで終わったターン（isApiErrorMessage。error はエラーの種類） */
   apiError(at: number, error: string, opts?: { durationMs?: number }): void;
@@ -91,6 +93,18 @@ export function claudeTranscript(
         durationMs: o.durationMs ?? 60_000,
         isMeta: false,
         promptId: prompt,
+      });
+    },
+    assistantText(at, text) {
+      write({
+        ...common(at),
+        type: "assistant",
+        message: {
+          id: `m-${++uid}`,
+          model: "claude-x",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          content: [{ type: "text", text }],
+        },
       });
     },
     apiError(at, error, o = {}) {
@@ -259,6 +273,10 @@ export interface CodexWriter {
   begin(start: number): (end: number, text: string) => void;
   /** ツールが付けた会話の題名（session_index.jsonl の thread_name） */
   threadName(at: number, name: string): void;
+  /** 今のターンの AI の発言（item_completed の AgentMessage） */
+  agentMessage(at: number, text: string): void;
+  /** 今のターンのツールの呼び出し（item_completed の CommandExecution など） */
+  toolItem(at: number, type?: string): void;
 }
 
 /** 合成の Codex の rollout（本文は合成値。0.15x の形）。root は ~/.codex */
@@ -274,6 +292,7 @@ export function codexRollout(
   mkdirSync(dirname(path), { recursive: true });
   const iso = (t: number) => new Date(t).toISOString();
   const write = (o: object) => appendFileSync(path, `${JSON.stringify(o)}\n`);
+  let current = "";
   write({
     type: "session_meta",
     timestamp: iso(opts.at),
@@ -293,6 +312,7 @@ export function codexRollout(
     },
     begin(start) {
       const turn_id = `t-${++uid}`;
+      current = turn_id;
       write({
         type: "event_msg",
         timestamp: iso(start),
@@ -317,6 +337,24 @@ export function codexRollout(
             last_agent_message: text,
           },
         });
+    },
+    agentMessage(at, text) {
+      write({
+        type: "event_msg",
+        timestamp: iso(at),
+        payload: {
+          type: "item_completed",
+          turn_id: current,
+          item: { type: "AgentMessage", id: `msg-${++uid}`, content: [{ type: "Text", text }] },
+        },
+      });
+    },
+    toolItem(at, type = "CommandExecution") {
+      write({
+        type: "event_msg",
+        timestamp: iso(at),
+        payload: { type: "item_completed", turn_id: current, item: { type } },
+      });
     },
     threadName(at, name) {
       appendFileSync(

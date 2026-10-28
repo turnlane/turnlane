@@ -1372,3 +1372,27 @@ interface LiveItem {
 - 片付けの判定は `pgrep` と git を使うので、`/api/ai/check` と同じく 15 秒覚える（片付け・起動の状態が変われば捨てる）
 - SSE の種類は足さない。web は `work_item`・`follow_up`・`task` で `["aiLive"]` を無効化し、30 秒ごとにも取り直す（片付けの覚え・6 時間の境目）
 - 片付けの節の操作は既存の `GET /api/ai/finish-plan?taskIds=` と `POST /api/ai/launches/:id/finish`（片付けだけのシート。タスクの完了は呼ばない）。タスクが未完了なら今までの完了のシート
+
+## 34. 最後の返答（Issue #8。2026-10-28。ADR 0019 の Decision 10）
+
+AI の詳細パネルの「最後の返答」の節のために、読み取りを 1 本足す。取り込み・DB・SSE・MCP・通知・ボードの行・自分の番の帯は変えない。実装は `apps/daemon/src/glance/last-reply.ts`（読むだけ。ロガーを受け取らない）、記録からの取り出しは collectors の `claudeLastReply` / `codexLastReply`、伏せ字と切り詰めは core の `lastReplyOf`。
+
+### 34.1 `GET /api/work-items/:id/last-reply`
+
+`Cache-Control: no-store`。AI 項目が無ければ 404。
+
+```ts
+interface LastReplyResponse {
+  workItemId: string;
+  state: "ok" | "none" | "gone" | "unreadable" | "off";
+  text?: string;       // AI の最後の発言（state が ok のときだけ）。伏せ字の後に 2,000 字で切る
+  truncated?: boolean; // 切った（画面は「続きは端末で」と「開く」）
+  masked?: boolean;    // 伏せ字を入れた
+  readAt: EpochMs;
+}
+```
+
+- 読むのは AI 項目の最後のターンのセッション（`sessionOf`）の記録の末尾（1 MB）。Claude Code はトランスクリプト（`findClaudeTranscript`）、Codex は rollout（DB の `file_path`。無ければ `archived_sessions/` の同じ名前。取り込み元のルートの外は読まない）
+- `none`: 記録はあるが、そのターンに AI の発言がまだ無い（AI 項目にセッションが無いときも）。`gone`: 記録が無い・消えている。`unreadable`: 読めない。`off`: 設定「行に中身を出す」（`turn.show_detail`）がオフ（記録を読まない）
+- **「最後」の境界**: パーサと同じターン（Claude Code は `origin.kind` が human / task-notification の user レコードで始まり、Codex は `task_started` と人の入力の `UserMessage`）の中で、最後のツール呼び出しより後の文のまとまりを「最後の返答」とする。Claude Code は assistant レコードの `text` ブロック（`thinking`・`tool_use` を除く）を集め、`tool_use` と `tool_result` で区切る。1 つのメッセージの text が別々のレコードに分かれていても、ツール呼び出しを挟まなければ同じまとまりとして改行 2 つでつなぐ。動作中で最後がツール呼び出し（結果待ち）なら、その前のまとまり。Codex は `item_completed` の `AgentMessage` の文を集めて `CommandExecution`・`FileChange`・`McpToolCall` などで区切る（無ければ `response_item` の assistant の message、それも無ければ `task_complete` の `last_agent_message`。同じ発言が複数の形で書かれるので形を混ぜない）。ターンに文がまだ無ければ `none`（前のターンの文は出さない）。自分の番の問いは、この規則で問いの文になる
+- web はパネルを開いている間だけ取りに行き（キャッシュは閉じたら捨てる。`gcTime: 0`）、項目の状態・最後の活動が変わったら読み直す。「答える」の節が問いの全文を出している間（許可待ち以外）は節を出さない（同じ文を 2 回出さない）。文は小さな Markdown の描画器で出す（HTML は解釈しない、リンクは http(s) だけ、画像は読み込まない。「答える」の問いの全文も同じ）

@@ -38,6 +38,14 @@
    - 初回は macOS が Ghostty の操作（オートメーション）の許可を 1 回求める（「開く」の着地で許可済みならそのまま）。
    - 実機の確認: オーナーの実機（Ghostty 1.3.1）で確かめる。`input text` は貼り付けと同じ扱いなので、Claude Code の許可のダイアログで `1` が番号のキーとして効くかは実機で見る。
 
+10. **最後の返答も同じ口で読む。保存しない**（Issue #8 の追記。2026-10-28）: AI の詳細パネルに「最後の返答」の節を足す。出すのは、選んだ AI 項目の最後のセッションの AI の最後の発言（完了・idle は最後の発言、動作中はその時点での最新の発言、自分の番は問いの文）。
+   - 読み方は Decision 4 の問いの全文と同じ: パネルを開いた瞬間にデーモンがそのセッションの記録（Claude Code のトランスクリプト・Codex の rollout）の末尾を読み、応答に入れるだけ（`GET /api/work-items/:id/last-reply`、`Cache-Control: no-store`）。DB・ログ・SSE・MCP・通知に出さない。伏せ字は保存する行と同じ規則（ADR 0005 の 2026-10-16 の追記）を切る前に通し、2,000 字で切る（`truncated`。画面は「続きは端末で」と「開く」）。設定「行に中身を出す」（`turn.show_detail`）がオフなら記録を読まない。
+   - 「最後」の境界: 取り込みのパーサと同じターン（Claude Code は人の指示・task-notification の user レコード、Codex は `task_started`）の中で、最後のツール呼び出しより後の文のまとまり。ツールの結果を待っている間（文がツール呼び出しの前にしか無い）はその前の文のまとまり。まとまりの中の文（Claude Code は 1 つのメッセージの text を別々のレコードに書く）は改行 2 つでつなぐ。thinking・Reasoning・ツールの入出力は含めない。ターンに文がまだ無ければ出さない（前のターンの文は出さない）。判定は collectors の `claudeLastReply` / `codexLastReply`、伏せ字と切り詰めは core の `lastReplyOf`。
+   - 記録が無い・消えている（Claude Code は既定 30 日で消す）ときは `gone`（「記録が消えていて読めません」）。保存しないので、消えた後は読めない。ADR 0018 の保存の範囲は広げない（AI の発言の本文は保存しないもののまま）。
+   - ボードの行・自分の番の帯・MCP（`get_ai_work` など）・通知には出さない。
+   - Codex: 問いの全文・待ちの中身（Decision 4、ADR 0018 の Consequences）は今までどおり読まないが、最後の返答は Codex の rollout も読む（`item_completed` の AgentMessage、無ければ `response_item` の assistant の message、それも無ければ `task_complete` の `last_agent_message`）。
+   - 文は Markdown として出す（web の小さな描画器。HTML のタグは解釈せず文字のまま、リンクは http(s) だけ、画像は読み込まない）。「答える」の問いの全文も同じ描画器で出す。
+
 - 送れる端末: tmux の中（外側の端末に関係なく）・iTerm2・Terminal（ターミナル.app。Decision 8）・Ghostty（1.3 以降。Decision 9）・Orca。送れない端末（Warp・Kitty、AppleScript を切っている・古い Ghostty など）は「この端末には送れません」と「開く」だけ。Turnlane が起動するセッション（AI に頼む・時刻起動）は、送れない端末では tmux の新しいセッションの中で起動する（設定 `launch.tmux_wrap`、既定オン。tmux があるときだけ）。
 - 複数行の答え: tmux の Claude Code は改行を LF（Ctrl+J。Claude Code の文書にある改行の入れ方）のまま送る。ほかは 1 行に畳む（改行を空白に）。改行を Enter にしない。
 - Claude Code・Codex の TUI の細部（許可のダイアログの番号キー、AskUserQuestion の番号、Codex の承認の画面）は公式の文書に書かれていない部分があり、実機で確かめる。Codex の許可待ちには「許可する」を出さない。

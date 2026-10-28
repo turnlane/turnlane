@@ -47,6 +47,7 @@ import {
 } from "./derive/views.ts";
 import { type GhClient, PrPoller } from "./github/pr-poller.ts";
 import { readGlance, snapshotWaitDetails } from "./glance/index.ts";
+import { readLastReply } from "./glance/last-reply.ts";
 import type { AiDeps, SourceView } from "./http/ai-routes.ts";
 import type { SseHub } from "./http/sse.ts";
 import { dirExcludeGlobs } from "./ingest/enrich.ts";
@@ -314,6 +315,11 @@ export function createAiSystem(o: AiOptions): AiSystem {
         ...(s.storeDetail ? { stored: { day: toLocalDate(now, s.tz, s.dayBoundary) } } : {}),
       });
     },
+    lastReply: (id) =>
+      readLastReply(o.sqlite, id, {
+        now: o.clock.now(),
+        showDetail: getSetting<unknown>(o.mutate.db, "turn.show_detail") !== false,
+      }),
     storedDetail: () => storedDetailCounts(o.sqlite),
     clearStoredDetail: () => {
       const n = storedDetailCounts(o.sqlite);
