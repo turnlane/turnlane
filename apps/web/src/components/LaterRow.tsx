@@ -11,7 +11,7 @@ import { useRef } from "react";
 import { useItemActions } from "../actions/item-actions.tsx";
 import { useGlance, useSeen, useShowDetail } from "../data/glance.ts";
 import { useI18n } from "../i18n/index.tsx";
-import { laterTextOf } from "../lib/later-text.ts";
+import { deferredTurn, laterTextOf } from "../lib/later-text.ts";
 import { whereName } from "../lib/where.ts";
 import { HoverToolbar } from "./HoverToolbar.tsx";
 import { titleText } from "./items.tsx";
@@ -148,7 +148,12 @@ export function LaterRow({
       className={`${QUEUE_ROW} ${rowSurface({ selected })} text-fg3 ${fu ? "hover:pr-[86px]" : "hover:pr-[60px]"}`}
     >
       <span className="inline-flex shrink-0 opacity-60">
-        <StatusIcon status={status} estimated={item.estimated} size={16} />
+        <StatusIcon
+          status={status}
+          estimated={item.estimated}
+          size={16}
+          later={deferredTurn(item)}
+        />
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span data-kind="turn-title" className={QUEUE_ROW_TITLE}>

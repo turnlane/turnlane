@@ -146,7 +146,12 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
         data-blocked={head.blocked ? "1" : undefined}
       >
         <div className="flex items-center gap-2 text-body">
-          <StatusIcon status={head.status} estimated={d.workItem.estimated} size={16} />
+          <StatusIcon
+            status={head.status}
+            estimated={d.workItem.estimated}
+            size={16}
+            later={later !== null}
+          />
           <span className="font-medium text-fg">{t(head.head)}</span>
           <span className="min-w-0 truncate text-fg2">
             {head.sub ? ` · ${t(head.sub)}` : ""}

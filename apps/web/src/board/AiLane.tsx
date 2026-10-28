@@ -391,6 +391,7 @@ export function AiLane({
           <AiRunBlock
             title={bare ? null : b.item.title}
             status={b.last ? laneStatus(b.status, tailWait) : b.status}
+            later={b.last && laters.has(b.item.id)}
             barHeight={barH}
             stickyTop={stickyTopOf(p)}
             hover={aiHoverOf(b.item, now, t("ai.scratch"))}

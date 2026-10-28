@@ -497,6 +497,7 @@ function AiRunBlockView({
   bare = false,
   shift = 0,
   labelStatus,
+  later = false,
   barHeight,
   stickyTop = 4,
   drop = 0,
@@ -516,6 +517,8 @@ function AiRunBlockView({
   bare?: boolean;
   /** ラベルの状態アイコン（項目の続きをまとめたラベルは最後のブロックの状態。省略は status） */
   labelStatus?: WorkItemStatus | undefined;
+  /** 自分の番を後でにした間（最後のブロックだけ）。アイコンを丸に時計にする */
+  later?: boolean;
   /** 線の高さ（省略は要素の高さいっぱい）。ラベルが線より高いとき、線は実行の長さのまま */
   barHeight?: number | undefined;
   /** ラベルを右へずらす px（ラベルの高さの範囲で動いている右の線をまたがない） */
@@ -584,7 +587,12 @@ function AiRunBlockView({
           data-label="ai"
         >
           <span className="flex min-w-0 items-center gap-1 font-medium text-fg">
-            <StatusIcon status={labelStatus ?? status} estimated={estimated} size={14} />
+            <StatusIcon
+              status={labelStatus ?? status}
+              estimated={estimated}
+              size={14}
+              later={later}
+            />
             <span className="min-w-0 truncate text-[12.5px]">{title ?? t("common.none")}</span>
             {viaSdk(sources) ? <SdkChip label={t("ai.viaSdk")} /> : null}
             {more ? (

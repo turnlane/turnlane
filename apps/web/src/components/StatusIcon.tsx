@@ -2,6 +2,7 @@
  * 状態アイコン5種（塗りはこれだけ。他は lucide のアウトライン。ux-mvp 4.1、design-system）。
  * 色だけに頼らず形でも区別する: error = 三角に !、needs_input = 丸に一時停止（明滅）、running = 開いた弧（回転）、
  * your_turn = 丸に右矢印、done = チェック。塗りの丸に地の色の記号（確定デザインの部品シート）。
+ * 自分の番を後でにした間（スヌーズ・明日へ・時間に置いた開始の前）は、your_turn を丸に時計（控えめな色）にする。明ければ矢印に戻る。
  * 推定（hooks なし）でも形と色は変えない（D-114。点線の輪と `~` をやめた）。推定はスクリーンリーダーのラベルとホバーで伝える。
  * 回転と明滅は prefers-reduced-motion で止める（styles.css）。
  */
@@ -21,22 +22,27 @@ export function StatusIcon({
   estimated = false,
   size = 14,
   title = true,
+  later = false,
 }: {
   status: WorkItemStatus;
   estimated?: boolean;
   size?: number;
+  /** 自分の番を後でにした間（lib/later-text.ts の deferredTurn）。your_turn のときだけ丸に時計 */
+  later?: boolean;
   /** false ならスクリーンリーダー用のラベルを付けない（隣に文字ラベルがあるとき） */
   title?: boolean;
 }) {
   const t = useT();
-  const label = `${t(`status.${status}`)}${estimated ? ` (${t("status.estimated")})` : ""}`;
+  const deferred = later && status === "your_turn";
+  const label = `${t(`status.${status}`)}${deferred ? ` · ${t("board.later")}` : ""}${estimated ? ` (${t("status.estimated")})` : ""}`;
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center ${COLOR[status]}`}
+      className={`relative inline-flex shrink-0 items-center justify-center ${deferred ? "text-fg3" : COLOR[status]}`}
       style={{ width: size, height: size }}
       {...(title ? { role: "img", "aria-label": label, title: label } : { "aria-hidden": true })}
       data-status={status}
       data-estimated={estimated ? "1" : undefined}
+      data-later={deferred ? "1" : undefined}
     >
       <svg
         width={size}
@@ -47,9 +53,26 @@ export function StatusIcon({
         }
         aria-hidden="true"
       >
-        <Shape status={status} />
+        {deferred ? <LaterShape /> : <Shape status={status} />}
       </svg>
     </span>
+  );
+}
+
+/** 後でにした自分の番: 丸に時計（短い針 2 本） */
+function LaterShape() {
+  return (
+    <>
+      <circle cx="8" cy="8" r={7} fill="currentColor" />
+      <path
+        d="M8 4.6V8l2.4 1.6"
+        fill="none"
+        stroke="var(--dl-bg)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </>
   );
 }
 
