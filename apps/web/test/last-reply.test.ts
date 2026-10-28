@@ -72,3 +72,58 @@ describe("最後の返答の節", () => {
     );
   });
 });
+
+describe("次の指示の欄（Issue #9）", () => {
+  const ok = {
+    ok: true,
+    via: "tmux",
+    terminal: "Ghostty",
+    landing: "Ghostty · main:1.0",
+    multiline: true,
+  } as const;
+  const reply = { state: "ok", text: "直しました。", truncated: false, masked: false } as const;
+
+  test("送れる: 返答の下に入力欄と「送る · 届け先」（⌘⏎）", () => {
+    const out = html("ja", { ...reply, instruct: ok });
+    expect(out.indexOf("直しました。")).toBeLessThan(out.indexOf('data-testid="ai-instruct"'));
+    expect(out).toContain("次の指示");
+    expect(out).toContain('data-testid="ai-instruct-input"');
+    expect(out).toContain("送る · Ghostty · main:1.0");
+    expect(out).toContain("⌘⏎ で送る · ⏎ で改行");
+  });
+
+  test.each([
+    ["session_ended", "このセッションは終わっています", "ai-instruct-open"],
+    ["process_unknown", "このセッションが動いているか確かめられません", "ai-instruct-open"],
+    ["turn_in_progress", "動作中です", null],
+    ["wait_open", "待ちがあります", "ai-instruct-answer"],
+    ["unsupported", "この端末には送れません", null],
+    ["not_found", "このセッションの端末のタブが見つかりません", null],
+  ] as const)("送れない %s: 1 行の理由と導線。入力欄は出さない", (reason, line, button) => {
+    const out = html("ja", { ...reply, instruct: { ok: false, reason, terminal: null } });
+    expect(out).toContain(line);
+    expect(out).not.toContain('data-testid="ai-instruct-input"');
+    if (button) expect(out).toContain(`data-testid="${button}"`);
+  });
+
+  test("英語: 終わったセッション", () => {
+    const out = html("en", {
+      ...reply,
+      instruct: { ok: false, reason: "session_ended", terminal: null },
+    });
+    expect(out).toContain("This session has ended");
+    expect(out).toContain("Open in terminal");
+  });
+
+  test("設定「Turnlane から答える」がオフなら欄を出さない。「行に中身を出す」がオフでも欄は出す（返答は出さない）", () => {
+    expect(
+      html("ja", { ...reply, instruct: { ok: false, reason: "off", terminal: null } }),
+    ).not.toContain('data-testid="ai-instruct"');
+    const off = html("ja", { state: "off", instruct: ok });
+    expect(off).toContain('data-testid="ai-instruct-input"');
+    expect(off).not.toContain("最後の返答");
+    expect(
+      html("ja", { state: "off", instruct: { ok: false, reason: "off", terminal: null } }),
+    ).toBe("");
+  });
+});

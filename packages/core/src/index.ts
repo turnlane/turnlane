@@ -159,6 +159,7 @@ export {
   updateChannel,
   writeInstallInfo,
 } from "./install.ts";
+export { type InstructFacts, instructBlock, instructUndeliverable } from "./instruct.ts";
 export { LAST_REPLY_MAX, type LastReplyBody, lastReplyOf, lastReplyState } from "./last-reply.ts";
 export {
   BUILTIN_TEMPLATES,

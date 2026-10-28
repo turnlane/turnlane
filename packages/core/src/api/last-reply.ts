@@ -4,6 +4,7 @@
  *   `no-store`
  */
 import type { EpochMs } from "./common.ts";
+import type { InstructCheck } from "./instruct.ts";
 
 /**
  * 読めたか
@@ -24,5 +25,10 @@ export interface LastReplyResponse {
   truncated?: boolean;
   /** 伏せ字を入れた */
   masked?: boolean;
+  /**
+   * 次の指示を送れるか（Issue #9、m2-api 35章）。デーモンが答えると同じ届け先の判定で付ける。設定「行に中身を出す」が
+   * オフでも付く（文を読まない判定）
+   */
+  instruct?: InstructCheck;
   readAt: EpochMs;
 }

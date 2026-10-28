@@ -161,6 +161,7 @@ const DESIGN = opt("--design") as
   | "away"
   | "away-night"
   | "answer"
+  | "instruct"
   | "lane"
   | "demo"
   | undefined;
@@ -188,6 +189,7 @@ if (
     "away",
     "away-night",
     "answer",
+    "instruct",
     "lane",
     "demo",
   ].includes(DESIGN)
@@ -446,6 +448,7 @@ if (
   DESIGN !== "empty" &&
   DESIGN !== "ai" &&
   DESIGN !== "answer" &&
+  DESIGN !== "instruct" &&
   DESIGN !== "lane" &&
   !DEMO &&
   !GLANCE &&
@@ -1040,7 +1043,7 @@ if (GLANCE) {
     });
     const b = sid();
     const wb = claudeTranscript(main, { sid: b, cwd: repo("web-app"), branch: "fix/issue-42" });
-    step(at("16:30"), () => {
+    step(at("13:10"), () => {
       wb.aiTitle(at("16:30"), L("予約データの取得エラーの条件", "Booking fetch error conditions"));
       wb.human(at("16:30"), {
         text: L("customer_id が -1 になる条件は？", "When does customer_id become -1?"),
@@ -1542,7 +1545,7 @@ if (DESIGN === "answer") {
   });
   // 3. AI の問い（tmux の外の Warp）: 送れない
   const c = session(main, "docs-site", "docs/deploy");
-  step(at("16:30"), () => {
+  step(at("13:10"), () => {
     c.w.human(at("16:30"), { text: L("デプロイの手順を整理して", "Tidy up the deploy guide") });
     hook("UserPromptSubmit", c.id, main, at("16:30"));
   });
@@ -1725,6 +1728,95 @@ if (DESIGN === "answer") {
       try {
         process.kill(pid);
       } catch {}
+  });
+}
+// 次の指示（--design instruct。Issue #9）。本文はすべてダミー。今は 17:10。
+// 1 本目は tmux の中で動いていてターンが終わったセッション（送れる）、2 本目はプロセスの終わったセッション（送らない）
+if (DESIGN === "instruct") {
+  answerOpen.files.add("/Applications/Ghostty.app");
+  answerOpen.outputs.set(
+    "/usr/bin/plutil -extract CFBundleShortVersionString raw -o - /Applications/Ghostty.app/Contents/Info.plist",
+    "1.3.1\n",
+  );
+  answerOpen.outputs.set("/Applications/Ghostty.app/Contents/MacOS/ghostty +show-config", "");
+  for (const r of ["web-app", "docs-site"]) answerOpen.dirs.add(repo(r));
+  const liveStatus = (pid: number, id: string, status: "idle" | "busy", t: number) => {
+    mkdirSync(join(main, "sessions"), { recursive: true });
+    writeFileSync(
+      join(main, "sessions", `${pid}.json`),
+      JSON.stringify({ pid, sessionId: id, status, updatedAt: t }),
+    );
+  };
+  const a = session(main, "web-app", "feat/board-width");
+  step(at("16:40"), () => {
+    a.w.aiTitle(at("16:40"), L("3日ボードの列幅", "Three-day board column widths"));
+    a.w.human(at("16:40"), {
+      text: L("3日ボードの列幅を直して", "Fix the three-day board column widths"),
+    });
+    hook("UserPromptSubmit", a.id, main, at("16:40"));
+  });
+  step(at("16:52"), () => {
+    a.w.assistantEnd(
+      at("16:52"),
+      L(
+        "左右の列を同じ幅にしました。**テストも通っています。**",
+        "Both columns now use the same width. **Tests pass.**",
+      ),
+      { durationMs: 12 * MIN },
+    );
+    hook("Stop", a.id, main, at("16:52"));
+  });
+  const b = session(main, "docs-site", "docs/deploy");
+  step(at("13:00"), () => {
+    b.w.aiTitle(at("13:00"), L("デプロイの手順", "Deploy guide"));
+    b.w.human(at("13:00"), { text: L("デプロイの手順を整理して", "Tidy up the deploy guide") });
+    hook("UserPromptSubmit", b.id, main, at("13:00"));
+  });
+  step(at("13:10"), () => {
+    b.w.assistantEnd(at("13:10"), L("手順を整理しました。", "I tidied up the guide."), {
+      durationMs: 10 * MIN,
+    });
+    hook("Stop", b.id, main, at("13:10"));
+  });
+  const p = Bun.spawn(["/bin/sleep", "86400"], { stdin: "ignore", stdout: "ignore" });
+  answerPids.push(p.pid);
+  liveStatus(p.pid, a.id, "idle", NOW);
+  const ps = (pid: number) => `/bin/ps -o ppid=,tty=,comm= -p ${pid}`;
+  const TMUX = "/opt/homebrew/bin/tmux";
+  answerOpen.outputs.set(ps(p.pid), "4000 ttys007 claude");
+  answerOpen.outputs.set(ps(4000), `3900 ttys007 ${TMUX}`);
+  answerOpen.outputs.set("/bin/ps -o args= -p 4000", "tmux new-session");
+  answerOpen.outputs.set(
+    `${TMUX} -u list-panes -a -F #{pane_tty}\t#{pane_id}\t#{session_name}\t#{window_index}\t#{pane_index}`,
+    "/dev/ttys007\t%3\tmain\t1\t0\n",
+  );
+  answerOpen.outputs.set(
+    `${TMUX} -u list-clients -F #{client_tty}\t#{client_pid}\t#{client_session}\t#{client_activity}`,
+    "/dev/ttys002\t5000\tmain\t100\n",
+  );
+  answerOpen.outputs.set(ps(5000), "4900 ttys002 tmux");
+  answerOpen.outputs.set(ps(4900), "1 ?? /Applications/Ghostty.app/Contents/MacOS/ghostty");
+  // 送ったら（tmux の Enter）、Claude が受け取って自分の指示が記録に現れ、動き出した形にする
+  const run = answerOpen.run.bind(answerOpen);
+  answerOpen.run = async (argv, o) => {
+    const ok = await run(argv, o);
+    if (argv.at(-1) === "Enter") {
+      a.w.human(Date.now(), { text: "(instruction)" });
+      liveStatus(p.pid, a.id, "busy", Date.now());
+      setTimeout(async () => {
+        if (!ai) return;
+        await ai.supervisor.probeLive();
+        await ai.supervisor.scanAll();
+        await ai.supervisor.whenIdle();
+        ai.runner.runOnce();
+      }, 1500);
+    }
+    return ok;
+  };
+  process.on("exit", () => {
+    try {
+      process.kill(p.pid);
+    } catch {}
   });
 }
 // デモ動画の場面（--design demo。M6-30）。AI は 3 本が 15:20 に実行中。C だけが合図で許可待ちになる
@@ -2131,7 +2223,7 @@ const d = await startDaemon({
     noWatch: true,
     ...(SCRATCH
       ? { openSystem: scratchOpen }
-      : DESIGN === "answer"
+      : DESIGN === "answer" || DESIGN === "instruct"
         ? { openSystem: answerOpen }
         : {}),
   },
@@ -2750,7 +2842,7 @@ if (LIVE && liveSid) {
   }
 }
 // --design answer: 動いているセッション（sessions/<pid>.json）を先に読む（届け先が「動いていない」にならないように）
-if (DESIGN === "answer" || REAL_OPEN) await ai.supervisor.probeLive();
+if (DESIGN === "answer" || DESIGN === "instruct" || REAL_OPEN) await ai.supervisor.probeLive();
 ai.runner.runOnce();
 
 // --source-health <L1|L2|L3>[,<L1|L2|L3>]: 取り込み元（main, sandbox の順）の状態を推定・停止にする（D-118 のサイドバーの知らせの確認用）。

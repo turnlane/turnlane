@@ -19,6 +19,8 @@ import {
   answerSentText,
   answerWhere,
   type derive,
+  instructBlock,
+  instructUndeliverable,
   type Locale,
   prepareAnswer,
 } from "@turnlane/core";
@@ -26,6 +28,10 @@ import type {
   AnswerDelivery,
   AnswerInput,
   AnswerResult,
+  InstructBlocked,
+  InstructCheck,
+  InstructInput,
+  InstructResult,
   OpenLanding,
   WaitResponse,
 } from "@turnlane/core/api";
@@ -45,6 +51,7 @@ import {
   sendPrep,
   sendsNewlines,
 } from "./deliver.ts";
+import { type InstructRead, readInstruct, tailState } from "./instruct.ts";
 import { readWait, type WaitRead, waitOpen } from "./wait.ts";
 
 /** 送った後に記録が進んだかを見る長さと間隔 */
@@ -87,7 +94,14 @@ export class Answerer {
     w: WaitRead,
   ): Promise<{ d: Delivery; tool: string | null; host?: string }> {
     if (!w.wait) return { d: { ok: false, app: null, reason: "not_live" }, tool: null };
-    const t = loadTarget(this.o.sqlite, this.o.sys, this.#ref(workItemId, w), this.o.now());
+    return this.#deliveryTo(this.#ref(workItemId, w));
+  }
+
+  /** 届け先（フォローアップかカードの、動いているセッションの居場所 → 端末） */
+  async #deliveryTo(
+    ref: { followUpId: string } | { workItemId: string },
+  ): Promise<{ d: Delivery; tool: string | null; host?: string }> {
+    const t = loadTarget(this.o.sqlite, this.o.sys, ref, this.o.now());
     const s = t.session;
     if (!s?.livePid)
       return { d: { ok: false, app: null, reason: "not_live" }, tool: s?.tool ?? null };
@@ -233,6 +247,120 @@ export class Answerer {
       message: answerSentText({ confirmed, landing }, locale),
       folded: prepared.folded,
     };
+  }
+
+  /**
+   * 次の指示を送れるか（Issue #9、ADR 0019 の Decision 11）。プロセスが動いている・記録の末尾がターンの終わり・開いている
+   * 待ちが無い、を満たしたときだけ端末のタブを探す（終わったセッションには ps・tmux も起動しない）。AI 項目が無ければ null
+   */
+  async instructCheck(workItemId: string): Promise<InstructCheck | null> {
+    const r = await this.#instructPlan(workItemId);
+    if (!r) return null;
+    if (!r.ok) return { ok: false, reason: r.reason, terminal: r.terminal };
+    const delivery = this.#delivery(r.d, r.tool);
+    return {
+      ok: true,
+      via: r.d.via,
+      terminal: r.d.app,
+      landing: delivery.landing ?? r.d.app,
+      multiline: delivery.multiline,
+    };
+  }
+
+  async #instructPlan(workItemId: string): Promise<
+    | null
+    | { ok: false; reason: InstructBlocked; terminal: string | null }
+    | {
+        ok: true;
+        d: Extract<Delivery, { ok: true }>;
+        tool: string | null;
+        host?: string;
+        read: InstructRead;
+      }
+  > {
+    const read = readInstruct(this.o.sqlite, workItemId, {
+      now: this.o.now(),
+      sessionWait: this.#sessionWait(workItemId),
+    });
+    if (!read) return null;
+    const blocked = instructBlock({ enabled: this.o.enabled(), ...read.facts });
+    if (blocked) return { ok: false, reason: blocked, terminal: null };
+    const { d, tool, host } = await this.#deliveryTo({ workItemId });
+    if (!d.ok) return { ok: false, reason: instructUndeliverable(d.reason), terminal: d.app };
+    return { ok: true, d, tool, ...(host ? { host } : {}), read };
+  }
+
+  /**
+   * 次の指示を端末のタブに文字として届ける（答えると同じ口）。送る前の条件を満たさなければ 409（理由の言葉）で送らない。
+   * 送った後 3 秒以内に記録へ新しい自分の指示が現れたら confirmed（タブは前に出さない）。文は保存しない（ログは文字数と
+   * 届け先の種類だけ）
+   */
+  async instruct(workItemId: string, input: InstructInput): Promise<InstructResult> {
+    if (typeof input.text !== "string" || input.text.length > ANSWER_MAX)
+      throw new OpError(400, "invalid_input");
+    const plan = await this.#instructPlan(workItemId);
+    if (!plan) throw new OpError(404, "not_found");
+    if (!plan.ok) throw new OpError(409, plan.reason);
+    const { d, tool, host, read } = plan;
+    const prepared = prepareAnswer(input.text, sendsNewlines(d, tool));
+    if (!prepared) throw new OpError(400, "invalid_input");
+    const steps = planSend(d, { kind: "text", text: prepared.text });
+    let observed = false;
+    const prep = sendPrep(d);
+    for (const p of prep.prepare) runPrep(this.o.sys, p);
+    try {
+      observed = await this.#send(d, steps, host);
+    } finally {
+      for (const p of prep.finally) runPrep(this.o.sys, p);
+    }
+    const confirmed = observed || (await this.#newPrompt(read));
+    let focus: OpenLanding | null = null;
+    if (!confirmed) {
+      try {
+        const r = await this.o.opener.open({ workItemId, action: "session" });
+        focus = r.outcome === "focused" ? (r.landing ?? null) : null;
+      } catch {
+        focus = null;
+      }
+    }
+    const locale = this.o.locale();
+    const landing = answerLanding(
+      d.app,
+      d.via,
+      d.via === "tmux" ? d.pane.label : null,
+      focus,
+      locale,
+    );
+    this.o.logger.info("instruction.sent", {
+      chars: prepared.text.length,
+      via: meta(d.via),
+      confirmed,
+      folded: prepared.folded,
+    });
+    return {
+      delivered: true,
+      confirmed,
+      via: d.via,
+      app: d.app,
+      landing,
+      focus,
+      message: answerSentText({ confirmed, landing }, locale),
+      folded: prepared.folded,
+    };
+  }
+
+  /** 記録に新しい自分の指示が現れたか（最後の指示の目印が変わった）を CONFIRM_MS まで見る */
+  async #newPrompt(read: InstructRead): Promise<boolean> {
+    const s = read.session;
+    if (!s) return false;
+    const sleep = this.o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    for (let waited = 0; waited <= CONFIRM_MS; waited += CONFIRM_STEP_MS) {
+      const m = tailState(s).mark;
+      if (m !== null && m !== read.mark) return true;
+      if (waited + CONFIRM_STEP_MS > CONFIRM_MS) break;
+      await sleep(CONFIRM_STEP_MS);
+    }
+    return false;
   }
 
   /** 手順を順に起動する。Orca は受理と送信の観測を分けて読む。Ghostty は送れなかった理由を分ける（D-244） */

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - AI detail: a *Last reply* section shows the agent's latest message (or its question), read from the session log on your Mac when you open the panel and never stored. It and the full question in *Answer* are shown with Markdown formatting (HTML is not interpreted; only http(s) links).
 - Answer and the Your turn rows now show the question for Codex sessions too, read from the Codex session log when shown and never stored (Codex permission requests are unchanged).
+- AI detail: a *Next instruction* box under the last reply sends your next instruction to the session's terminal tab, like Answer. It only sends while the agent is still running there with its turn finished and nothing waiting on you; otherwise it says why (ended, working, waiting on you). The text is not stored.
 
 ## [0.7.1] - 2026-10-28
 

@@ -255,6 +255,18 @@ async function sentinelRun(store: boolean) {
     // フィクスチャの番兵はでたらめな長い文字列を含むので伏せ字になる（読めて、伏せ字を通したことを見る）
     expect(replied).toContain('"state":"ok"');
     expect(replied).toContain('"masked":true');
+    expect(replied).toContain('"instruct":');
+    // 次の指示（Issue #9）: 文に番兵を入れて送ろうとする（このフィクスチャのセッションは動いていないので 409 で送らない）。
+    // 後の検査で、文が DB・ログ・SSE に残らないことを見る
+    for (const id of ids) {
+      const r = await fetch(`${daemon.url}/api/work-items/${id}/instruct`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ text: `${SENTINEL_PREFIX}instruct next` }),
+      });
+      expect(r.status).toBe(409);
+      expect(await r.text()).not.toContain(SENTINEL_PREFIX);
+    }
     // 判定・取り込みをもう一度回す（glance の後でも DB に何も書かれない）
     await ai.supervisor.scanAll();
     await ai.supervisor.whenIdle();

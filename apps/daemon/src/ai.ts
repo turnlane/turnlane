@@ -315,11 +315,15 @@ export function createAiSystem(o: AiOptions): AiSystem {
         ...(s.storeDetail ? { stored: { day: toLocalDate(now, s.tz, s.dayBoundary) } } : {}),
       });
     },
-    lastReply: (id) =>
-      readLastReply(o.sqlite, id, {
+    lastReply: async (id) => {
+      const r = readLastReply(o.sqlite, id, {
         now: o.clock.now(),
         showDetail: getSetting<unknown>(o.mutate.db, "turn.show_detail") !== false,
-      }),
+      });
+      // 次の指示を送れるか（Issue #9）。答えると同じ届け先の判定
+      const instruct = r ? await answerer.instructCheck(id) : null;
+      return r && instruct ? { ...r, instruct } : r;
+    },
     storedDetail: () => storedDetailCounts(o.sqlite),
     clearStoredDetail: () => {
       const n = storedDetailCounts(o.sqlite);

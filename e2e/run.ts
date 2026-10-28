@@ -22,6 +22,7 @@ import { buildExtWeb, extNoneSuite, extSuite } from "./ext.e2e.ts";
 import { focusSuite } from "./focus.e2e.ts";
 import { type Engine, type Result, runSuite, type Suite } from "./harness.ts";
 import { imeSuite } from "./ime.e2e.ts";
+import { instructSuite } from "./instruct.e2e.ts";
 import { keymapSuite } from "./keymap.e2e.ts";
 import { laterSuite } from "./later.e2e.ts";
 import { launchSuite } from "./launch.e2e.ts";
@@ -56,6 +57,7 @@ const SUITES: Suite[] = [
   answerSuite,
   answerGraceSuite,
   answerLaneSuite,
+  instructSuite,
   onboardingSuite,
   onboardingAppSuite,
   onboardingCalendarFailSuite,

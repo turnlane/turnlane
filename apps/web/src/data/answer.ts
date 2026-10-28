@@ -68,7 +68,7 @@ const sentMarks = new Map<string, SentMark>();
 const sentListeners = new Set<() => void>();
 export const sentKey = (workItemId: string, w: { turnId: string | null; kind: string } | null) =>
   `${workItemId}|${w?.turnId ?? ""}|${w?.kind ?? ""}`;
-function markSent(key: string, m: SentMark): void {
+export function markSent(key: string, m: SentMark): void {
   sentMarks.set(key, m);
   for (const f of sentListeners) f();
 }
@@ -79,6 +79,8 @@ export function useSentMark(key: string): SentMark | null {
       return () => sentListeners.delete(f);
     },
     () => sentMarks.get(key) ?? null,
+    // 静的な描画（試験）では送った印は無い
+    () => null,
   );
 }
 

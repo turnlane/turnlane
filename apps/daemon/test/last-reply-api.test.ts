@@ -136,13 +136,20 @@ describe("GET /api/work-items/:id/last-reply（ADR 0019 の Decision 10）", () 
     const id = idOf("claude_code");
     putSetting(env.mutate, "turn.show_detail", false);
     const off = await get(id);
-    expect(off.body).toEqual({ workItemId: id, state: "off", readAt: T0 + 5 * MIN });
+    expect(off.body).toEqual({
+      workItemId: id,
+      state: "off",
+      readAt: T0 + 5 * MIN,
+      // 次の指示の判定は文を読まないので付く（プロセスが動いていない）
+      instruct: { ok: false, reason: "session_ended", terminal: null },
+    });
     putSetting(env.mutate, "turn.show_detail", true);
     rmSync(tr.path);
     const gone = await get(id);
     expect(gone.status).toBe(200);
     expect(gone.headers.get("cache-control")).toBe("no-store");
-    expect(gone.body).toEqual({ workItemId: id, state: "gone", readAt: T0 + 5 * MIN });
+    expect(gone.body).toMatchObject({ workItemId: id, state: "gone", readAt: T0 + 5 * MIN });
+    expect(gone.body.text).toBeUndefined();
     expect((await get("no-such-item")).status).toBe(404);
   });
 

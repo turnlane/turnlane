@@ -140,3 +140,72 @@ export function codexLastReply(records: readonly unknown[]): string | null {
   }
   return items.value() ?? responses.value() ?? lastAgent;
 }
+
+/**
+ * 記録の末尾（新しい順）がターンの終わりか（次の指示を送ってよいか。ADR 0019 の Decision 11）。パーサのターンの終わりと同じ:
+ * Claude Code は system の turn_duration・stop_reason が end_turn の assistant・API エラー・中断の印。人の指示・ツールの結果・
+ * 途中の発言（end_turn でない assistant）が先に来れば動作中（running）。どれも無ければ unknown
+ */
+export function claudeTurnEnd(records: readonly unknown[]): "ended" | "running" | "unknown" {
+  for (const r0 of records) {
+    const r = rec(r0);
+    if (r.isSidechain === true) continue;
+    if (r.type === "system") {
+      if (r.subtype === "turn_duration") return "ended";
+      continue;
+    }
+    if (r.type === "assistant") {
+      if (r.isApiErrorMessage === true) return "ended";
+      return rec(r.message).stop_reason === "end_turn" ? "ended" : "running";
+    }
+    if (r.type === "user") {
+      if (r.isMeta === true) continue;
+      const content = rec(r.message).content;
+      const first = Array.isArray(content)
+        ? rec(content.find((c) => rec(c).type === "text")).text
+        : content;
+      if (typeof first === "string" && first.startsWith("[Request interrupted")) return "ended";
+      return "running";
+    }
+  }
+  return "unknown";
+}
+
+/**
+ * Codex の rollout の末尾（新しい順）がターンの終わりか（claudeTurnEnd と同じ）。task_complete・turn_aborted で終わり、
+ * それより新しいターンの始まり・発言・ツールがあれば動作中
+ */
+export function codexTurnEnd(records: readonly unknown[]): "ended" | "running" | "unknown" {
+  for (const r0 of records) {
+    const r = rec(r0);
+    const p = rec(r.payload);
+    if (r.type === "event_msg") {
+      if (p.type === "task_complete" || p.type === "turn_aborted") return "ended";
+      if (p.type === "token_count" || p.type === "thread_settings_applied") continue;
+      return "running";
+    }
+    if (r.type === "turn_context" || r.type === "response_item") return "running";
+  }
+  return "unknown";
+}
+
+/**
+ * 最後の人の指示の目印（送った後に記録へ新しい指示が現れたかを比べる）。Claude Code は人の指示の user レコードの uuid
+ * （無ければ promptId）、Codex は最後の task_started の turn_id。本文は返さない
+ */
+export function lastPromptMark(tool: string, records: readonly unknown[]): string | null {
+  for (const r0 of records) {
+    const r = rec(r0);
+    if (tool === "codex") {
+      const p = rec(r.payload);
+      if (r.type === "event_msg" && p.type === "task_started" && typeof p.turn_id === "string")
+        return p.turn_id;
+      continue;
+    }
+    if (r.type !== "user" || r.isMeta === true || r.isSidechain === true) continue;
+    if (rec(r.origin).kind !== "human") continue;
+    if (typeof r.uuid === "string") return r.uuid;
+    if (typeof r.promptId === "string") return r.promptId;
+  }
+  return null;
+}

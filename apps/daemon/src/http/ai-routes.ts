@@ -59,7 +59,7 @@ export interface AiDeps {
    * AI の最後の発言を表示の瞬間に読む（ADR 0019 の Decision 10）。AI 項目が無ければ null。結果は応答にだけ入れ、
    * ログ・SSE・MCP・通知には出さない
    */
-  lastReply(id: string): LastReplyResponse | null;
+  lastReply(id: string): Promise<LastReplyResponse | null>;
   /** 保存した待ちの中身の件数（設定 › データ。ADR 0018） */
   storedDetail(): { instructions: number; waits: number };
   /** 保存した待ちの中身を消す（指示の 1 行目と待ちの中身。ADR 0018） */
@@ -189,6 +189,8 @@ const answerInput = z.union([
   z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict(),
   z.object({ allow: z.literal(true) }).strict(),
 ]);
+/** 次の指示: 文だけ（m2-api 35章） */
+const instructInput = z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict();
 const bulkInput = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(500) });
 
 /** 入力の検証に失敗したら 400 { error: "invalid_input" } */
@@ -234,9 +236,9 @@ export function createAiRoutes(
         return g ? c.json(g) : c.json({ error: "not_found" }, 404);
       })
       // 最後の返答（ADR 0019 の Decision 10）: 開いた瞬間に記録から読む。保存しない。ブラウザ・WebView にも残さない（no-store）
-      .get("/work-items/:id/last-reply", (c) => {
+      .get("/work-items/:id/last-reply", async (c) => {
         c.header("Cache-Control", "no-store");
-        const r = deps().lastReply(c.req.param("id"));
+        const r = await deps().lastReply(c.req.param("id"));
         return r ? c.json(r) : c.json({ error: "not_found" }, 404);
       })
       // Turnlane から答える（D-238）: 待ちの中身（問いの全文は表示の瞬間に読む。保存しない）と届け先。no-store
@@ -244,6 +246,12 @@ export function createAiRoutes(
         c.header("Cache-Control", "no-store");
         const w = await deps().answerer.wait(c.req.param("id"));
         return w ? c.json(w) : c.json({ error: "not_found" }, 404);
+      })
+      // 次の指示（Issue #9）: 待ちの無いセッションに、答えると同じ口で届ける。送る前の条件を満たさなければ 409（理由の言葉）。
+      // 文は保存しない（ログは文字数と届け先の種類だけ）
+      .post("/work-items/:id/instruct", zValidator("json", instructInput, invalid), async (c) => {
+        c.header("Cache-Control", "no-store");
+        return c.json(await deps().answerer.instruct(c.req.param("id"), c.req.valid("json")));
       })
       // 答えをその端末のタブに文字として届ける。答えの文は保存しない（ログは文字数と届け先の種類だけ）
       .post("/work-items/:id/answer", zValidator("json", answerInput, invalid), async (c) => {

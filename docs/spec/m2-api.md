@@ -1396,3 +1396,13 @@ interface LastReplyResponse {
 - `none`: 記録はあるが、そのターンに AI の発言がまだ無い（AI 項目にセッションが無いときも）。`gone`: 記録が無い・消えている。`unreadable`: 読めない。`off`: 設定「行に中身を出す」（`turn.show_detail`）がオフ（記録を読まない）
 - **「最後」の境界**: パーサと同じターン（Claude Code は `origin.kind` が human / task-notification の user レコードで始まり、Codex は `task_started` と人の入力の `UserMessage`）の中で、最後のツール呼び出しより後の文のまとまりを「最後の返答」とする。Claude Code は assistant レコードの `text` ブロック（`thinking`・`tool_use` を除く）を集め、`tool_use` と `tool_result` で区切る。1 つのメッセージの text が別々のレコードに分かれていても、ツール呼び出しを挟まなければ同じまとまりとして改行 2 つでつなぐ。動作中で最後がツール呼び出し（結果待ち）なら、その前のまとまり。Codex は `item_completed` の `AgentMessage` の文を集めて `CommandExecution`・`FileChange`・`McpToolCall` などで区切る（無ければ `response_item` の assistant の message、それも無ければ `task_complete` の `last_agent_message`。同じ発言が複数の形で書かれるので形を混ぜない）。ターンに文がまだ無ければ `none`（前のターンの文は出さない）。自分の番の問いは、この規則で問いの文になる
 - web はパネルを開いている間だけ取りに行き（キャッシュは閉じたら捨てる。`gcTime: 0`）、項目の状態・最後の活動が変わったら読み直す。「答える」の節が問いの全文を出している間（許可待ち以外）は節を出さない（同じ文を 2 回出さない）。文は小さな Markdown の描画器で出す（HTML は解釈しない、リンクは http(s) だけ、画像は読み込まない。「答える」の問いの全文も同じ）
+
+## 35. 次の指示（Issue #9。2026-10-28。ADR 0019 の Decision 11）
+
+AI の詳細パネルの「最後の返答」の下の入力欄から、待ちの無いセッションに次の指示を届ける。送り方・届け先・確かめ・知らせは 31 章の答えると同じ。実装は `apps/daemon/src/answer/index.ts`（`Answerer.instructCheck` / `instruct`）と `answer/instruct.ts`（送る前の事実）、判定は core の `instructBlock`、記録の末尾の判定は collectors の `claudeTurnEnd` / `codexTurnEnd` / `lastPromptMark`。
+
+- `GET /api/work-items/:id/last-reply`（34 章）に `instruct?: { ok: true; via; terminal; landing; multiline } | { ok: false; reason; terminal }` を足す（no-store のまま）
+- `POST /api/work-items/:id/instruct` `{ text }`（1〜4,000 字。ほかのキーは 400）。応答は `AnswerResult` と同じ形（`confirmed` は 3 秒以内に記録へ新しい自分の指示が現れた）。`Cache-Control: no-store`
+- 送る前の条件（順に見て、最初に当たった理由で `409 { error }`。送らない）: 設定 `turn.answer` がオフ → `off`、最後のセッションのプロセスが終わっている → `session_ended`（端末を探しに行かない）、確かめられない（Codex・Claude Desktop）→ `process_unknown`、開いている待ちがある → `wait_open`、記録の末尾がターンの終わりでない → `turn_in_progress`、記録が無い・読めない → `unreadable`、届け先が決まらない → 答えると同じ `unsupported` / `not_found`（`not_live` は `session_ended`）
+- 文は答えると同じく制御文字を除き、改行を送れない届け先では 1 行に畳む。文は保存しない。ログは `instruction.sent`（`chars`・`via`・`confirmed`・`folded`）だけ
+- web: 入力欄 1 つ（⌘⏎ で送る）と「送る · <届け先>」。送れない理由は 1 行（終わった: 「端末で開く」、待ちがある: 「答える」）。送った後はその項目の次の取り込み（状態・最後の活動が変わる）まで「12:34 に送りました · 確認済み」（web の状態だけ）

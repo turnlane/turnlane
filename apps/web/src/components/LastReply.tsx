@@ -7,11 +7,13 @@
  * - 2,000 字で切ったときは「続きは端末で」と「開く」（行・パネルの「開く」と同じ経路）
  * - 記録が消えていれば「記録が消えていて読めません」。設定「行に中身を出す」がオフなら節ごと出さない
  * - 「答える」の節が問いの全文を出している間は、同じ文を 2 回出さないよう呼ぶ側が出さない
+ * - 下に「次の指示」の入力欄（Issue #9。NextInstruction）
  */
 import { useLastReply } from "../data/last-reply.ts";
 import { openTask } from "../data/mutations.ts";
 import { useI18n } from "../i18n/index.tsx";
 import { Markdown } from "./Markdown.tsx";
+import { NextInstruction } from "./NextInstruction.tsx";
 import { Button } from "./ui.tsx";
 
 /** 文の枠の高さの上限（読むだけの節なので「答える」の問いの枠より少し高い） */
@@ -21,16 +23,18 @@ export function LastReplySection({ workItemId, version }: { workItemId: string; 
   const { t } = useI18n();
   const q = useLastReply(workItemId, version);
   const r = q.data;
-  if (r?.state === "off") return null;
+  // 設定「行に中身を出す」がオフなら返答は出さない（次の指示の欄は文を読まないので出す）
+  const off = r?.state === "off";
+  if (off && (!r?.instruct || (!r.instruct.ok && r.instruct.reason === "off"))) return null;
   const note = (key: Parameters<typeof t>[0]) => <p className="text-fg3 text-meta">{t(key)}</p>;
   return (
     <section
       className="flex flex-col gap-2 border-line border-t pt-4"
       data-testid="ai-last-reply"
-      aria-label={t("ai.lastReply")}
+      aria-label={t(off ? "instruct.title" : "ai.lastReply")}
     >
-      <h3 className="font-semibold text-fg2 text-meta">{t("ai.lastReply")}</h3>
-      {!r ? (
+      {off ? null : <h3 className="font-semibold text-fg2 text-meta">{t("ai.lastReply")}</h3>}
+      {off ? null : !r ? (
         note(q.isError ? "ai.lastReply.failed" : "ai.lastReply.loading")
       ) : r.state === "ok" && r.text ? (
         <>
@@ -64,6 +68,10 @@ export function LastReplySection({ workItemId, version }: { workItemId: string; 
       ) : (
         note("ai.lastReply.none")
       )}
+      {/* 次の指示（Issue #9）: 送れるかはデーモンの判定（プロセス・ターンの終わり・待ち・端末） */}
+      {r?.instruct ? (
+        <NextInstruction workItemId={workItemId} version={version} check={r.instruct} />
+      ) : null}
     </section>
   );
 }
