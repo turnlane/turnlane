@@ -31,7 +31,7 @@ let uid = 0;
 
 export function claudeTranscript(
   root: string,
-  opts: { sid: string; cwd: string; branch: string; enc?: string },
+  opts: { sid: string; cwd: string; branch: string; enc?: string; entrypoint?: string },
 ): ClaudeWriter {
   const path = `${root}/projects/${opts.enc ?? opts.cwd.replaceAll(/[/.]/g, "-")}/${opts.sid}.jsonl`;
   mkdirSync(dirname(path), { recursive: true });
@@ -43,7 +43,7 @@ export function claudeTranscript(
     cwd: opts.cwd,
     gitBranch: opts.branch,
     version: "2.1.287",
-    entrypoint: "cli",
+    entrypoint: opts.entrypoint ?? "cli",
   });
   const write = (o: object) => appendFileSync(path, `${JSON.stringify(o)}\n`);
   let prompt = "";

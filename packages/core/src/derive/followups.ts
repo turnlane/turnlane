@@ -26,6 +26,7 @@ import {
   isLimitResume,
   isManualReply,
   isPermissionHook,
+  isProgramSession,
   limitRef,
   limitWaitOf,
   type StatusResult,
@@ -82,12 +83,18 @@ export function desiredFollowUps(
     });
   };
   const lastTurn = f.turns.at(-1);
+  // プログラム経由（sdk-*）のセッションの許可待ちは、そのプログラムが決める（状態は needs_input のまま。タスク・通知は出さない）
+  const programOf = (sessionId: string | undefined) => {
+    const s = f.sessions.find((x) => x.id === sessionId);
+    return s ? isProgramSession(s) : false;
+  };
 
   if (
     status.status === "needs_input" &&
     status.reason.startsWith("hook:") &&
     on(settings, "approve") &&
-    lastTurn
+    lastTurn &&
+    !programOf(lastTurn.sessionId)
   ) {
     const perm = [...f.hooks].reverse().find(isPermissionHook);
     // 同じターンで許可した後にまた止まった（2 回目以降の PermissionRequest）は別の待ち。閉じた 1 回目と同じ dedupe_key だと
@@ -108,6 +115,7 @@ export function desiredFollowUps(
   // hooks の無い needs_input（D-049 (1)）: セッションごとに、AskUserQuestion は返答タスク、プロセスが idle の
   // 許可待ちは approve。待ちの開始（最後の活動）ですぐ作る
   for (const s of f.sessions) {
+    if (isProgramSession(s)) continue;
     const r = sessionStatus(f, s, now, timing);
     if (r?.status !== "needs_input" || r.reason.startsWith("hook:")) continue;
     const t = [...f.turns].reverse().find((x) => x.sessionId === s.id);

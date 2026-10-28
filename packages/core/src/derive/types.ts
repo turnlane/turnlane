@@ -35,6 +35,11 @@ export interface SessionFact {
   liveStatus: "busy" | "idle" | "gone" | null;
   liveCheckedAt: number | null;
   lastActivityAt: number;
+  /**
+   * 起動の種類（Claude Code の記録の entrypoint。端末は `cli`、Claude Desktop は `claude-desktop`、プログラムが動かしたものは
+   * `sdk-cli` / `sdk-ts` / `sdk-py` など）。分からなければ省略
+   */
+  entrypoint?: string | null;
 }
 
 export interface HookFact {

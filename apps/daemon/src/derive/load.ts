@@ -30,6 +30,8 @@ export interface SessionRow {
   title_source: string | null;
   repo_root: string | null;
   cwd: string | null;
+  /** 起動の種類（cli / claude-desktop / sdk-cli など） */
+  entrypoint?: string | null;
 }
 
 export interface TurnRow {
@@ -243,6 +245,7 @@ export function toSessionFact(r: SessionRow): SessionFact {
     liveStatus: r.live_status,
     liveCheckedAt: r.live_checked_at,
     lastActivityAt: r.last_activity_at,
+    entrypoint: r.entrypoint ?? null,
   };
 }
 

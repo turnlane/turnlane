@@ -165,8 +165,9 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
   );
   const out = new Map<string, SourceBadge[]>();
   for (const r of db
-    .query<{ work_item_id: string; tool: string; profile_label: string | null }, []>(
-      `SELECT DISTINCT t.work_item_id, s.tool, src.profile_label
+    .query<{ work_item_id: string; tool: string; profile_label: string | null; sdk: number }, []>(
+      `SELECT DISTINCT t.work_item_id, s.tool, src.profile_label,
+              (COALESCE(s.entrypoint, '') LIKE 'sdk-%') AS sdk
        FROM ai_turn t JOIN ai_session s ON s.id = t.session_id JOIN ai_source src ON src.id = s.source_id
        WHERE t.work_item_id IS NOT NULL ORDER BY s.tool, src.profile_label`,
     )
@@ -176,7 +177,13 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
       profile: multi.has(r.tool) ? (r.profile_label ?? null) : null,
     };
     const xs = out.get(r.work_item_id) ?? [];
-    if (!xs.some((x) => x.tool === badge.tool && x.profile === badge.profile)) xs.push(badge);
+    let b = xs.find((x) => x.tool === badge.tool && x.profile === badge.profile);
+    if (!b) {
+      b = badge;
+      xs.push(b);
+    }
+    // プログラム経由のセッションがあれば印を付ける（SDK 経由の札）
+    if (r.sdk === 1) b.sdk = true;
     out.set(r.work_item_id, xs);
   }
   return out;

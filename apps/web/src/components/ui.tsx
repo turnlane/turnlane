@@ -81,6 +81,23 @@ export function SourceBadges({
   );
 }
 
+/** プログラム経由（entrypoint が `sdk-*`）のセッションがある AI 項目か（SDK 経由の札） */
+export function viaSdk(sources: readonly SourceBadgeData[]): boolean {
+  return sources.some((s) => s.sdk === true);
+}
+
+/** 「SDK 経由」の小さな札（AI のレーンの行・AI の詳細パネル）。プログラム名は出さない */
+export function SdkChip({ label, className = "" }: { label: string; className?: string }) {
+  return (
+    <span
+      className={`inline-flex h-4 shrink-0 items-center rounded-chip border border-line px-1 text-fg3 text-micro ${className}`}
+      data-testid="via-sdk"
+    >
+      {label}
+    </span>
+  );
+}
+
 /** 枠付きのチップ（外部タスクのソース `github`、経由 `CLI` など） */
 export function Chip({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (

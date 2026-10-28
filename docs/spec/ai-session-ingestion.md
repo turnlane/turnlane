@@ -31,6 +31,8 @@
 
 設定ディレクトリは `$CLAUDE_CONFIG_DIR`、未設定なら `~/.claude` になる。CLI と Claude Desktop の Code タブが別の設定ディレクトリを使っていることがある（Desktop 起動のセッションはトランスクリプトの `entrypoint` が `claude-desktop` になる）。
 
+`entrypoint` の値の例: 端末で人が始めたものは `cli`、Claude Desktop は `claude-desktop`、別のプログラムが Claude Code を動かしたもの（プログラム経由）は `sdk-cli`（`sdk-ts` / `sdk-py` など `sdk-` で始まる）。`ai_session.entrypoint` に保存し、プログラム経由のセッションは自分の番にしない（phase0-plan 3.3 の your_turn）。
+
 | パス | 形式 | 用途 | 公式性 |
 |---|---|---|---|
 | `projects/<enc-cwd>/<sessionId>.jsonl` | JSONL（1行1レコード） | 本体トランスクリプト | 場所はドキュメントに記載あり、形式は非公式 |

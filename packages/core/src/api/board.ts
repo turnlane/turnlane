@@ -132,6 +132,8 @@ export interface SourceBadge {
   tool: SourceTool;
   /** 複数アカウントのときだけ UI が付ける（同じツールの有効なソースが2つ以上） */
   profile: string | null;
+  /** このツールのセッションにプログラム経由（entrypoint が `sdk-*`）のものがある。UI は「SDK 経由」の札を出す */
+  sdk?: true;
 }
 
 export interface AiItemSummary {

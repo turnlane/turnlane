@@ -33,6 +33,7 @@ import { Nums } from "../components/Nums.tsx";
 import { openActionIcon, useOpenLabel } from "../components/OpenWith.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
 import { turnView, WhyBlock } from "../components/TurnWhy.tsx";
+import { SdkChip, viaSdk } from "../components/ui.tsx";
 import { useAnswerEnabled } from "../data/answer.ts";
 import { useGlance, useItemGlance } from "../data/glance.ts";
 import {
@@ -184,6 +185,7 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
                 .filter(Boolean)
                 .join(" · ")}
             </span>
+            {viaSdk(d.workItem.sources) ? <SdkChip label={t("ai.viaSdk")} /> : null}
           </div>
         ) : null}
         <Actions id={id} d={d} head={head} answer={canAnswer} answering={answering} />

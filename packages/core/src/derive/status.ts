@@ -467,6 +467,14 @@ export function editsResolved(f: WorkItemFacts, turnId: string): boolean {
   );
 }
 
+/**
+ * プログラム経由のセッション（entrypoint が `sdk-` で始まる）。端末の前に人がいないので、問い・編集の確認・許可は
+ * そのプログラムの仕事で、自分の番（(b)(c)(d)）と返答・確認・許可のタスクを出さない。PR の確認（(a)）は人の作業なので出す
+ */
+export function isProgramSession(s: { entrypoint?: string | null }): boolean {
+  return (s.entrypoint ?? "").startsWith("sdk-");
+}
+
 /** ターンの「終わった時刻」。終わっていない古いターンは最後の活動の時刻で終わったとみなす */
 function endOf(t: TurnFact, s: SessionFact): number {
   return t.endedAt ?? Math.max(t.startedAt, s.lastActivityAt);
@@ -486,6 +494,8 @@ export function yourTurnCandidates(
   const out: YourTurnCandidate[] = [];
   for (const s of f.sessions) {
     if (s.isNoise) continue;
+    // プログラム経由（sdk-*）は問い・編集・Stop の終わりを自分の番にしない（そのプログラムの仕事）
+    if (isProgramSession(s)) continue;
     const last = [...f.turns].reverse().find((t) => t.sessionId === s.id);
     if (!last) continue;
     // 手で作った返答タスク（D-066 (2)）が付いたターンは、終わり方によらず「質問で終了」とみなす

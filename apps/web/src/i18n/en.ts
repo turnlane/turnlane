@@ -406,6 +406,7 @@ export const en = {
   "ai.primary.open": "Open",
   "ai.openWith": "Open with",
   "ai.scratch": "Scratch",
+  "ai.viaSdk": "via SDK",
   "ai.result": "Result",
   "ai.lastReply": "Last reply",
   "instruct.title": "Next instruction",

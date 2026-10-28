@@ -388,6 +388,7 @@ export const ja: Dict = {
   "ai.primary.open": "開く",
   "ai.openWith": "他の開き方",
   "ai.scratch": "壁打ち",
+  "ai.viaSdk": "SDK 経由",
   "ai.result": "成果",
   "ai.lastReply": "最後の返答",
   "instruct.title": "次の指示",

@@ -35,7 +35,7 @@ import { type AiHover, aiHoverProps } from "./AiHoverCard.tsx";
 import { HoverToolbar } from "./HoverToolbar.tsx";
 import { Nums } from "./Nums.tsx";
 import { StatusIcon } from "./StatusIcon.tsx";
-import { Check, Chip, sourceBadgeText, Warning } from "./ui.tsx";
+import { Check, Chip, SdkChip, sourceBadgeText, viaSdk, Warning } from "./ui.tsx";
 
 export function titleText(t: TitleSpec, locale: "en" | "ja"): string {
   return t.t === "text" ? t.text : formatTaskTitle(t.key, t.params, locale);
@@ -586,6 +586,7 @@ function AiRunBlockView({
           <span className="flex min-w-0 items-center gap-1 font-medium text-fg">
             <StatusIcon status={labelStatus ?? status} estimated={estimated} size={14} />
             <span className="min-w-0 truncate text-[12.5px]">{title ?? t("common.none")}</span>
+            {viaSdk(sources) ? <SdkChip label={t("ai.viaSdk")} /> : null}
             {more ? (
               <span
                 className="shrink-0 rounded-chip border border-line px-1 text-fg2 text-micro"
