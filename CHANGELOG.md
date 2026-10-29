@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-29
+
 ### Fixed
 
-- Automatic update: the previous version's bundle is no longer deleted while the previous app and daemon are still shutting down, which could make the old app crash during 'Restart to update'.
+- Automatic update: the previous version's bundle is no longer deleted while the previous app and daemon are still shutting down, which could make the old app crash during 'Restart to update'. Updating from 0.7.2 still shows that crash dialog once (the old daemon does the deletion); from 0.7.3 on it is gone.
+
+### Changed
+
+- Release script: `--publish` reuses the finished set in `dist/release/` instead of rebuilding, `--from-app` continues from a stapled app when stapling lagged, and the tag goes on the commit the build came from.
 
 ## [0.7.2] - 2026-10-29
 
@@ -66,7 +72,8 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/turnlane/turnlane/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/turnlane/turnlane/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/turnlane/turnlane/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/turnlane/turnlane/releases/tag/v0.7.0
