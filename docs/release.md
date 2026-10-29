@@ -83,7 +83,7 @@ Do not write these values into the repository, a script, or a commit.
 4. Publish. `bun run release` prints the commands and runs none of them:
 
    ```sh
-   git tag -a v<version> -m "Turnlane <version>"
+   git tag -a v<version> -m "Turnlane <version>" <build commit>
    git push origin main v<version>
    gh release create v<version> dist/release/v<version>/Turnlane-<version>.zip \
      dist/release/v<version>/Turnlane.zip \
@@ -93,6 +93,10 @@ Do not write these values into the repository, a script, or a commit.
    ```
 
    The tap is pushed last because the cask points at the release asset. `bun run release --publish` runs the same commands in order and asks before each push or release (`--yes` skips the questions). `--publish` refuses `--dry-run` and `--allow-adhoc`.
+
+   **`--publish` does not rebuild.** When `dist/release/v<version>/` from step 3 is there, `bun run release --publish` verifies it and publishes it as it is: all six files present, `Turnlane-<version>.zip` and `Turnlane.zip` identical, their sha256 equal to `latest.json`, the `.sha256` file and the cask, `latest.json`'s version and URL right, `notes.md` equal to the current CHANGELOG section, and the app inside the zip checked like `--from-app` (signature, identity and Team ID, version, stapled, `spctl`, extensions). It prints `using dist/release/v<version> built at <time>`, commits the cask in the tap only if it differs (and pushes a tap commit left unpushed by step 3), and runs the publish commands. If the set fails a check, it says why and only then builds. `--rebuild` forces a new build. Plain `bun run release` refuses to overwrite an existing set unless `--rebuild` is given (a rebuild notarizes again and changes the zip's sha256). `bun run release --dry-run` with an existing set runs the same checks and prints what `--publish` would do.
+
+   The tag goes on the commit the app was built from (`TurnlaneBuild` in the app's Info.plist, `<version>+<sha>`), not on `HEAD`, and the script prints which commit it tags. If that commit is not an ancestor of `main` (the build is not from this history), it refuses.
 5. Check:
    - The release page lists the four assets, `curl -sIL https://github.com/turnlane/turnlane/releases/latest/download/Turnlane.zip` ends in `200`, and `curl -sL https://github.com/turnlane/turnlane/releases/latest/download/latest.json` returns the new version.
    - On a clean macOS account: `brew install --cask turnlane/tap/turnlane`, open Turnlane, and confirm the Gatekeeper dialog says Apple checked it ([docs/dev/codesign.md](dev/codesign.md) 5.5).
@@ -139,7 +143,9 @@ brew untap turnlane-check/tmp
 | Notarization (`notarization Invalid (submission <id>)`) | The build prints the notarytool log. Later: `xcrun notarytool log <id> --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. Fix the reported `path`/`message` (usually a signature or an entitlement), commit, run again. See [docs/dev/codesign.md](dev/codesign.md) 5.4. |
 | `stapler staple failed` (Error 73 / 65) | Notarization was Accepted, but the ticket is not on Apple's servers yet. The script waits and retries for up to 30 minutes (the 0.7.1 and 0.7.2 releases needed longer). If it still fails, the error prints the submission ID and the work folder (`out/release/.stage-*`, kept). Do not run the release again (it rebuilds, notarizes again and usually hits the same wait). Instead, wait a few minutes, staple by hand (`xcrun stapler staple "<stage>/Turnlane.app"`, then `xcrun stapler validate "<stage>/Turnlane.app"`), and continue from that app: `bun run release --from-app "<stage>/Turnlane.app" --tap-dir <tap>` (add `--dry-run` first to check it, or `--publish` to publish). Then `rm -rf "<stage>"`. Other stapler errors stop at once. |
 | `notarytool submit failed` | Check the profile: `xcrun notarytool history --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. |
-| After the tap commit, before publishing | Undo the local tap commit if you will rebuild: `git -C ../homebrew-tap reset --hard HEAD~1` (only if it was not pushed). A rebuild changes the zip's sha256, so the cask must be regenerated. |
+| After the tap commit, before publishing | Run `bun run release --publish`: it reuses `dist/release/v<version>/` after checking it (no rebuild) and pushes the tap commit. Only if you really need a new build: undo the local tap commit (`git -C ../homebrew-tap reset --hard HEAD~1`, only if it was not pushed) and run with `--rebuild`. A rebuild notarizes again and changes the zip's sha256, so the cask is regenerated. |
+| `--publish` says the set `cannot be reused` | It lists what did not match (a missing file, different hashes, an old `notes.md`, the app's signature or staple) and then builds a new set. To avoid the rebuild, fix the cause (for example restore the files from step 3) and run `--publish` again. |
+| `--publish` says the build commit `is not an ancestor of main` / `is not in this repository` | The set was built from another history (a branch, or a commit that was rewritten). Check out the `main` it was built from, or build a new set with `--rebuild`. |
 | `git tag` done, push failed | Delete the local tag: `git tag -d v<version>`. |
 | Tag pushed, `gh release create` failed | Run the printed `gh release create` again. To start over: `gh release delete v<version> --yes` (if a partial or draft release exists), `git push origin :refs/tags/v<version>`, `git tag -d v<version>`. |
 | Release published with a bad asset | Do not replace the zip in place (brew caches the sha256). Delete the release and the tag as above, bump the patch version, and release again. If the cask was pushed, push a cask for the new version. |

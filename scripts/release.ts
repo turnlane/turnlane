@@ -2,7 +2,7 @@
  * リリースの一本道（phase0-plan M6-10、docs/release.md）。オーナーの Mac で動かす（署名の鍵を CI に置かない）。
  *
  *   bun run release [--dry-run] [--skip-check] [--tap-dir <path>] [--allow-adhoc] [--skip-notarize]
- *                   [--publish [--yes]] [--from-app <Turnlane.app>]
+ *                   [--publish [--yes]] [--from-app <Turnlane.app>] [--rebuild]
  *
  * 1. 前提の検査（scripts/release/plan.ts の releaseCheck）: main・作業ツリーがきれい・package.json の版と CHANGELOG の
  *    最上段の見出しが一致・タグ v<版> が無い・TURNLANE_CODESIGN_IDENTITY が Developer ID Application・
@@ -21,16 +21,22 @@
  *   （scripts/release/from-app.ts の checkFromApp: 名前・codesign・署名の証明書と Team・版・拡張なし・stapler・spctl）。
  *   out/release/Turnlane.app に写し、zip と latest.json は build:app と同じ packageApp で作る。--skip-notarize・
  *   --allow-adhoc とは組み合わせない
+ * dist/release/v<版>/ がもうあるとき（scripts/release/reuse.ts の releaseMode）: --publish はビルドし直さずにその一式を
+ *   確かめて（ファイル同士の sha256・latest.json・cask・notes と CHANGELOG・zip を展開したアプリの確かめ）そのまま公開する。
+ *   確かめに落ちたら理由を出してからビルドする。--publish の無い実行は上書きを断る。--rebuild でどちらも新しくビルドする
+ * タグはビルドしたコミット（アプリの TurnlaneBuild の sha）に付ける。main の祖先でなければ断る
  */
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
@@ -62,6 +68,13 @@ import {
   shellLine,
   tapScaffold,
 } from "./release/plan.ts";
+import {
+  buildCommitOf,
+  checkDistFiles,
+  missingFiles,
+  releaseMode,
+  tagCommit,
+} from "./release/reuse.ts";
 import { notaryProfile, spawnExec } from "./signing.ts";
 import { productVersion } from "./version.ts";
 
@@ -133,6 +146,12 @@ export function commitTap(
   return "committed";
 }
 
+/** Commits in the tap that its upstream does not have (null when there is no upstream: pushing is needed) */
+export function tapAhead(tapDir: string): number | null {
+  const r = git(["rev-list", "--count", "@{u}..HEAD"], tapDir);
+  return r.code === 0 ? Number(r.out) : null;
+}
+
 async function confirm(step: PublishStep, yes: boolean): Promise<boolean> {
   if (!step.remote || yes) return true;
   if (!process.stdin.isTTY) {
@@ -170,6 +189,108 @@ function validateFromApp(app: string, identity: string, version: string) {
   return checkFromApp({ app, isDirectory, identity, version, results });
 }
 
+const sha256Of = (file: string) =>
+  new Bun.CryptoHasher("sha256").update(readFileSync(file)).digest("hex");
+
+/** Info.plist TurnlaneBuild of an app (`<version>+<sha>`), or null */
+function turnlaneBuildOf(app: string): string | null {
+  const p = Bun.spawnSync(
+    [
+      "/usr/bin/plutil",
+      "-extract",
+      "TurnlaneBuild",
+      "raw",
+      "-o",
+      "-",
+      join(app, "Contents/Info.plist"),
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  return p.exitCode === 0 ? p.stdout.toString().trim() : null;
+}
+
+/** The commit to tag for an app: its build commit, if it is in this history (an ancestor of main) */
+function tagCommitFor(app: string, version: string) {
+  const build = buildCommitOf(turnlaneBuildOf(app), version);
+  const resolved =
+    "sha" in build ? git(["rev-parse", "--verify", "-q", `${build.sha}^{commit}`]) : null;
+  const full = resolved && resolved.code === 0 && resolved.out ? resolved.out : null;
+  return tagCommit({
+    build,
+    resolved: full,
+    isAncestorOfMain:
+      full !== null && git(["merge-base", "--is-ancestor", full, "main"]).code === 0,
+    head: git(["rev-parse", "HEAD"]).out,
+  });
+}
+
+/**
+ * Verify an existing dist/release/v<version>/ (files against each other and the CHANGELOG, and the app inside the
+ * zip like --from-app). Reads only: the zip is unpacked to a temporary folder. Returns the commit to tag too
+ */
+function verifyDist(o: {
+  dir: string;
+  version: string;
+  downloadUrl: string;
+  identity: string;
+  changelog: string;
+}): {
+  errors: string[];
+  warnings: string[];
+  builtAt: Date | null;
+  tag: ReturnType<typeof tagCommit> | null;
+} {
+  const files = releaseFiles(o.version);
+  const at = (n: string) => join(o.dir, n);
+  const missing = missingFiles(o.version, (n) => existsSync(at(n)));
+  if (missing.length > 0)
+    return { errors: [`missing: ${missing.join(", ")}`], warnings: [], builtAt: null, tag: null };
+  const zipSha = sha256Of(at(files.zip));
+  const errors = checkDistFiles({
+    version: o.version,
+    downloadUrl: o.downloadUrl,
+    zipSha,
+    latestZipSha: sha256Of(at(files.latestZip)),
+    latestJson: readFileSync(at(files.latest), "utf8"),
+    sha256File: readFileSync(at(files.sha256), "utf8"),
+    cask: readFileSync(at(files.cask), "utf8"),
+    expectedCask: renderCaskFile({ version: o.version, sha256: zipSha }),
+    notes: readFileSync(at(files.notes), "utf8"),
+    changelogSection: changelogSection(o.changelog, o.version),
+  });
+  const tmp = mkdtempSync(join(tmpdir(), "turnlane-dist-"));
+  try {
+    const x = Bun.spawnSync(["/usr/bin/ditto", "-x", "-k", at(files.zip), tmp], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    if (x.exitCode !== 0) {
+      errors.push(`cannot unzip ${files.zip}: ${x.stderr.toString().trim()}`);
+      return { errors, warnings: [], builtAt: null, tag: null };
+    }
+    const app = join(tmp, APP_NAME);
+    const c = validateFromApp(app, o.identity, o.version);
+    return {
+      errors: [...errors, ...c.errors.map((e) => `the app in ${files.zip}: ${e}`)],
+      warnings: c.warnings,
+      builtAt: statSync(at(files.zip)).mtime,
+      tag: tagCommitFor(app, o.version),
+    };
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** Print the tag decision; false if it refuses */
+function reportTag(t: ReturnType<typeof tagCommit>): t is { commit: string; note: string } {
+  if ("error" in t) {
+    console.error(`error: ${t.error}`);
+    return false;
+  }
+  console.log(t.note);
+  return true;
+}
+
 async function main(args: string[]): Promise<number> {
   const a = parseReleaseArgs(args);
   for (const e of a.errors) console.error(`error: ${e}`);
@@ -194,16 +315,59 @@ async function main(args: string[]): Promise<number> {
   const files = releaseFiles(v);
   const downloadUrl = releaseZipUrl(v);
   const buildOut = join(ROOT, "out", "release");
+  // 既にある一式（dist/release/v<版>/）: --publish は確かめて使い、--publish の無い実行は上書きを断る
+  let mode = releaseMode(a, { exists: existsSync(dir), dir });
+  if (mode.kind === "refuse") {
+    console.error(`error: ${mode.reason}`);
+    return 1;
+  }
+  let reused: { commit: string; note: string } | null = null;
+  if (mode.kind === "reuse") {
+    const d = verifyDist({
+      dir,
+      version: v,
+      downloadUrl,
+      identity: facts.identity ?? "",
+      changelog: facts.changelog ?? "",
+    });
+    for (const w of d.warnings) console.log(`warning: ${w}`);
+    if (d.errors.length === 0 && d.tag && !("error" in d.tag)) {
+      console.log(
+        `\nusing ${dir} built at ${d.builtAt?.toISOString() ?? "(unknown)"} (no rebuild)`,
+      );
+      reused = d.tag;
+      console.log(d.tag.note);
+    } else {
+      if (d.tag && "error" in d.tag) {
+        // ビルドのコミットがこの履歴に無い一式は使わない（作り直すのでなく、はっきり断る）
+        console.error(`error: ${d.tag.error}`);
+        if (d.errors.length === 0) return 1;
+      }
+      console.error(`${dir} cannot be reused:`);
+      for (const e of d.errors) console.error(`  - ${e}`);
+      mode = fromApp ? { kind: "from-app" } : { kind: "build" };
+      console.error(`building a new set instead${fromApp ? " (from --from-app)" : ""}.`);
+    }
+  }
+  let fromAppTag: { commit: string; note: string } | null = null;
+  if (fromApp) {
+    const t = tagCommitFor(fromApp, v);
+    if (!reportTag(t)) return 1;
+    fromAppTag = t;
+  }
+  const tagged = reused ?? fromAppTag;
   const steps = publishSteps({
     version: v,
     dir,
     tapDir: useTap ? tapDir : null,
     tapCommitted: useTap,
+    ...(tagged ? { commit: tagged.commit } : {}),
   });
 
   if (dryRun) {
     console.log("\nWould run:");
-    if (fromApp)
+    if (reused) console.log(`  (reuse ${dir}: no check, no build, no new files)`);
+    else if (fromApp)
       for (const l of fromAppPlan({ app: fromApp, buildOut, version: v })) console.log(l);
     else {
       if (!a.skipCheck) console.log("  bun run check");
@@ -211,7 +375,7 @@ async function main(args: string[]): Promise<number> {
         `  bun run build:app --zip --download-url ${downloadUrl} --out ${buildOut}${skipNotarize ? " --skip-notarize" : ""}   # no extensions`,
       );
     }
-    console.log(`  write ${dir}/{${Object.values(files).join(",")}}`);
+    if (!reused) console.log(`  write ${dir}/{${Object.values(files).join(",")}}`);
     console.log(
       useTap
         ? `  write ${join(tapDir, TAP_CASK_PATH)} and commit it in ${tapDir} (no push)`
@@ -231,43 +395,34 @@ async function main(args: string[]): Promise<number> {
     return 0;
   }
 
-  // --from-app: 2・3 の代わりに、確かめたアプリを写して zip と latest.json を作る
-  const r = fromApp
-    ? await fromAppBuild(fromApp, facts.identity ?? "", v, buildOut, downloadUrl)
-    : await checkAndBuild(a.skipCheck, skipNotarize, allowAdhoc, buildOut, downloadUrl);
-  if (!r) return 1;
-  for (const l of r.verify) console.log(l);
-
-  // 4. dist/release/v<版>/
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-  copyFileSync(r.zip, join(dir, files.zip));
-  copyFileSync(r.zip, join(dir, files.latestZip));
-  copyFileSync(join(buildOut, "latest.json"), join(dir, files.latest));
-  const sha = new Bun.CryptoHasher("sha256")
-    .update(readFileSync(join(dir, files.zip)))
-    .digest("hex");
-  const latest = parseLatest(
-    JSON.parse(readFileSync(join(dir, files.latest), "utf8")),
-    LATEST_JSON_URL,
-  );
-  if (!latest || latest.version !== v || latest.sha256 !== sha || latest.url !== downloadUrl)
-    throw new Error(`latest.json does not match the zip: ${JSON.stringify(latest)}`);
-  writeFileSync(join(dir, files.sha256), sha256Line(sha, files.zip, files.latestZip));
-  const cask = renderCaskFile({ version: v, sha256: sha });
-  writeFileSync(join(dir, files.cask), cask);
-  writeFileSync(join(dir, files.notes), `${changelogSection(facts.changelog ?? "", v) ?? ""}\n`);
-  console.log(`\n${dir}`);
-  for (const n of Object.values(files)) console.log(`  ${n}`);
-  console.log(`sha256: ${sha}`);
+  let commit: string | null = reused?.commit ?? null;
+  if (!reused) {
+    // --from-app: 2・3 の代わりに、確かめたアプリを写して zip と latest.json を作る
+    const r =
+      mode.kind === "from-app" && fromApp
+        ? await fromAppBuild(fromApp, facts.identity ?? "", v, buildOut, downloadUrl)
+        : await checkAndBuild(a.skipCheck, skipNotarize, allowAdhoc, buildOut, downloadUrl);
+    if (!r) return 1;
+    for (const l of r.verify) console.log(l);
+    if (fromAppTag) commit = fromAppTag.commit;
+    else {
+      const t = tagCommitFor(join(buildOut, APP_NAME), v);
+      if (!reportTag(t)) return 1;
+      commit = t.commit;
+    }
+    writeDist(dir, v, r.zip, buildOut, downloadUrl, facts.changelog ?? "");
+  }
+  const cask = readFileSync(join(dir, files.cask), "utf8");
 
   // 5. tap
   let tapCommitted = false;
   if (useTap) {
     const t = commitTap(tapDir, cask, v);
-    tapCommitted = t === "committed";
+    // 先の実行で作って push していない tap のコミットも push する（使い直した一式では cask が変わらない）
+    const ahead = tapAhead(tapDir);
+    tapCommitted = t === "committed" || ahead !== 0;
     console.log(
-      `tap: ${t === "committed" ? "committed" : "cask unchanged"} in ${tapDir} (not pushed)`,
+      `tap: ${t === "committed" ? "committed" : "cask unchanged"} in ${tapDir} (not pushed${ahead && ahead > 0 && t !== "committed" ? `; ${ahead} local commit${ahead > 1 ? "s" : ""} to push` : ""})`,
     );
   } else console.log(`tap: none at ${tapDir}; copy ${files.cask} to ${TAP_CASK_PATH} in the tap`);
 
@@ -277,6 +432,7 @@ async function main(args: string[]): Promise<number> {
     dir,
     tapDir: useTap ? tapDir : null,
     tapCommitted,
+    ...(commit ? { commit } : {}),
   });
   if (!publish) {
     printPublish(finalSteps, v);
@@ -297,6 +453,36 @@ async function main(args: string[]): Promise<number> {
   console.log("Published. Check:");
   for (const u of afterPublishChecks(v)) console.log(`  ${u}`);
   return 0;
+}
+
+/** 4. dist/release/v<版>/ を書く（zip とその複製・latest.json・sha256・cask・notes） */
+function writeDist(
+  dir: string,
+  v: string,
+  zip: string,
+  buildOut: string,
+  downloadUrl: string,
+  changelog: string,
+): void {
+  const files = releaseFiles(v);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  copyFileSync(zip, join(dir, files.zip));
+  copyFileSync(zip, join(dir, files.latestZip));
+  copyFileSync(join(buildOut, "latest.json"), join(dir, files.latest));
+  const sha = sha256Of(join(dir, files.zip));
+  const latest = parseLatest(
+    JSON.parse(readFileSync(join(dir, files.latest), "utf8")),
+    LATEST_JSON_URL,
+  );
+  if (!latest || latest.version !== v || latest.sha256 !== sha || latest.url !== downloadUrl)
+    throw new Error(`latest.json does not match the zip: ${JSON.stringify(latest)}`);
+  writeFileSync(join(dir, files.sha256), sha256Line(sha, files.zip, files.latestZip));
+  writeFileSync(join(dir, files.cask), renderCaskFile({ version: v, sha256: sha }));
+  writeFileSync(join(dir, files.notes), `${changelogSection(changelog, v) ?? ""}\n`);
+  console.log(`\n${dir}`);
+  for (const n of Object.values(files)) console.log(`  ${n}`);
+  console.log(`sha256: ${sha}`);
 }
 
 /** 2・3: bun run check と build:app（拡張なし）。失敗したら null */

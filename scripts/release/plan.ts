@@ -136,6 +136,8 @@ export function publishSteps(o: {
   dir: string;
   tapDir: string | null;
   tapCommitted: boolean;
+  /** the commit to tag (the build commit). Omitted: HEAD */
+  commit?: string;
 }): PublishStep[] {
   const f = releaseFiles(o.version);
   const tag = `v${o.version}`;
@@ -143,7 +145,15 @@ export function publishSteps(o: {
   const steps: PublishStep[] = [
     {
       title: `tag ${tag}`,
-      cmd: ["git", "tag", "-a", tag, "-m", `Turnlane ${o.version}`],
+      cmd: [
+        "git",
+        "tag",
+        "-a",
+        tag,
+        "-m",
+        `Turnlane ${o.version}`,
+        ...(o.commit ? [o.commit] : []),
+      ],
       remote: false,
     },
     {

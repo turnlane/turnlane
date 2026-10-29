@@ -14,6 +14,8 @@ export interface ReleaseArgs {
   skipCheck: boolean;
   publish: boolean;
   yes: boolean;
+  /** build a new set even when dist/release/v<version>/ exists */
+  rebuild: boolean;
   tapDir: string | null;
   fromApp: string | null;
   errors: string[];
@@ -35,6 +37,7 @@ export function parseReleaseArgs(args: readonly string[]): ReleaseArgs {
     skipCheck: has("--skip-check"),
     publish: has("--publish"),
     yes: has("--yes"),
+    rebuild: has("--rebuild"),
     tapDir: val("--tap-dir") ?? null,
     fromApp: val("--from-app") ?? null,
     errors,
