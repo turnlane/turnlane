@@ -7,11 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-29
+
 ### Added
 
 - AI detail: a *Last reply* section shows the agent's latest message (or its question), read from the session log on your Mac when you open the panel and never stored. It and the full question in *Answer* are shown with Markdown formatting (HTML is not interpreted; only http(s) links).
 - Answer and the Your turn rows now show the question for Codex sessions too, read from the Codex session log when shown and never stored (Codex permission requests are unchanged).
 - AI detail: a *Next instruction* box under the last reply sends your next instruction to the session's terminal tab, like Answer. It only sends while the agent is still running there with its turn finished and nothing waiting on you; otherwise it says why (ended, working, waiting on you). The text is not stored.
+- Markdown in the AI detail panel renders tables (GitHub-style pipe tables).
+- Sessions driven through the Claude Agent SDK (another program is at the terminal, not you) show a small *via SDK* badge on the row and in the panel.
+
+### Changed
+
+- Your turn: sessions driven through the SDK no longer become Your turn for a question, leftover edits or a plain stop, and no reply / check / approve tasks are created for them. An open PR still is Your turn.
+- After *Tomorrow*, *Snooze* or *Pick a time* on an AI item, the lane label and the detail panel show when it comes back (same wording as the Later section) and the status icon is a clock until then; the arrow returns when the item wakes.
+
+### Fixed
+
+- Next instruction said the agent was working when the session was idle after Claude Code compacted its context: the compaction summary record was taken for a new instruction.
+- Your turn: a reply that waits on a future event ("once the graph is available, please send a screenshot") was treated as a question to answer now. Requests that wait on you ("if you paste it, I will decide") still count.
+- Your turn: a turn whose changes had already been checked or committed came back as *changes to check* whenever another session made the same repository dirty again.
 
 ## [0.7.1] - 2026-10-28
 
@@ -47,6 +62,7 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/turnlane/turnlane/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/turnlane/turnlane/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/turnlane/turnlane/releases/tag/v0.7.0
