@@ -326,6 +326,24 @@ export function packageApp(o: {
   return { zip, sha256 };
 }
 
+/** The debug symbols of the desktop shell (`turnlane.dSYM`, made by the release profile's split-debuginfo) */
+export const SYMBOLS = ["turnlane.dSYM"] as const;
+
+/**
+ * Copy the symbols found in `from` (the desktop build's output folder) to `<outDir>/symbols/`, replacing what was
+ * there. Returns the folder, or null when there are none (an older build or a dev build). They are not shipped:
+ * the app does not contain them and they are not release assets (docs/release.md, symbolicating a crash report)
+ */
+export function keepSymbols(from: string, outDir: string): string | null {
+  const found = SYMBOLS.filter((n) => existsSync(join(from, n)));
+  const dir = join(outDir, "symbols");
+  rmSync(dir, { recursive: true, force: true });
+  if (found.length === 0) return null;
+  mkdirSync(dir, { recursive: true });
+  for (const n of found) run(["/usr/bin/ditto", join(from, n), join(dir, n)]);
+  return dir;
+}
+
 /** The extensions built into the app (Info.plist `TurnlaneExtensions`, comma-separated; empty for a public build) */
 export const EXTENSIONS_KEY = "TurnlaneExtensions";
 
@@ -539,6 +557,8 @@ export async function buildApp(o: {
     const dst = join(outDir, APP_NAME);
     rmSync(dst, { recursive: true, force: true });
     renameSync(app, dst);
+    // シェルの記号（turnlane.dSYM。配らない）を outDir/symbols/ に（release.ts が dist/release/v<版>/symbols/ に写す）
+    const symbols = keepSymbols(join(stage, "desktop"), outDir);
     const zipPath = o.zip
       ? packageApp({ app: dst, outDir, version, downloadUrl: o.zip.downloadUrl }).zip
       : null;
@@ -554,6 +574,7 @@ export async function buildApp(o: {
       debugWebview: !!o.debugWebview,
       notarized,
       verify,
+      symbols,
     };
   } finally {
     if (!keepStage) rmSync(stage, { recursive: true, force: true });

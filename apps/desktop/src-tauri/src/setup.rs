@@ -359,6 +359,10 @@ pub fn watch_bundle(app: AppHandle) {
 /// Restart to Finish Update: このプロセスが終わるのを待って同じ場所のバンドル（新しい版）を開く小さなシェルを残し、終わる
 /// （単一インスタンスなので、先に開くと今のプロセスに渡ってしまう）
 pub fn relaunch(app: &AppHandle) {
+    // 2 度目（SSE の installed とメニューの Restart to Finish Update が重なった）は何もしない（開き直しのシェルを 2 つ残さない）
+    if crate::crash::exiting() {
+        return;
+    }
     let Some(root) = bundle_root() else { return };
     let spawned = std::process::Command::new("/bin/sh")
         .args(["-c", "while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; /usr/bin/open \"$2\"", "sh"])
@@ -366,7 +370,10 @@ pub fn relaunch(app: &AppHandle) {
         .arg(&root)
         .spawn();
     match spawned {
-        Ok(_) => app.exit(0),
+        Ok(_) => {
+            crate::crash::set_exiting();
+            app.exit(0)
+        }
         Err(e) => crate::windows::log(&format!("setup: relaunch failed: {e}")),
     }
 }

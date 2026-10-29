@@ -152,6 +152,13 @@ export interface InstallServiceOptions extends InstallOptions {
   oldBundleWaitMs?: number;
   oldBundlePollMs?: number;
   oldBundleMaxMs?: number;
+  /**
+   * 起こし直しの印があるとき、アプリが自分で開き直してつながるのを待つ長さ（既定 5 秒。desktopConnected があるときだけ待つ）。
+   * その間につながれば `open` しない（開き直したばかりのアプリに `open` が届くと Reopen が重なる）
+   */
+  relaunchWaitMs?: number;
+  /** 待ちの予約（テストで差し替える。既定は setTimeout）。取り消す関数を返す */
+  schedule?: (fn: () => void, ms: number) => () => void;
 }
 
 export class InstallService {
@@ -162,12 +169,18 @@ export class InstallService {
   /** 自動更新でアプリが動いていない間に入れた（終わるときにアプリを起こし直す印を書かない） */
   #noRelaunch = false;
   #replacedTimer: ReturnType<typeof setTimeout> | null = null;
-  #oldTimer: ReturnType<typeof setTimeout> | null = null;
+  #oldTimer: (() => void) | null = null;
   /** 登録をし直した組み合わせ（`<動いている版>→<同梱の版>`）。同じ組み合わせでは繰り返さない */
   readonly #helperTried = new Set<string>();
 
   constructor(o: InstallServiceOptions) {
     this.#o = o;
+  }
+
+  #schedule(fn: () => void, ms: number): () => void {
+    if (this.#o.schedule) return this.#o.schedule(fn, ms);
+    const t = setTimeout(fn, ms);
+    return () => clearTimeout(t);
   }
 
   get mode(): InstallMode {
@@ -290,6 +303,14 @@ export class InstallService {
       this.#o.logger.info("install.desktop_relaunch_skipped", { reason: meta(mark) });
       return false;
     }
+    // 自動更新の Restart to update では、前の版のアプリが自分で開き直す（setup::relaunch）。開き直したアプリが
+    // つながるのを少し待ち、つながれば `open` しない（届いた Reopen で開き直したばかりのアプリが落ちていた）
+    if (await this.#desktopConnectsWithin(this.#o.relaunchWaitMs ?? 5_000)) {
+      this.#o.logger.info("install.desktop_relaunch_skipped", {
+        reason: meta("already_connected"),
+      });
+      return false;
+    }
     const ok = await this.#o.openDesktop().catch(() => false);
     this.#o.logger[ok ? "info" : "warn"]("install.desktop_relaunched", { ok });
     return ok;
@@ -346,6 +367,23 @@ export class InstallService {
     }, o.afterMs ?? 2_000);
   }
 
+  /** ms の間にデスクトップアプリがつながるか（desktopConnected が無ければ待たずに false） */
+  #desktopConnectsWithin(ms: number): Promise<boolean> {
+    const connected = this.#o.desktopConnected;
+    if (!connected) return Promise.resolve(false);
+    const step = 250;
+    return new Promise((resolve) => {
+      let waited = 0;
+      const tick = () => {
+        if (connected()) return resolve(true);
+        if (waited >= ms) return resolve(false);
+        waited += step;
+        this.#schedule(tick, step);
+      };
+      tick();
+    });
+  }
+
   /**
    * 入れ替えで残した前の版のバンドル（.Turnlane.app.old）を、起こし直しが終わってから消す（起動時に呼ぶ）。
    * デスクトップアプリがつながったか oldBundleWaitMs が過ぎ、古い版のカレンダーヘルパが動いていなければ消す。
@@ -389,15 +427,15 @@ export class InstallService {
         return;
       }
       elapsed += poll;
-      this.#oldTimer = setTimeout(tick, poll);
+      this.#oldTimer = this.#schedule(tick, poll);
     };
-    this.#oldTimer = setTimeout(tick, poll);
+    this.#oldTimer = this.#schedule(tick, poll);
   }
 
   stop(): void {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
-    if (this.#oldTimer) clearTimeout(this.#oldTimer);
+    this.#oldTimer?.();
     this.#oldTimer = null;
     if (this.#replacedTimer) clearTimeout(this.#replacedTimer);
     this.#replacedTimer = null;

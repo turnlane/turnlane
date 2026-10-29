@@ -79,7 +79,37 @@ function logger() {
   return { l, lines };
 }
 
-/** An InstallService with synthetic fs ops for the previous bundle */
+/** A controllable scheduler: callbacks run only when the fake time is advanced (no real waits) */
+function fakeTimers() {
+  let now = 0;
+  let seq = 0;
+  const due: { at: number; seq: number; fn: () => void; live: boolean }[] = [];
+  const schedule = (fn: () => void, ms: number) => {
+    const t = { at: now + ms, seq: seq++, fn, live: true };
+    due.push(t);
+    return () => {
+      t.live = false;
+    };
+  };
+  /** run everything due up to now + ms, in time order (callbacks may schedule more) */
+  const advance = (ms: number) => {
+    const until = now + ms;
+    for (;;) {
+      const next = due
+        .filter((t) => t.live && t.at <= until)
+        .sort((a, b) => a.at - b.at || a.seq - b.seq)[0];
+      if (!next) break;
+      next.live = false;
+      now = next.at;
+      next.fn();
+    }
+    now = until;
+  };
+  const pending = () => due.filter((t) => t.live).length;
+  return { schedule, advance, pending };
+}
+
+/** An InstallService with synthetic fs ops for the previous bundle and fake timers */
 function service(o: {
   exists?: boolean;
   desktop?: () => boolean;
@@ -88,6 +118,7 @@ function service(o: {
 }) {
   const removed: string[] = [];
   const log = logger();
+  const timers = fakeTimers();
   const s = new InstallService({
     mode: "app",
     appPath: "/Users/x/Applications/Turnlane.app",
@@ -101,81 +132,83 @@ function service(o: {
     ...(o.helper ? { helperVersion: o.helper } : {}),
     readHelperVersion: () => o.bundledHelper ?? null,
     oldBundle: { exists: () => o.exists ?? true, remove: (p) => void removed.push(p) },
-    oldBundleWaitMs: 40,
-    oldBundlePollMs: 5,
-    oldBundleMaxMs: 120,
+    oldBundleWaitMs: 60_000,
+    oldBundlePollMs: 2_000,
+    oldBundleMaxMs: 600_000,
+    schedule: timers.schedule,
   });
-  return { s, removed, lines: log.lines };
+  return { s, removed, lines: log.lines, timers };
 }
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const OLD = "/Users/x/Applications/.Turnlane.app.old";
 
 describe("the new daemon removes the previous bundle after the restart", () => {
-  test("as soon as the new desktop app is connected", async () => {
-    const { s, removed, lines } = service({ desktop: () => true });
+  test("as soon as the new desktop app is connected", () => {
+    const { s, removed, lines, timers } = service({ desktop: () => true });
     s.cleanupOldBundle();
     expect(removed).toEqual([]);
-    await sleep(20);
+    timers.advance(2_000);
     expect(removed).toEqual([OLD]);
     expect(lines as unknown[]).toContainEqual([
       "install.old_bundle_removed",
       { after: "desktop_connected" },
     ]);
-    s.stop();
+    expect(timers.pending()).toBe(0);
   });
 
-  test("after the timeout when the desktop app does not connect", async () => {
-    const { s, removed, lines } = service({ desktop: () => false });
+  test("after the timeout when the desktop app does not connect", () => {
+    const { s, removed, lines, timers } = service({ desktop: () => false });
     s.cleanupOldBundle();
-    await sleep(15);
+    timers.advance(59_000);
     expect(removed).toEqual([]);
-    await sleep(60);
+    timers.advance(5_000);
     expect(removed).toEqual([OLD]);
     expect(lines as unknown[]).toContainEqual(["install.old_bundle_removed", { after: "timeout" }]);
-    s.stop();
   });
 
-  test("not while the old calendar helper still runs; deferred after the maximum wait", async () => {
-    const { s, removed, lines } = service({
+  test("not while the old calendar helper still runs; deferred after the maximum wait", () => {
+    const { s, removed, lines, timers } = service({
       desktop: () => true,
       helper: () => "0.7.1+aaaaaaa",
       bundledHelper: "0.7.2+bbbbbbb",
     });
     s.cleanupOldBundle();
-    await sleep(200);
+    timers.advance(599_000);
+    expect(removed).toEqual([]);
+    expect(lines).toEqual([]);
+    timers.advance(10_000);
     expect(removed).toEqual([]);
     expect(lines as unknown[]).toContainEqual([
       "install.old_bundle_deferred",
       { reason: "old_helper_running" },
     ]);
-    s.stop();
+    expect(timers.pending()).toBe(0);
   });
 
-  test("once the helper is the bundled version it is removed", async () => {
+  test("once the helper is the bundled version it is removed", () => {
     let helper = "0.7.1+aaaaaaa";
-    const { s, removed } = service({
+    const { s, removed, timers } = service({
       desktop: () => true,
       helper: () => helper,
       bundledHelper: "0.7.2+bbbbbbb",
     });
     s.cleanupOldBundle();
-    await sleep(20);
+    timers.advance(10_000);
     expect(removed).toEqual([]);
     helper = "0.7.2+bbbbbbb";
-    await sleep(20);
+    timers.advance(2_000);
     expect(removed).toEqual([OLD]);
-    s.stop();
   });
 
-  test("nothing to do without a previous bundle; stop() cancels the wait", async () => {
+  test("nothing to do without a previous bundle; stop() cancels the wait", () => {
     const a = service({ exists: false, desktop: () => true });
     a.s.cleanupOldBundle();
-    await sleep(20);
+    a.timers.advance(10_000);
     expect(a.removed).toEqual([]);
+    expect(a.timers.pending()).toBe(0);
     const b = service({ desktop: () => false });
     b.s.cleanupOldBundle();
     b.s.stop();
-    await sleep(80);
+    b.timers.advance(700_000);
     expect(b.removed).toEqual([]);
   });
 });

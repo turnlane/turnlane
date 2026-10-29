@@ -191,6 +191,53 @@ describe("起動時の起こし直し（open は偽の関数）", () => {
     }
   });
 
+  test("開き直したアプリが待ちの間につながれば open しない（Reopen を重ねない。更新の後に落ちていた）", async () => {
+    writeRelaunchMark(dataDir, T0);
+    const o = opener();
+    let connected = false;
+    const queue: (() => void)[] = [];
+    let elapsed = 0;
+    const p = svc({
+      openDesktop: o.fn,
+      desktopConnected: () => connected,
+      relaunchWaitMs: 5_000,
+      schedule: (fn, ms) => {
+        queue.push(() => {
+          elapsed += ms;
+          fn();
+        });
+        return () => {};
+      },
+    }).relaunchDesktop();
+    // 1 秒たってアプリがつながる
+    for (let i = 0; i < 4; i++) queue.shift()?.();
+    connected = true;
+    queue.shift()?.();
+    expect(await p).toBe(false);
+    expect(o.calls.n).toBe(0);
+    expect(elapsed).toBe(1_250);
+    expect(existsSync(relaunchMarkPath(dataDir))).toBe(false);
+  });
+
+  test("待ちの間につながらなければ open する（brew upgrade で終えたアプリなど）", async () => {
+    writeRelaunchMark(dataDir, T0);
+    const o = opener();
+    let elapsed = 0;
+    const p = svc({
+      openDesktop: o.fn,
+      desktopConnected: () => false,
+      relaunchWaitMs: 5_000,
+      schedule: (fn, ms) => {
+        elapsed += ms;
+        queueMicrotask(fn);
+        return () => {};
+      },
+    }).relaunchDesktop();
+    expect(await p).toBe(true);
+    expect(o.calls.n).toBe(1);
+    expect(elapsed).toBe(5_000);
+  });
+
   test("起こす口を渡さない起動（テスト・開発）は起こさないが、印は消す", async () => {
     writeRelaunchMark(dataDir, T0);
     expect(await svc().relaunchDesktop()).toBe(false);

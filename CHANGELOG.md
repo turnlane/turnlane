@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop app: it no longer crashes about two seconds after "Restart to update" (and after `brew upgrade`). The new app read its window's address while the page was not loaded yet, which aborts inside the web view library; it now reads it safely. The new daemon also no longer reopens the app when the app has already reopened itself.
+
 ### Changed
 
+- Desktop app: a crash now leaves its reason and location in `~/Library/Logs/turnlane/desktop-panic.log`, and releases keep the app's debug symbols (not shipped) so crash reports can be read.
 - Release script: `--publish` accepts `y` or `yes` at its questions, creates the tag only after the push is confirmed, and continues when an unpushed local tag already points at the build commit (instead of refusing until it is deleted by hand).
 
 ## [0.7.3] - 2026-10-29

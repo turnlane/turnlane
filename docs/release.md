@@ -152,6 +152,21 @@ brew untap turnlane-check/tmp
 | Draft release left behind | `gh release list` shows drafts; `gh release delete v<version> --yes`. |
 | Tap push failed | Fix the remote and run `git -C ../homebrew-tap push origin HEAD` again. The release itself is fine. |
 
+## Reading a desktop app crash report
+
+The shipped `Turnlane.app/Contents/MacOS/turnlane` is stripped, so a crash report (`.ips`) shows only offsets. The release build keeps the symbols separately (the Cargo release profile writes `turnlane.dSYM` with line tables only; the shipped binary is the same size as before). `build:app` copies it to `out/release/symbols/turnlane.dSYM`, and `bun run release` copies that to `dist/release/v<version>/symbols/`. It is not a release asset and is not inside the app. Keep the folder for every published version (copy it somewhere outside `dist/` before the next release).
+
+1. Check that the dSYM belongs to the crashed build: in the `.ips`, `usedImages` has the app image's `uuid` and `base`. Compare the uuid with `dwarfdump --uuid dist/release/v<version>/symbols/turnlane.dSYM`.
+2. For each frame of the faulting thread with that image index, the address is `base + imageOffset`. Look it up:
+
+   ```sh
+   atos -o dist/release/v<version>/symbols/turnlane.dSYM/Contents/Resources/DWARF/turnlane-* \
+     -arch arm64 -l <base> <base+imageOffset> ...
+   ```
+
+   (The DWARF file inside the dSYM is named after Cargo's build of the binary, `turnlane-<hash>`; there is one file.)
+3. A Rust panic in the app also writes `~/Library/Logs/turnlane/desktop-panic.log` on the user's Mac (the message, the source location, a backtrace of addresses, and the app's recent connection log; no conversation text). An uncaught Objective-C exception writes its name, reason and call stack to the same file. Ask for that file first: the location line is usually enough.
+
 ## Renaming the owner, the repository, or the tap
 
 The names live in one place, `packages/core/src/release-config.ts` (`GITHUB_OWNER`, `GITHUB_REPO`, `TAP_REPO`, `CASK_TOKEN`). The update feed (`UPDATE_FEED_URL`), the zip URL, the fixed latest zip URL (`LATEST_ZIP_URL`), the cask's `url` and `homepage`, the `brew install` / `brew upgrade` strings, the Caskroom paths, and the release script all derive from it. Tests that pin the current URLs fail on purpose after a change; update their expected values.

@@ -26,7 +26,7 @@ serde_json = "1"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 block2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSDictionary", "NSArray", "NSSet", "NSLocale", "NSError", "NSObject", "NSURL", "NSAppleEventManager", "NSAppleEventDescriptor"] }
+objc2-foundation = { version = "0.3", features = ["NSException", "NSString", "NSDictionary", "NSArray", "NSSet", "NSLocale", "NSError", "NSObject", "NSURL", "NSAppleEventManager", "NSAppleEventDescriptor"] }
 objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSRunningApplication", "NSOpenPanel", "NSSavePanel", "NSPanel", "NSWindow", "NSResponder"] }
 objc2-service-management = { version = "0.3", default-features = false, features = ["std", "SMAppService", "objc2", "objc2-foundation"] }
 objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationSettings", "UNNotificationTrigger", "UNNotificationAction", "UNNotificationCategory", "block2"] }
@@ -43,4 +43,9 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 panic = "abort"
+# 出す実行ファイルは記号を落とす。行の表だけの記号を別の turnlane.dSYM に残し（split-debuginfo = packed が dsymutil を
+# 走らせる。strip はその後なので dSYM には残る）、クラッシュレポートを atos で読めるようにする。dSYM は配らない
+# （dist/release/v<版>/symbols/ に置く。docs/release.md）
 strip = true
+debug = "line-tables-only"
+split-debuginfo = "packed"

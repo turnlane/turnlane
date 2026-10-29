@@ -100,8 +100,50 @@ fn save_geometry(w: &WebviewWindow) {
     }
 }
 
+/// ウインドウが今出しているページの URL（無ければ None）。tauri の `WebviewWindow::url()` は使わない: wry は
+/// `WKWebView.URL` が nil のとき（最初の読み込みが確定する前・失敗した後）に `Option::unwrap()` で panic し
+/// （wry 0.57 の wkwebview/mod.rs `url_from_webview`）、release は panic = "abort" なのでアプリごと落ちる。
+/// 更新の後に開き直した直後、デーモンがつなぎ直した瞬間（on_daemon_ready）にこれが起きていた（0.7.2・0.7.3 の
+/// クラッシュレポート）。ここでは WKWebView の URL を直接読み、nil なら None を返す。メインスレッドで呼ぶ
+pub fn current_url(w: &WebviewWindow) -> Option<Url> {
+    #[cfg(target_os = "macos")]
+    {
+        let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+        let sent = w.with_webview(move |wv| {
+            let _ = tx.send(webview_url(wv.inner()));
+        });
+        if sent.is_err() {
+            return None;
+        }
+        // メインスレッドからは同期で走る。ほかのスレッドから呼ばれても長くは待たない
+        rx.recv_timeout(std::time::Duration::from_secs(1)).ok().flatten().and_then(|u| Url::parse(&u).ok())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        w.url().ok()
+    }
+}
+
+/// WKWebView（ポインタ）の URL の文字列。nil なら None（panic しない）
+#[cfg(target_os = "macos")]
+fn webview_url(wv: *mut std::ffi::c_void) -> Option<String> {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::msg_send;
+    use objc2_foundation::{NSString, NSURL};
+    let wv = unsafe { (wv as *mut AnyObject).as_ref() }?;
+    let url: Option<Retained<NSURL>> = unsafe { msg_send![wv, URL] };
+    let s: Option<Retained<NSString>> = url?.absoluteString();
+    s.map(|s| s.to_string())
+}
+
 /// main を出して path の画面へ移る（どのスレッドから呼んでもよい）
 pub fn open_main(app: &AppHandle, path: Option<String>) {
+    // 終わる途中にウインドウを作らない（WKWebView を終わりかけのアプリに作ると落ちうる）
+    if crate::crash::exiting() {
+        log("open_main: ignored while exiting");
+        return;
+    }
     let a = app.clone();
     let _ = app.run_on_main_thread(move || open_main_now(&a, path.as_deref()));
 }
@@ -157,7 +199,7 @@ fn open_main_now(app: &AppHandle, path: Option<&str>) {
     w.on_window_event(move |e| match e {
         WindowEvent::CloseRequested { .. } => {
             // 最後の画面を覚えて、次に開いたときに戻す
-            if let Ok(u) = w2.url() {
+            if let Some(u) = current_url(&w2) {
                 if u.scheme() == "http" {
                     let q = u.query().map(|q| format!("?{q}")).unwrap_or_default();
                     w2.state::<Shared>().st.lock().unwrap().last_path = Some(format!("{}{q}", u.path()));
@@ -177,7 +219,7 @@ fn open_main_now(app: &AppHandle, path: Option<&str>) {
 }
 
 fn navigate_main(app: &AppHandle, w: &WebviewWindow, path: &str) {
-    let on_boot = w.url().map(|u| u.scheme() != "http").unwrap_or(true);
+    let on_boot = current_url(w).map(|u| u.scheme() != "http").unwrap_or(true);
     if on_boot {
         if let Some(u) = auth_url(app, path) {
             let _ = w.navigate(u);
@@ -194,7 +236,7 @@ pub fn on_daemon_ready(app: &AppHandle) {
     let a = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(w) = a.get_webview_window(MAIN) {
-            let on_boot = w.url().map(|u| u.scheme() != "http").unwrap_or(true);
+            let on_boot = current_url(&w).map(|u| u.scheme() != "http").unwrap_or(true);
             let path = a.state::<Shared>().st.lock().unwrap().last_path.clone();
             if on_boot {
                 if let Some(u) = auth_url(&a, path.as_deref().unwrap_or(DEFAULT_PATH)) {
@@ -774,7 +816,7 @@ fn view_of(id: &str) -> Option<(&'static str, &'static str)> {
 
 fn switch_view(app: &AppHandle, view: &str, path: &str) {
     if let Some(w) = app.get_webview_window(MAIN) {
-        let on_boot = w.url().map(|u| u.scheme() != "http").unwrap_or(true);
+        let on_boot = current_url(&w).map(|u| u.scheme() != "http").unwrap_or(true);
         if !on_boot {
             let v = serde_json::to_string(view).unwrap_or_default();
             let p = serde_json::to_string(path).unwrap_or_default();
@@ -830,6 +872,29 @@ pub fn on_menu_event(app: &AppHandle, e: MenuEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// tauri の WebviewWindow::url() は WKWebView.URL が nil のとき wry の中で panic する（0.7.2・0.7.3 の更新の後の
+    /// クラッシュ）。ウインドウの URL は current_url で読む。許すのは macOS 以外の代わりの 1 か所だけ
+    #[test]
+    fn webview_url_is_read_without_tauri_url() {
+        let src = include_str!("windows.rs");
+        let calls: Vec<&str> = src
+            .lines()
+            .filter(|l| l.contains(".url()") && !l.contains("p.url()") && !l.trim_start().starts_with("//"))
+            .filter(|l| !l.contains("src.lines()") && !l.contains("contains(\".url()\")") && !l.contains("assert"))
+            .collect();
+        assert_eq!(calls, vec!["        w.url().ok()"], "use current_url instead of WebviewWindow::url()");
+        for f in ["main.rs", "daemon.rs", "setup.rs", "tray.rs", "notify.rs"] {
+            let other = match f {
+                "main.rs" => include_str!("main.rs"),
+                "daemon.rs" => include_str!("daemon.rs"),
+                "setup.rs" => include_str!("setup.rs"),
+                "tray.rs" => include_str!("tray.rs"),
+                _ => include_str!("notify.rs"),
+            };
+            assert!(!other.contains(".url()"), "{f} calls url()");
+        }
+    }
 
     #[test]
     fn logs_the_page_without_the_token() {

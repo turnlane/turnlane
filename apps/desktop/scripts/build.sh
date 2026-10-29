@@ -44,5 +44,12 @@ cp -R "${SRC}" "${OUT}/Turnlane.app.tmp"
 rm -rf "${OUT}/Turnlane.app"
 mv "${OUT}/Turnlane.app.tmp" "${OUT}/Turnlane.app"
 codesign --verify --strict "${OUT}/Turnlane.app" >&2
+# 記号（release の split-debuginfo = packed が作る turnlane.dSYM。出すアプリには入れない）をアプリの隣に写す。
+# クラッシュレポートを atos で読むため（docs/release.md）。cargo の dSYM は deps の中への symlink なので中身を写す
+DSYM="${HERE}/src-tauri/target/${TARGET}/release/turnlane.dSYM"
+rm -rf "${OUT}/turnlane.dSYM"
+if [ -e "${DSYM}" ]; then
+  cp -RL "${DSYM}" "${OUT}/turnlane.dSYM"
+fi
 
 echo "${OUT}/Turnlane.app"

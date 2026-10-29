@@ -2,6 +2,7 @@
 //! デーモン（turnlaned）のクライアントとして、SPA の表示・メニューバー・ネイティブ通知・グローバルホットキーだけを持つ。
 //! データ・判定・文言はデーモンが持つ。Rust に判定を書かない。
 
+mod crash;
 mod daemon;
 mod http;
 mod menu_text;
@@ -68,6 +69,14 @@ fn preferred_language() -> String {
 
 fn main() {
     windows::started();
+    // 落ちたときの手がかり（panic・Objective-C の例外を ~/Library/Logs/turnlane/desktop-panic.log に）。版はバンドルから
+    let version: &'static str = Box::leak(
+        setup::bundle_root()
+            .and_then(|r| setup::bundle_build(&r))
+            .unwrap_or_else(|| "dev".into())
+            .into_boxed_str(),
+    );
+    crash::install(version);
     let args: Vec<String> = std::env::args().collect();
     // `--setup …`（turnlane setup migrate・uninstall --all が呼ぶ）: SMAppService の登録だけをして終わる（M6-14）
     if let Some(code) = setup::cli(&args) {
@@ -81,6 +90,11 @@ fn main() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // 終わる途中に届いた（更新の後に新しい版のデーモンが開いたなど）ならウインドウを作らない
+            if crash::exiting() {
+                windows::log("single-instance: ignored while exiting");
+                return;
+            }
             windows::open_main(app, arg_value(&args, "--path"));
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(shortcut::handler).build())
@@ -143,10 +157,19 @@ fn main() {
         .expect("failed to build the Turnlane desktop app");
 
     app.run(|app, ev| match ev {
-        // Dock のアイコンのクリック
-        RunEvent::Reopen { .. } => windows::open_main(app, None),
+        // Dock のアイコンのクリック・`open`。終わる途中に届いた（更新の後に新しい版のデーモンが `open -b` で開いた
+        // とき、まだ終わりきっていないこのプロセスに届く）ならウインドウを作らない
+        RunEvent::Reopen { .. } => {
+            if crash::exiting() {
+                windows::log("reopen: ignored while exiting");
+            } else {
+                windows::open_main(app, None)
+            }
+        }
         // ウインドウをすべて閉じても終了しない（⌘Q とメニューの Quit だけで終わる）
         RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
+        // 終わり始めた（app.exit・更新の後の開き直し・quit の AppleEvent）
+        RunEvent::ExitRequested { code: Some(_), .. } | RunEvent::Exit => crash::set_exiting(),
         _ => {}
     });
 }

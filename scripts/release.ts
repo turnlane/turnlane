@@ -46,7 +46,7 @@ import {
 } from "../packages/core/src/release-config.ts";
 import { parseLatest } from "../packages/core/src/update.ts";
 import { codesignIdentity } from "./build.ts";
-import { APP_NAME, buildApp, packageApp, verifyDistribution } from "./build-app.ts";
+import { APP_NAME, buildApp, keepSymbols, packageApp, verifyDistribution } from "./build-app.ts";
 import { renderCaskFile, TAP_CASK_PATH } from "./release/cask.ts";
 import {
   checkFromApp,
@@ -522,6 +522,16 @@ function writeDist(
   writeFileSync(join(dir, files.sha256), sha256Line(sha, files.zip, files.latestZip));
   writeFileSync(join(dir, files.cask), renderCaskFile({ version: v, sha256: sha }));
   writeFileSync(join(dir, files.notes), `${changelogSection(changelog, v) ?? ""}\n`);
+  // 記号（配らない。Releases に添付しない）。クラッシュレポートを読むときに使う
+  const symbols = join(buildOut, "symbols");
+  if (existsSync(symbols)) {
+    const p = Bun.spawnSync(["/usr/bin/ditto", symbols, join(dir, "symbols")], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    if (p.exitCode !== 0)
+      console.error(`warning: could not copy the symbols: ${p.stderr.toString()}`);
+  }
   console.log(`\n${dir}`);
   for (const n of Object.values(files)) console.log(`  ${n}`);
   console.log(`sha256: ${sha}`);
@@ -590,6 +600,8 @@ async function fromAppBuild(
     const p = Bun.spawnSync(["/usr/bin/ditto", app, dst], { stdout: "pipe", stderr: "pipe" });
     if (p.exitCode !== 0) throw new Error(`ditto ${app} ${dst} failed:\n${p.stderr.toString()}`);
   }
+  // 残した作業フォルダのアプリなら、隣の desktop/ にシェルの記号がある
+  keepSymbols(join(app, "..", "desktop"), buildOut);
   const { zip } = packageApp({ app: dst, outDir: buildOut, version, downloadUrl });
   return { zip, verify: verifyDistribution(dst, true) };
 }
