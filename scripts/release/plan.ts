@@ -47,8 +47,15 @@ export interface ReleaseFacts {
   version: string;
   /** CHANGELOG.md の中身（無ければ null） */
   changelog: string | null;
-  /** タグ v<version> がもうある（手元か origin） */
+  /** タグ v<version> がもうある（手元） */
   tagExists: boolean;
+  /**
+   * 手元のタグ v<version> の指すコミット（無ければ null）。手元だけにあり、タグを付けるコミット（ビルドのコミット）を指して
+   * いれば止めずにタグの手順を省く（localTagDecision）。省略時は今までどおり、タグがあれば止める
+   */
+  localTag?: string | null;
+  /** origin にタグ v<version> があるか（git ls-remote。確かめられなければ null）。手元にタグがあるときだけ調べる */
+  remoteTag?: boolean | null;
   /** TURNLANE_CODESIGN_IDENTITY */
   identity: string | null;
   /** TURNLANE_NOTARY_PROFILE */
@@ -86,7 +93,19 @@ export function releaseCheck(f: ReleaseFacts): ReleaseCheck {
     else if (!changelogSection(f.changelog, f.version))
       errors.push(`CHANGELOG.md: ## [${f.version}] is empty`);
   }
-  if (f.tagExists) errors.push(`tag v${f.version} already exists`);
+  if (f.tagExists) {
+    if (f.remoteTag === true)
+      errors.push(
+        `tag v${f.version} already exists on origin: the release was published or half-published. See docs/release.md (When something fails)`,
+      );
+    else if (f.localTag === undefined || f.localTag === null)
+      errors.push(`tag v${f.version} already exists`);
+    else if (f.remoteTag === null)
+      errors.push(
+        `tag v${f.version} exists locally and origin could not be checked (git ls-remote failed); delete it with \`git tag -d v${f.version}\` or check the network`,
+      );
+    // 手元だけのタグは、タグを付けるコミットが分かってから決める（localTagDecision）
+  }
 
   const id = f.identity?.trim() ?? "";
   if (!id.startsWith(DEVELOPER_ID_PREFIX))
@@ -97,6 +116,54 @@ export function releaseCheck(f: ReleaseFacts): ReleaseCheck {
     relaxable("TURNLANE_NOTARY_PROFILE is not set (a release must be notarized)");
   if (f.skipNotarize) relaxable("--skip-notarize (a release must be notarized)");
   return { errors, warnings };
+}
+
+/**
+ * 手元だけにあるタグ v<version>（origin には無い）の扱い: タグを付けるコミット（ビルドのコミット）を指していればそのまま使い、
+ * タグの手順を省く。違うコミットを指していれば止めて、消すコマンドを出す
+ */
+export function localTagDecision(o: {
+  version: string;
+  localTag: string | null | undefined;
+  commit: string;
+}): { skipTag: boolean; note?: string; error?: string } {
+  if (!o.localTag || !o.commit) return { skipTag: false };
+  const same =
+    o.localTag === o.commit || o.localTag.startsWith(o.commit) || o.commit.startsWith(o.localTag);
+  if (same)
+    return {
+      skipTag: true,
+      note: `tag v${o.version} already exists locally on ${o.localTag} (not pushed), continuing`,
+    };
+  return {
+    skipTag: false,
+    error: `tag v${o.version} exists locally on ${o.localTag}, not on the build commit ${o.commit}. Delete it and run again: git tag -d v${o.version}`,
+  };
+}
+
+/** 確かめの答え: y / yes（大文字小文字は問わない。前後の空白は落とす） */
+export function isYes(answer: string): boolean {
+  return /^(y|yes)$/i.test(answer.trim());
+}
+
+/**
+ * 公開の手順を走らせる前に聞く手順（index → 先に確かめる手順の index。聞かないなら null）。手元の手順（タグ）の直後に
+ * 外に出す手順（push）があれば、手元の手順の前にそちらを聞く（「いいえ」で何も残さない）。聞いた手順は二度聞かない
+ */
+export function askOrder(steps: readonly Pick<PublishStep, "remote">[]): (number | null)[] {
+  const asked = new Set<number>();
+  return steps.map((s, i) => {
+    if (!s.remote) {
+      const next = steps[i + 1];
+      if (next?.remote) {
+        asked.add(i + 1);
+        return i + 1;
+      }
+      return null;
+    }
+    if (asked.has(i)) return null;
+    return i;
+  });
 }
 
 /** dist/release/v<version>/ に置くファイル（Releases に添付する 4 つと cask・リリースノート） */
@@ -138,6 +205,8 @@ export function publishSteps(o: {
   tapCommitted: boolean;
   /** the commit to tag (the build commit). Omitted: HEAD */
   commit?: string;
+  /** the tag already exists locally on the commit (not pushed): no `git tag` step */
+  skipTag?: boolean;
 }): PublishStep[] {
   const f = releaseFiles(o.version);
   const tag = `v${o.version}`;
@@ -182,6 +251,7 @@ export function publishSteps(o: {
       remote: true,
     },
   ];
+  if (o.skipTag) steps.shift();
   if (o.tapDir && o.tapCommitted)
     steps.push({
       title: "push the tap",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release script: `--publish` accepts `y` or `yes` at its questions, creates the tag only after the push is confirmed, and continues when an unpushed local tag already points at the build commit (instead of refusing until it is deleted by hand).
+
 ## [0.7.3] - 2026-10-29
 
 ### Fixed

@@ -57,8 +57,11 @@ import {
 } from "./release/from-app.ts";
 import {
   afterPublishChecks,
+  askOrder,
   changelogSection,
   defaultTapDir,
+  isYes,
+  localTagDecision,
   type PublishStep,
   publishSteps,
   type ReleaseFacts,
@@ -92,6 +95,18 @@ function mustGit(args: string[], cwd = ROOT): string {
   return p.stdout.toString().trim();
 }
 
+/** タグ v<version>: 手元にあるか・指すコミット・origin にあるか（手元にあるときだけ git ls-remote で調べる） */
+function tagFacts(version: string): Pick<ReleaseFacts, "tagExists" | "localTag" | "remoteTag"> {
+  const local = git(["rev-parse", "-q", "--verify", `refs/tags/v${version}^{commit}`]);
+  if (local.code !== 0 || !local.out) return { tagExists: false, localTag: null, remoteTag: false };
+  const remote = git(["ls-remote", "--tags", "origin", `refs/tags/v${version}`]);
+  return {
+    tagExists: true,
+    localTag: local.out,
+    remoteTag: remote.code === 0 ? remote.out !== "" : null,
+  };
+}
+
 /** 手元の状態を集める（読むだけ） */
 export function gatherFacts(o: {
   allowAdhoc: boolean;
@@ -108,7 +123,7 @@ export function gatherFacts(o: {
     clean: status.code === 0 && status.out === "",
     version,
     changelog: existsSync(changelogPath) ? readFileSync(changelogPath, "utf8") : null,
-    tagExists: git(["rev-parse", "-q", "--verify", `refs/tags/v${version}`]).code === 0,
+    ...tagFacts(version),
     identity: codesignIdentity(env),
     notaryProfile: notaryProfile(env),
     allowAdhoc: o.allowAdhoc,
@@ -160,8 +175,8 @@ async function confirm(step: PublishStep, yes: boolean): Promise<boolean> {
   }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const a = await rl.question(`Run \`${shellLine(step.cmd)}\`? Type yes to continue: `);
-    return a.trim() === "yes";
+    const a = await rl.question(`Run \`${shellLine(step.cmd)}\`? Type y or yes to continue: `);
+    return isYes(a);
   } finally {
     rl.close();
   }
@@ -356,12 +371,25 @@ async function main(args: string[]): Promise<number> {
     fromAppTag = t;
   }
   const tagged = reused ?? fromAppTag;
+  // 手元だけにあるタグ: 付けるコミット（使い直す一式・--from-app はビルドのコミット、ビルドするなら HEAD）を指していれば
+  // タグの手順を省き、違えば止める
+  const early = localTagDecision({
+    version: v,
+    localTag: facts.localTag,
+    commit: tagged?.commit ?? git(["rev-parse", "HEAD"]).out,
+  });
+  if (early.error) {
+    console.error(`error: ${early.error}`);
+    return 1;
+  }
+  if (early.note) console.log(early.note);
   const steps = publishSteps({
     version: v,
     dir,
     tapDir: useTap ? tapDir : null,
     tapCommitted: useTap,
     ...(tagged ? { commit: tagged.commit } : {}),
+    skipTag: early.skipTag,
   });
 
   if (dryRun) {
@@ -427,20 +455,34 @@ async function main(args: string[]): Promise<number> {
   } else console.log(`tap: none at ${tapDir}; copy ${files.cask} to ${TAP_CASK_PATH} in the tap`);
 
   // 6. 公開
+  const late = commit
+    ? localTagDecision({ version: v, localTag: facts.localTag, commit })
+    : { skipTag: false };
+  if ("error" in late && late.error) {
+    console.error(`error: ${late.error}`);
+    return 1;
+  }
   const finalSteps = publishSteps({
     version: v,
     dir,
     tapDir: useTap ? tapDir : null,
     tapCommitted,
     ...(commit ? { commit } : {}),
+    skipTag: late.skipTag,
   });
   if (!publish) {
     printPublish(finalSteps, v);
     return 0;
   }
-  for (const s of finalSteps) {
-    if (!(await confirm(s, a.yes))) {
-      console.error(`stopped before: ${s.title}. See docs/release.md (recovery).`);
+  // 手元のタグは push の答えが「はい」になってから作る（「いいえ」で何も残さない）
+  const order = askOrder(finalSteps);
+  for (const [i, s] of finalSteps.entries()) {
+    const ask = order[i];
+    const q = ask === null || ask === undefined ? null : finalSteps[ask];
+    if (q && !(await confirm(q, a.yes))) {
+      console.error(
+        `stopped before: ${q.title}. Nothing was ${i === ask ? "run" : "tagged"} for this step; answer y or yes to continue next time. See docs/release.md (recovery).`,
+      );
       return 1;
     }
     console.log(`# ${s.title}`);
