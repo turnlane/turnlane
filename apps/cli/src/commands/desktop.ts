@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { DESKTOP_APP, DESKTOP_LABEL } from "@turnlane/core";
 import type { DesktopStatusResponse, NotificationPermission } from "@turnlane/daemon";
-import { replaceBundle, signatureKind } from "@turnlane/daemon/bundle";
+import { processesRunningFrom, replaceBundle, signatureKind } from "@turnlane/daemon/bundle";
 import { desktopPlist } from "@turnlane/daemon/launchd";
 import { callApi, fetchHealth } from "../client.ts";
 import type { CliEnv } from "../env.ts";
@@ -102,7 +102,10 @@ export async function installDesktop(
   if (!same) {
     mkdirSync(dirname(dst), { recursive: true });
     // 隣の一時名に写してから rename で入れ替える（ditto は署名を壊さずにバンドルを写す。失敗したら前のものを残す）
-    const err = await replaceBundle(src, dst);
+    // 前の版から起動したプロセス（デーモン・カレンダーヘルパ）がまだ動いていれば、前の版（.Turnlane.app.old）は消さずに残す
+    // （動いている実行ファイルを消すと落ちる）。新しい版のデーモンが起動の後に消す
+    const keepOld = existsSync(dst) && processesRunningFrom(dst);
+    const err = await replaceBundle(src, dst, undefined, { keepOld });
     if (err) {
       env.err(
         tr(

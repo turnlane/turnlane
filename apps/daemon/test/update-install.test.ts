@@ -42,11 +42,19 @@ afterEach(() => {
 });
 
 describe("置き換え", () => {
-  test("成功: 新しいものが本名に入り、隣の一時名は残らない。元の展開済みは残す", async () => {
+  test("成功: 新しいものが本名に入る。前の版（.Turnlane.app.old）は残す（古い版のプロセスが終わる途中）。元の展開済みは残す", async () => {
     expect(await installUpdate(src, dst)).toBeNull();
     expect(version(dst)).toBe("<string>0.7.2</string>");
-    expect(readdirSync(apps)).toEqual(["Turnlane.app"]);
+    expect(readdirSync(apps).sort()).toEqual([".Turnlane.app.old", "Turnlane.app"]);
+    expect(version(join(apps, ".Turnlane.app.old"))).toBe("<string>0.7.1</string>");
     expect(existsSync(src)).toBe(true);
+  });
+
+  test("前の回に残した .Turnlane.app.old は次の入れ替えの最初に片付ける", async () => {
+    expect(await installUpdate(src, dst)).toBeNull();
+    expect(await installUpdate(src, dst)).toBeNull();
+    expect(readdirSync(apps).sort()).toEqual([".Turnlane.app.old", "Turnlane.app"]);
+    expect(version(join(apps, ".Turnlane.app.old"))).toBe("<string>0.7.2</string>");
   });
 
   test("配置先が無ければ置くだけ", async () => {

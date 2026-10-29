@@ -63,6 +63,7 @@ Decision を補う PO の決定。上の Decision の本文は書き換えず、
    - 送るのは HTTP の GET だけで、Cookie、端末やユーザーの識別子、利用状況を付けない（User-Agent は更新確認と同じ `turnlane/<version>`）。
    - 入れる前の検証を必須にする: `latest.json` の sha256 との一致、`codesign --verify --deep --strict`、TeamIdentifier が動いている自分のバンドルと同じ（Team ID はコードに書かず自分のバンドルから読む）、`Info.plist` の版が `latest.json` の版と同じで今より新しい、`spctl --assess --type execute`（Apple の公証）が通ること。
    - 検証のどれか 1 つに落ちたら何も入れない（取得したものを消し、手動の案内に戻す）。置き換えは配置先の隣の一時名から rename で行い、途中で失敗したら前のものを戻す。配置先に書けなければ管理者権限を求めずに手動の案内に戻す。
+   - 前の版のバンドル（`.Turnlane.app.old`）は置き換えと同じ実行では消さない（2026-10-29 の補正）。古い版のアプリ・デーモン・カレンダーヘルパはまだ終わる途中で、動いているプロセスの実行ファイルを消すと、まだ読み込んでいないページに触れたときに落ちる（0.7.1 → 0.7.2 の最初の自動更新で、Restart to update の間に古いアプリが「予期せず終了」した）。前の版のバンドルは、再起動の後に新しい版のデーモンが消す（新しい版のアプリがつながるか 60 秒が過ぎ、古い版のカレンダーヘルパが動いていないとき）。次の置き換えも最初に片付ける。
    - 設定でオフにできる（`update.download`、既定はオン。オフなら確認だけ。`update.check` をオフにすれば取得もしない）。
    - 新しい署名の鍵は持たない（検証は Apple の署名と公証で足りるため。Tauri の updater プラグインの鍵は使わない）。
    - 実装は `apps/daemon/src/update/`（`downloader.ts`・`verify.ts`・`install.ts`・`auto.ts`）。README に取得と置き換え、オフにする方法、`spctl` が Apple に接続しうることを書く。

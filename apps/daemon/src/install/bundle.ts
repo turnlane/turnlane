@@ -4,6 +4,10 @@
  * - 署名の読み取りは `/usr/bin/codesign -dv --verbose=2`（種類・TeamIdentifier）。Team ID は定数に持たず、バンドルから読む
  * - 入れ替えは配置先の隣に `.Turnlane.app.new` として ditto で写し、今のものを `.Turnlane.app.old` に rename、新を本名に
  *   rename、old を消す。途中で失敗したら old を本名に戻す（本名の .app が無い時間を rename 2 回の間だけにする）
+ * - keepOld: 古い版のプロセス（アプリ・デーモン・カレンダーヘルパ）がまだ動いているかもしれないときは old を消さずに残す。
+ *   動いているプロセスの実行ファイルを消すと、まだ読み込んでいないページ（終わるときの処理など）に触れたときに落ちる
+ *   （自動更新の Restart to update でアプリが「予期せず終了」した）。残した old は新しい版のデーモンが起動の後に消す
+ *   （InstallService の cleanupOldBundle）。次の replaceBundle も最初に片付ける
  */
 import { accessSync, constants, existsSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -120,6 +124,7 @@ export async function replaceBundle(
   src: string,
   dst: string,
   ops: ReplaceOps = defaultReplaceOps,
+  opts: { keepOld?: boolean } = {},
 ): Promise<ReplaceError | null> {
   const { next, old } = sideNames(dst);
   try {
@@ -162,10 +167,24 @@ export async function replaceBundle(
     } catch {}
     return errorKind(e);
   }
+  if (opts.keepOld) return null;
   try {
     if (had) ops.remove(old);
   } catch {
     // 古いものが残るだけ（次の回に片付ける）
   }
   return null;
+}
+
+/**
+ * そのバンドルの中から起動したプロセスがあるか（`pgrep -f <app>/Contents/`。アプリ・同梱のデーモン・カレンダーヘルパ）。
+ * 確かめられなければ true（消さない側に倒す）
+ */
+export function processesRunningFrom(
+  app: string,
+  run: (cmd: readonly string[]) => { code: number; out: string } = runCommandSync,
+): boolean {
+  const r = run(["/usr/bin/pgrep", "-f", `${app}/Contents/`]);
+  if (r.code === 1) return false;
+  return true;
 }

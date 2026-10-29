@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Automatic update: the previous version's bundle is no longer deleted while the previous app and daemon are still shutting down, which could make the old app crash during 'Restart to update'.
+
 ## [0.7.2] - 2026-10-29
 
 ### Added

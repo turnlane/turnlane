@@ -244,6 +244,8 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
         },
         // 更新の後の起こし直し（M6-17）。hub は下で作る（呼ばれるのはバンドルの監視の中）
         desktopSeenWithin: (ms) => hub.desktopSeenWithin(ms),
+        // 前の版のバンドル（.Turnlane.app.old）を消す合図: 新しい版のアプリがつながった
+        desktopConnected: () => hub.desktopClients > 0,
       })
     : null;
   const hooksCli = install?.hooksCli ?? (opts.launch ? opts.launch.cliPath : null);

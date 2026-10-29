@@ -244,6 +244,8 @@ export class AutoUpdater {
     }
     const d = this.#set({ type: "installed" }, { installed: true });
     this.#o.logger.info("update.installed", { version: meta(version), reason: meta(reason) });
+    // 前の版のバンドル（.Turnlane.app.old）は残す。新しい版のデーモンが起動の後に消す
+    this.#o.logger.info("install.old_bundle_deferred", { reason: meta("update") });
     try {
       removeUpdates(this.#o.dataDir);
     } catch {}

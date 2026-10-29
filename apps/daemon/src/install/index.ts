@@ -12,6 +12,10 @@
  * - app のとき、更新で終わる前にデスクトップアプリがつながっていれば印を残し、新しい版の起動でアプリを背景で起こす
  *   （relaunch.ts。onboarding.md 2.5）
  * - `turnlane` を PATH に置く（`~/.local/bin/turnlane` のリンク。O8 の Install ▸、設定 › 一般）。Homebrew 版では要らない
+ * - app のとき、入れ替えで残した前の版のバンドル（`.Turnlane.app.old`。自動更新は古い版のプロセスが終わる途中なので消さない）を、
+ *   起こし直しが終わってから消す: デスクトップアプリがつながったか一定の時間（既定 60 秒）が過ぎ、かつ古い版のカレンダー
+ *   ヘルパが動いていない（つながっているヘルパの版が同梱の版と同じか、つながっていない）とき。10 分待っても古いヘルパが
+ *   残るなら消さない（次の入れ替えが片付ける）。ログは install.old_bundle_removed / install.old_bundle_deferred
  */
 import {
   existsSync,
@@ -39,6 +43,7 @@ import {
   readInstallInfo,
   writeInstallInfo,
 } from "@turnlane/core";
+import { sideNames } from "./bundle.ts";
 import { DESKTOP_RECENT_MS, takeRelaunchMark, writeRelaunchMark } from "./relaunch.ts";
 
 export interface InstallOptions {
@@ -139,6 +144,14 @@ export interface InstallServiceOptions extends InstallOptions {
   desktopSeenWithin?: (ms: number) => boolean;
   /** アプリを背景で起こす（既定なし: 起こさない。bin.ts が openDesktopInBackground を渡す。テストが実行環境のアプリを開かないように） */
   openDesktop?: () => Promise<boolean>;
+  /** デスクトップアプリが今つながっているか（前の版のバンドルを消す合図。省略時は時間だけで決める） */
+  desktopConnected?: () => boolean;
+  /** 前の版のバンドル（.Turnlane.app.old）の確かめと削除（テストで差し替える） */
+  oldBundle?: { exists: (path: string) => boolean; remove: (path: string) => void };
+  /** 前の版のバンドルを消すまでの待ち（既定 60 秒）・見る間隔（既定 2 秒）・あきらめるまで（既定 10 分） */
+  oldBundleWaitMs?: number;
+  oldBundlePollMs?: number;
+  oldBundleMaxMs?: number;
 }
 
 export class InstallService {
@@ -149,6 +162,7 @@ export class InstallService {
   /** 自動更新でアプリが動いていない間に入れた（終わるときにアプリを起こし直す印を書かない） */
   #noRelaunch = false;
   #replacedTimer: ReturnType<typeof setTimeout> | null = null;
+  #oldTimer: ReturnType<typeof setTimeout> | null = null;
   /** 登録をし直した組み合わせ（`<動いている版>→<同梱の版>`）。同じ組み合わせでは繰り返さない */
   readonly #helperTried = new Set<string>();
 
@@ -184,6 +198,7 @@ export class InstallService {
     }
     if (mode !== "app" || !appPath) return;
     void this.relaunchDesktop();
+    this.cleanupOldBundle();
     try {
       const r = ensureSymlink(bundledCliLinkPath(dataDir), bundledBinary(appPath, "turnlane"));
       if (r !== "unchanged") logger.info("install.cli_link", { result: meta(r) });
@@ -331,9 +346,59 @@ export class InstallService {
     }, o.afterMs ?? 2_000);
   }
 
+  /**
+   * 入れ替えで残した前の版のバンドル（.Turnlane.app.old）を、起こし直しが終わってから消す（起動時に呼ぶ）。
+   * デスクトップアプリがつながったか oldBundleWaitMs が過ぎ、古い版のカレンダーヘルパが動いていなければ消す。
+   * oldBundleMaxMs 待っても古いヘルパが残るなら消さない（次の replaceBundle が片付ける）
+   */
+  cleanupOldBundle(): void {
+    const appPath = this.#o.appPath;
+    if (this.#o.mode !== "app" || !appPath) return;
+    const old = sideNames(appPath).old;
+    const fs = this.#o.oldBundle ?? {
+      exists: (p: string) => existsSync(p),
+      remove: (p: string) => rmSync(p, { recursive: true, force: true }),
+    };
+    if (!fs.exists(old)) return;
+    const wait = this.#o.oldBundleWaitMs ?? 60_000;
+    const poll = this.#o.oldBundlePollMs ?? 2_000;
+    const max = this.#o.oldBundleMaxMs ?? 600_000;
+    const helperOld = () => {
+      const running = this.#o.helperVersion?.() ?? null;
+      if (!running) return false;
+      const bundled = (this.#o.readHelperVersion ?? bundledHelperVersion)(appPath);
+      return !!bundled && bundled !== running;
+    };
+    let elapsed = 0;
+    const tick = () => {
+      this.#oldTimer = null;
+      const desktop = this.#o.desktopConnected?.() ?? false;
+      if ((desktop || elapsed >= wait) && !helperOld()) {
+        try {
+          fs.remove(old);
+          this.#o.logger.info("install.old_bundle_removed", {
+            after: meta(desktop ? "desktop_connected" : "timeout"),
+          });
+        } catch (e) {
+          this.#o.logger.warn("install.old_bundle_remove_failed", errorFields(e));
+        }
+        return;
+      }
+      if (elapsed >= max) {
+        this.#o.logger.info("install.old_bundle_deferred", { reason: meta("old_helper_running") });
+        return;
+      }
+      elapsed += poll;
+      this.#oldTimer = setTimeout(tick, poll);
+    };
+    this.#oldTimer = setTimeout(tick, poll);
+  }
+
   stop(): void {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
+    if (this.#oldTimer) clearTimeout(this.#oldTimer);
+    this.#oldTimer = null;
     if (this.#replacedTimer) clearTimeout(this.#replacedTimer);
     this.#replacedTimer = null;
   }
