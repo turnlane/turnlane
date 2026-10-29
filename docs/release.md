@@ -72,6 +72,14 @@ Do not write these values into the repository, a script, or a commit.
    | `notes.md` | The CHANGELOG section, used as the release notes |
 
    If the tap clone exists, it also writes `Casks/turnlane.rb` there and commits it (no push). If the tap has no `LICENSE` or `README.md` yet, the same commit adds them (`LICENSE` copied from this repository, and a short `README.md` with the install command). Without a tap clone, copy `turnlane.rb` into the tap by hand.
+   **Continue from an app that is already notarized and stapled** (`--from-app`). When stapling kept failing and you stapled the kept work folder's app by hand, do not rebuild:
+
+   ```sh
+   bun run release --dry-run --from-app "out/release/.stage-<id>/Turnlane.app"
+   bun run release --from-app "out/release/.stage-<id>/Turnlane.app"            # or add --publish
+   ```
+
+   It runs the same preconditions, skips `bun run check` and the build, and checks the app before using it: it is a directory named `Turnlane.app`, `codesign --verify --deep --strict` passes, it is signed by `TURNLANE_CODESIGN_IDENTITY` (same Team ID), its version is the release version, it has no extensions (Info.plist `TurnlaneExtensions`; apps built before this key only get a warning), `xcrun stapler validate` passes, and `spctl` accepts it. Then it copies the app to `out/release/Turnlane.app`, makes the zip and `latest.json` the same way the build does, and continues with the files, the tap commit, and publishing as below. `--from-app` refuses `--skip-notarize` and `--allow-adhoc`.
 4. Publish. `bun run release` prints the commands and runs none of them:
 
    ```sh
@@ -129,7 +137,7 @@ brew untap turnlane-check/tmp
 | A precondition | Fix what the error names and run again. Nothing was built or written. |
 | `bun run check` | Fix the failure on a branch, merge to `main`, run again. |
 | Notarization (`notarization Invalid (submission <id>)`) | The build prints the notarytool log. Later: `xcrun notarytool log <id> --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. Fix the reported `path`/`message` (usually a signature or an entitlement), commit, run again. See [docs/dev/codesign.md](dev/codesign.md) 5.4. |
-| `stapler staple failed` (Error 73 / 65) | Notarization was Accepted, but the ticket is not on Apple's servers yet. The script waits and retries for up to 30 minutes (the 0.7.1 release needed more than 5). If it still fails, the error prints the submission ID and the work folder (`out/release/.stage-*`, kept): wait a few minutes and run the release again, or staple by hand (`xcrun stapler staple <app>`, then `xcrun stapler validate <app>`) and delete the work folder. Other stapler errors stop at once. |
+| `stapler staple failed` (Error 73 / 65) | Notarization was Accepted, but the ticket is not on Apple's servers yet. The script waits and retries for up to 30 minutes (the 0.7.1 and 0.7.2 releases needed longer). If it still fails, the error prints the submission ID and the work folder (`out/release/.stage-*`, kept). Do not run the release again (it rebuilds, notarizes again and usually hits the same wait). Instead, wait a few minutes, staple by hand (`xcrun stapler staple "<stage>/Turnlane.app"`, then `xcrun stapler validate "<stage>/Turnlane.app"`), and continue from that app: `bun run release --from-app "<stage>/Turnlane.app" --tap-dir <tap>` (add `--dry-run` first to check it, or `--publish` to publish). Then `rm -rf "<stage>"`. Other stapler errors stop at once. |
 | `notarytool submit failed` | Check the profile: `xcrun notarytool history --keychain-profile "$TURNLANE_NOTARY_PROFILE"`. |
 | After the tap commit, before publishing | Undo the local tap commit if you will rebuild: `git -C ../homebrew-tap reset --hard HEAD~1` (only if it was not pushed). A rebuild changes the zip's sha256, so the cask must be regenerated. |
 | `git tag` done, push failed | Delete the local tag: `git tag -d v<version>`. |

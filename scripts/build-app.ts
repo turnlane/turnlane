@@ -303,6 +303,43 @@ export function latestJson(x: { version: string; url: string; sha256: string }):
   return `${JSON.stringify(body, null, 2)}\n`;
 }
 
+/**
+ * Zip a finished Turnlane.app (`ditto -c -k --keepParent`, so the zip holds Turnlane.app) as `Turnlane-<version>.zip`
+ * in outDir and write latest.json next to it (url = downloadUrl, sha256 of the zip). Shared by buildApp and
+ * `bun run release --from-app`. Returns the zip path and its sha256
+ */
+export function packageApp(o: {
+  app: string;
+  outDir: string;
+  version: string;
+  downloadUrl: string;
+  exec?: (cmd: string[]) => void;
+}): { zip: string; sha256: string } {
+  const zip = join(o.outDir, `Turnlane-${o.version}.zip`);
+  rmSync(zip, { force: true });
+  (o.exec ?? ((cmd) => void run(cmd)))(["/usr/bin/ditto", "-c", "-k", "--keepParent", o.app, zip]);
+  const sha256 = new Bun.CryptoHasher("sha256").update(readFileSync(zip)).digest("hex");
+  writeFileSync(
+    join(o.outDir, "latest.json"),
+    latestJson({ version: o.version, url: o.downloadUrl, sha256 }),
+  );
+  return { zip, sha256 };
+}
+
+/** The extensions built into the app (Info.plist `TurnlaneExtensions`, comma-separated; empty for a public build) */
+export const EXTENSIONS_KEY = "TurnlaneExtensions";
+
+/** The hint printed when stapling kept failing: staple by hand, then continue the release from the kept app */
+export function stapleResumeHint(stage: string): string {
+  const app = join(stage, APP_NAME);
+  return [
+    `The work folder was kept so you can staple by hand: ${stage}`,
+    "After a successful staple and validate, continue the release from that app (no rebuild, no new notarization):",
+    `  bun run release --from-app "${app}" [--tap-dir <tap>] [--publish]`,
+    `Then delete the work folder: rm -rf "${stage}"`,
+  ].join("\n");
+}
+
 const AD_HOC_WARNING =
   "warning: signing Turnlane.app ad-hoc. Do not hand this build to anyone: ad-hoc builds have no Team ID, so after a reinstall or a move launchd kills the registered background items (Launch Constraint Violation). Set TURNLANE_CODESIGN_IDENTITY to an Apple Development (or Developer ID) certificate. See docs/dev/codesign.md 4.";
 
@@ -460,6 +497,8 @@ export async function buildApp(o: {
       );
     const info = join(app, "Contents/Info.plist");
     plistSet(info, "TurnlaneBuild", buildId);
+    // 組み込んだ拡張（公開のビルドは空）。release --from-app が拡張の無いビルドかを確かめる
+    plistSet(info, EXTENSIONS_KEY, b.extensions.join(","));
     plistSet(info, "LSMinimumSystemVersion", "14.0");
     for (const [k, v] of Object.entries(USAGE)) plistSet(info, k, v);
     // Web Inspector 入りのお試し版の目印（見分けるため）
@@ -490,9 +529,7 @@ export async function buildApp(o: {
         // 公証は通って staple だけ落ちたときは、手でやり直せるよう作業フォルダを残す
         if (e instanceof StapleError) {
           keepStage = true;
-          throw new Error(
-            `${e.message}\nThe work folder was kept so you can staple by hand: ${stage}\nDelete it when done (rm -rf "${stage}").`,
-          );
+          throw new Error(`${e.message}\n${stapleResumeHint(stage)}`);
         }
         throw e;
       }
@@ -502,17 +539,9 @@ export async function buildApp(o: {
     const dst = join(outDir, APP_NAME);
     rmSync(dst, { recursive: true, force: true });
     renameSync(app, dst);
-    let zipPath: string | null = null;
-    if (o.zip) {
-      zipPath = join(outDir, `Turnlane-${version}.zip`);
-      rmSync(zipPath, { force: true });
-      run(["/usr/bin/ditto", "-c", "-k", "--keepParent", dst, zipPath]);
-      const sha = new Bun.CryptoHasher("sha256").update(readFileSync(zipPath)).digest("hex");
-      writeFileSync(
-        join(outDir, "latest.json"),
-        latestJson({ version, url: o.zip.downloadUrl, sha256: sha }),
-      );
-    }
+    const zipPath = o.zip
+      ? packageApp({ app: dst, outDir, version, downloadUrl: o.zip.downloadUrl }).zip
+      : null;
     // 7. 確認（配布用だけ。公証していなければ spctl は「未公証」として出す）
     const verify = distribution ? verifyDistribution(dst, notarized !== null) : [];
     return {
