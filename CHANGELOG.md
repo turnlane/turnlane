@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-29
+
 ### Fixed
 
 - Desktop app: it no longer crashes about two seconds after "Restart to update" (and after `brew upgrade`). The new app read its window's address while the page was not loaded yet, which aborts inside the web view library; it now reads it safely. The new daemon also no longer reopens the app when the app has already reopened itself.
@@ -81,7 +83,8 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/turnlane/turnlane/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/turnlane/turnlane/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/turnlane/turnlane/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/turnlane/turnlane/compare/v0.7.0...v0.7.1
