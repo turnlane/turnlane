@@ -51,7 +51,9 @@ export function installCodexCase(home: string, caseName: string): void {
   cpSync(join(FIXTURES, "codex/0.147.x", caseName), join(home, ".codex"), { recursive: true });
 }
 
-export function makeEnv(opts: { clock?: Clock; now?: number } = {}): TestEnv {
+export function makeEnv(
+  opts: { clock?: Clock; now?: number; logger?: typeof nullLogger; slowMs?: number } = {},
+): TestEnv {
   const home = mkdtempSync(join(tmpdir(), "turnlane-daemon-"));
   const dataDir = join(home, "data");
   mkdirSync(dataDir, { recursive: true });
@@ -63,7 +65,8 @@ export function makeEnv(opts: { clock?: Clock; now?: number } = {}): TestEnv {
   const supervisor = new Supervisor({
     sqlite,
     clock,
-    logger: nullLogger,
+    logger: opts.logger ?? nullLogger,
+    ...(opts.slowMs !== undefined ? { slowMs: opts.slowMs } : {}),
     adapters: builtinAdapters,
     git,
     env: { home, vars: { TURNLANE_DATA_DIR: dataDir } },
@@ -135,6 +138,8 @@ export function makeAiEnv(
     excludeDirs?: string[];
     /** Codex のプロセスの確かめ（Issue #10）。既定は「どの pid も動いていない」（実際の OS を見ない） */
     codexProcess?: CodexProcessProbe;
+    /** ログ（既定は捨てる。ingest.slow などを確かめるテスト用） */
+    logger?: typeof nullLogger;
   } = {},
 ): AiEnv {
   const home = mkdtempSync(join(tmpdir(), "turnlane-ai-"));
@@ -156,7 +161,7 @@ export function makeAiEnv(
     limits,
     mutate,
     clock,
-    logger: nullLogger,
+    logger: opts.logger ?? nullLogger,
     hub,
     git,
     home,

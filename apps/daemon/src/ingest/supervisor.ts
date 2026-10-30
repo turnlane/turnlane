@@ -138,6 +138,8 @@ export interface SupervisorOptions {
   maxBytes?: number;
   debounceMs?: number;
   reconcileMs?: number;
+  /** 1 ファイルの 1 回の処理がこれを超えたら ingest.slow を残す（既定 200 ms） */
+  slowMs?: number;
   liveMs?: number;
   /** 軽い走査（WatchSpec.pollEveryMs）の判定の間隔。既定 1 秒（各監視先の間隔はその pollEveryMs） */
   pollTickMs?: number;
@@ -261,6 +263,8 @@ const CODEX_NAME_TTL_MS = 60_000;
 const CODEX_PROBE_WINDOW_MS = 24 * 3_600_000;
 
 const PRIORITY = { live: 0, recent: 1, backfill: 2 } as const;
+/** ingest.slow の閾値（1 ファイルの 1 回の処理） */
+const SLOW_MS = 200;
 const SPOOL_KEEP_MS = 7 * 86_400_000;
 
 export class Supervisor {
@@ -761,11 +765,13 @@ export class Supervisor {
     const a = this.#sources.get(job.sourceId);
     if (!a) return false;
     const { adapter, row } = a;
+    const t0 = performance.now();
     const s = this.#o.settings();
     let cursorRow = loadCursor(this.#o.sqlite, job.sourceId, job.stream.key);
     if (!cursorRow) cursorRow = this.#takeOverRenamed(job);
     const cursor = toCursor(cursorRow, adapter.parserVersion);
     try {
+      const tRead = performance.now();
       const result = await adapter.read(job.stream, cursor, {
         now: this.#o.clock.now(),
         maxBytes: this.#o.maxBytes ?? 512 * 1024,
@@ -773,6 +779,7 @@ export class Supervisor {
         log: this.#o.logger,
         home: this.#o.env.home,
       });
+      const readMs = performance.now() - tRead;
       if (result.missing && !cursorRow) return false;
       const parsed = parseRules(row.include_globs_json, row.exclude_globs_json);
       const rules = {
@@ -780,6 +787,7 @@ export class Supervisor {
         exclude: [...parsed.exclude, ...(this.#o.builtinExclude ?? [])],
       };
       const en = enrich(result.events, adapter, rules, this.#o.git, this.#o.env.home);
+      const tApply = performance.now();
       const res = applyRead(
         this.#sink,
         { id: row.id, tool: row.tool, rootPath: row.root_path },
@@ -791,7 +799,18 @@ export class Supervisor {
       if (result.missing)
         recordCursorError(this.#o.sqlite, job.sourceId, job.stream.key, "missing");
       this.#trackHealth(job.sourceId, job.stream.key, result.stats, en.events);
+      const applyMs = performance.now() - tApply;
       if (res.sessions.size > 0 || res.hooks > 0) this.#o.onChanged(res.sessions);
+      this.#noteSlow(adapter.tool, {
+        ms: performance.now() - t0,
+        readMs,
+        applyMs,
+        size: result.next.size ?? 0,
+        bytes: Math.max(0, result.next.byteOffset - (cursor?.byteOffset ?? 0)),
+        fromStart:
+          (cursor?.byteOffset ?? 0) === 0 || result.next.byteOffset < (cursor?.byteOffset ?? 0),
+        events: en.events.length,
+      });
       return !result.done;
     } catch (e) {
       this.#o.logger.warn("ingest.read_failed", {
@@ -802,6 +821,34 @@ export class Supervisor {
       recordCursorError(this.#o.sqlite, job.sourceId, job.stream.key, (e as Error).name ?? "Error");
       return false;
     }
+  }
+
+  /**
+   * 1 ファイルの 1 回の処理が SLOW_MS を超えたら 1 行残す（診断用。ファイル名・キーは出さず、取り込み元の種類・大きさ・時間だけ）
+   */
+  #noteSlow(
+    tool: string,
+    x: {
+      ms: number;
+      readMs: number;
+      applyMs: number;
+      size: number;
+      bytes: number;
+      fromStart: boolean;
+      events: number;
+    },
+  ): void {
+    if (x.ms < (this.#o.slowMs ?? SLOW_MS)) return;
+    this.#o.logger.warn("ingest.slow", {
+      tool: meta(tool),
+      size: x.size,
+      bytes: x.bytes,
+      from_start: x.fromStart,
+      events: x.events,
+      ms: Math.round(x.ms),
+      read_ms: Math.round(x.readMs),
+      apply_ms: Math.round(x.applyMs),
+    });
   }
 
   /** リネーム: 同じ (dev, inode) の既存カーソルが別のキーにあり、そのファイルが消えていれば引き継ぐ */

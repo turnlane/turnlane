@@ -78,6 +78,8 @@ export interface RunnerOptions {
   tickMs?: number;
   /** 非同期の実行でイベントループに譲る間隔（ms。既定 SLICE_MS。テストは 0 で区切りごとに譲る） */
   sliceMs?: number;
+  /** derive.slow を残す閾値（既定 1000 ms） */
+  slowMs?: number;
   settings?: () => TurnlaneSettings;
   /** 壁打ちのフォルダか（D-135。ai.ts の scratchMatcher）。省略時は壁打ちを作らない */
   isScratch?: (cwd: string) => boolean;
@@ -113,6 +115,10 @@ export class DeriveRunner {
   lastRun: RunStats | null = null;
   /** 譲っている間に DB が書き換わって打ち切った回数（確認・テスト用） */
   abortedRuns = 0;
+  /** 今の実行で JS を動かした時間（譲っている間を除く。derive.slow） */
+  #busyMs = 0;
+  /** 最後に読んだ件数（derive.slow） */
+  #size = { turns: 0, sessions: 0 };
   /**
    * 最後の実行で見つけた待ちの始まり（全期間。在席・カレンダーで区分する前）。オンボーディングの要約の
    * 「AI が人を待った回数」に使う（onboarding.md 4.3。窓より古い日は待ち区間の行を作らないため、行からは数えない）
@@ -209,13 +215,28 @@ export class DeriveRunner {
 
   async #runSafeAsync(): Promise<void> {
     let completed = true;
+    const sync = this.#aborts >= MAX_ABORTS;
+    const wall = performance.now();
+    this.#busyMs = 0;
     try {
       // 打ち切りが続いたら（取り込み・操作が絶えず書いている）、譲らずに 1 回で終える
-      if (this.#aborts >= MAX_ABORTS) this.runOnce();
-      else completed = await this.#runAsync();
+      if (sync) {
+        this.runOnce();
+        this.#busyMs = performance.now() - wall;
+      } else completed = await this.#runAsync();
     } catch (e) {
       this.#o.logger.error("derive.failed", errorFields(e, { includeMessage: true }));
     } finally {
+      // 診断用（件数と時間だけ）: 1 回の判定が重い（履歴が多い・打ち切りの繰り返し）
+      if (this.#busyMs >= (this.#o.slowMs ?? DERIVE_SLOW_MS))
+        this.#o.logger.warn("derive.slow", {
+          ms: Math.round(this.#busyMs),
+          wall_ms: Math.round(performance.now() - wall),
+          aborted: !completed,
+          sync,
+          turns: this.#size.turns,
+          sessions: this.#size.sessions,
+        });
       this.#aborts = completed ? 0 : this.#aborts + 1;
       if (!completed) this.abortedRuns++;
       this.#running = false;
@@ -275,8 +296,12 @@ export class DeriveRunner {
     let sliceAt = performance.now();
     for (;;) {
       const r = steps.next();
-      if (r.done) return true;
+      if (r.done) {
+        this.#busyMs += performance.now() - sliceAt;
+        return true;
+      }
       if (performance.now() - sliceAt < (this.#o.sliceMs ?? SLICE_MS)) continue;
+      this.#busyMs += performance.now() - sliceAt;
       const stamp = this.#dbStamp();
       await new Promise<void>((resolve) => setImmediate(resolve));
       if (this.#stopped || this.#dbStamp() !== stamp) {
@@ -313,6 +338,7 @@ export class DeriveRunner {
     const sessions = loadSessions(o.sqlite);
     const sessionById = new Map(sessions.map((s) => [s.id, s]));
     const allTurns = loadTurns(o.sqlite);
+    this.#size = { turns: allTurns.length, sessions: sessions.length };
     const turns = allTurns.filter((t) => {
       const s = sessionById.get(t.session_id);
       return s && s.is_noise !== 1;
@@ -1184,6 +1210,8 @@ export class DeriveRunner {
 const SLICE_MS = 15;
 /** 続けて打ち切ったら、次は譲らずに実行する回数 */
 const MAX_ABORTS = 3;
+/** derive.slow の閾値（1 回の判定で JS を動かした時間） */
+const DERIVE_SLOW_MS = 1000;
 
 function pushTo<K, V>(m: Map<K, V[]>, k: K, v: V): void {
   const a = m.get(k);

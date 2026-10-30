@@ -234,6 +234,21 @@ export function loadWorkItems(db: Database): WorkItemRow[] {
   return db.query<WorkItemRow, []>("SELECT * FROM work_item").all();
 }
 
+/**
+ * 問い返しの判定の覚え（指示の 1 行目 → 問いの形か）。判定は毎分の判定の全ターンに走るので、同じ 1 行を毎回正規表現に
+ * 通さない。1 行は 120 文字までなので、上限を超えたら捨てて覚え直す
+ */
+const asksMemo = new Map<string, boolean>();
+const ASKS_MEMO_MAX = 50_000;
+function asksBackMemo(line: string): boolean {
+  const hit = asksMemo.get(line);
+  if (hit !== undefined) return hit;
+  if (asksMemo.size >= ASKS_MEMO_MAX) asksMemo.clear();
+  const v = asksBack(line);
+  asksMemo.set(line, v);
+  return v;
+}
+
 export function toTurnFact(r: TurnRow): TurnFact {
   return {
     id: r.id,
@@ -251,7 +266,7 @@ export function toTurnFact(r: TurnRow): TurnFact {
     closingQuestion: r.closing_question === 1,
     localDate: r.local_date,
     // 問い返し（Issue #3）: 保存した指示の 1 行目が問いの形か。保存していなければ判定しない
-    ...(typeof r.instruction === "string" ? { instructionAsks: asksBack(r.instruction) } : {}),
+    ...(typeof r.instruction === "string" ? { instructionAsks: asksBackMemo(r.instruction) } : {}),
   };
 }
 
