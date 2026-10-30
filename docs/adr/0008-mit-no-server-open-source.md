@@ -1,6 +1,6 @@
 # ADR 0008: MIT ライセンスのオープンソースとして配布し、作者が運用するサーバーを持たない
 
-- ステータス: Accepted（2026-10-02・2026-10-27 追記あり。末尾。Amended by [0015](./0015-extension-points-and-separately-licensed-additions.md): 拡張点と、公式の配布物に組み込む別ライセンスの拡張） / Amends [ADR 0002](./0002-local-sqlite-source-of-truth-hlc-lww-sync-later.md)、[ADR 0003](./0003-calendar-eventkit-phase0-google-api-phase1.md)
+- ステータス: Accepted（2026-10-02・2026-10-27・2026-10-30 追記あり。末尾。Amended by [0015](./0015-extension-points-and-separately-licensed-additions.md): 拡張点と、公式の配布物に組み込む別ライセンスの拡張） / Amends [ADR 0002](./0002-local-sqlite-source-of-truth-hlc-lww-sync-later.md)、[ADR 0003](./0003-calendar-eventkit-phase0-google-api-phase1.md)
 - 日付: 2026-10-02
 - 関係: どちらも決定の一部だけを置き換える。ADR 0002 のうち「Phase1 以降に同期サーバ経由の同期を実装する」を取り消す（同期用カラムと `mutate()` / `change_log` は残す）。ADR 0003 のうち「Phase1 で Google Calendar API 直結を追加する」を取り消す（EventKit の決定は有効）
 
@@ -74,3 +74,7 @@ Decision を補う PO の決定。上の Decision の本文は書き換えず、
 - `spctl` は、公証のチケットがバンドルに staple されていれば通常は接続しないが、チケットが無いと Apple に問い合わせうる。これは macOS の仕組みによる接続で、Turnlane の識別子は送らない。
 - 取得・置き換えの経路が Homebrew の人と zip の人で同じになる。cask は `auto_updates true` にする（`brew upgrade` は `--greedy` のときだけ触る）。
 - 置き換えの通しの確認は、実際のリリース（0.7.1 から 0.7.2）で初めてできる。
+
+## 追記 5（2026-10-30）: 手で押した確認
+
+5. 自動の確認（`update.check`）をオフにしても、利用者が設定 › 一般の「今すぐ確認」かアプリのメニューの「アップデートを確認…」を押したときだけは `latest.json` を取りに行く（押した本人の操作なので）。それ以外は接続しない。拡張入り・開発時の配置のビルドは押しても確認しない。README の Privacy の「Update check and automatic updates」にも同じことを書く。
