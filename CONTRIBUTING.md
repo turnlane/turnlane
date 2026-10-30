@@ -44,7 +44,7 @@ To run a development build against your own data, follow [docs/dev/m0-install.md
 | `packages/core` | Schema, migrations, pure derivation logic (`src/derive/`), settings, paths |
 | `packages/collectors` | Agent adapters. Zero dependencies; must not import the rest of the workspace |
 | `native/calendar-helper` | Swift helper for EventKit |
-| `docs/spec`, `docs/adr`, `docs/design` | Specifications (currently in Japanese), decision records, final designs |
+| `docs/spec`, `docs/adr`, `docs/design` | Specifications (currently in Japanese; English overviews: [the API](docs/spec/api.en.md) and [the ADR index](docs/adr/README.en.md); the adapter guide is [packages/collectors/README.md](packages/collectors/README.md)), decision records, final designs |
 | `e2e`, `test` | Playwright suites and cross-package tests |
 
 Specs win over code. If you find them disagreeing, either fix the code or propose a spec change in the PR; do not quietly change behaviour. Decisions are changed by adding a new ADR, not by editing an old one.

@@ -17,7 +17,7 @@ import {
   parseTask,
   placeCandidates,
   searchTokens,
-  type TaskView,
+  type TimeBlockView,
 } from "@turnlane/core/web";
 import { Clock, Plus, Search } from "lucide-react";
 import {
@@ -34,7 +34,7 @@ import { ParsedChips } from "../board/editors.tsx";
 import { titleText } from "../components/items.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
 import { Check, Kbd } from "../components/ui.tsx";
-import { createTask, openTask, scheduleTask } from "../data/mutations.ts";
+import { createTask, openTask, placeTurn, scheduleTask } from "../data/mutations.ts";
 import { usePrefs, useSavePrefs } from "../data/prefs.tsx";
 import {
   useDay,
@@ -70,6 +70,7 @@ import {
   type Row,
   type Section,
 } from "./model.ts";
+import { type PlaceTarget, placeTargetOf } from "./place-target.ts";
 import { readRecent, rememberRecent } from "./recent.ts";
 
 const ASCII = /^[\x20-\x7e]*$/;
@@ -179,10 +180,7 @@ function Palette({ mode }: { mode: PaletteMode }) {
     );
   }, [health.data, t]);
 
-  const placeTask: TaskView | null =
-    mode === "place"
-      ? ((selection.find((x) => x.kind === "task") as { task: TaskView } | undefined)?.task ?? null)
-      : null;
+  const placeTask: PlaceTarget | null = mode === "place" ? placeTargetOf(selection) : null;
 
   // キーの割り当ての変更で行のキーを出し直す（D-077）
   const keymapVersion = useKeymapVersion();
@@ -239,6 +237,7 @@ function Palette({ mode }: { mode: PaletteMode }) {
   ]);
 
   const place = usePlaceRows(placeTask, q, today, now);
+  const placeBlock = place.block;
   const shown = mode === "place" ? place.sections : sections;
   const rows = flatRows(shown);
   const cur = Math.min(active, Math.max(0, rows.length - 1));
@@ -258,7 +257,7 @@ function Palette({ mode }: { mode: PaletteMode }) {
     if (row && mode === "root") rememberRecent(row);
     switch (a.t) {
       case "mode":
-        if (a.mode === "place" && !getUi().selection.some((x) => x.kind === "task")) {
+        if (a.mode === "place" && !placeTargetOf(getUi().selection)) {
           toast(t("palette.toast.noSelection"));
           return;
         }
@@ -318,8 +317,18 @@ function Palette({ mode }: { mode: PaletteMode }) {
         return;
       case "place": {
         close();
-        const task = placeTask;
-        if (task) void scheduleTask(task, a.date, { start: a.start, end: a.end });
+        const p = placeTask;
+        if (p?.kind === "task") void scheduleTask(p.task, a.date, { start: a.start, end: a.end });
+        else if (p?.kind === "turn")
+          void placeTurn({
+            followUpId: p.followUpId,
+            taskId: p.taskId,
+            taskDate: p.date,
+            date: a.date,
+            today,
+            range: { start: a.start, end: a.end },
+            block: placeBlock,
+          });
         return;
       }
       case "theme":
@@ -650,20 +659,21 @@ function Highlight({ text, tokens }: { text: string; tokens: string[] }): ReactN
  * 入る開始時刻を最大9件
  */
 function usePlaceRows(
-  task: TaskView | null,
+  task: PlaceTarget | null,
   q: string,
   today: string,
   now: number,
-): { sections: Section[]; header: string | null; empty: string } {
+): { sections: Section[]; header: string | null; empty: string; block: TimeBlockView | null } {
   const { t, shortDate, locale } = useI18n();
   const typed = q.trim() ? parseDateInput(q, { today }) : undefined;
-  const base = task?.scheduledDate && task.scheduledDate >= today ? task.scheduledDate : today;
+  const base = task?.date && task.date >= today ? task.date : today;
   const date = typeof typed === "string" && typed >= today ? typed : base;
   const day = useDay(date, task !== null);
   const tz = day.data?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const durMs = (task?.estimateMin ?? 30) * 60_000;
   const dur = fmtDuration(durMs);
-  if (!task) return { sections: [], header: null, empty: t("palette.toast.noSelection") };
+  if (!task)
+    return { sections: [], header: null, empty: t("palette.toast.noSelection"), block: null };
   const header = `${t("palette.place.title", { title: titleText(task.title, locale), dur })} · ${shortDate(date)}`;
   const slots = day.data?.day.date === date ? day.data.day.freeSlots : [];
   const cands = placeCandidates(slots, durMs, date === today ? now : null);
@@ -674,9 +684,19 @@ function usePlaceRows(
     meta: shortDate(date),
     keys: [String(n + 1)],
     icon: { t: "glyph", name: "clock" },
-    run: { t: "place", taskId: task.id, date, start: c.start, end: c.end },
+    run: {
+      t: "place",
+      taskId: task.kind === "task" ? task.task.id : task.taskId,
+      date,
+      start: c.start,
+      end: c.end,
+    },
   }));
+  // 自分の番のタスクが既に時間に置かれていれば、そのブロックを動かす（ドラッグと同じ）
+  const taskId = task.kind === "task" ? task.task.id : task.taskId;
+  const block = day.data?.day.timeBlocks.find((b) => b.taskId === taskId) ?? null;
   return {
+    block,
     sections: rows.length > 0 ? [{ id: "place", rows }] : [],
     header,
     empty: day.isPending

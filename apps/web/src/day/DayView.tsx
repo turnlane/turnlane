@@ -52,7 +52,13 @@ import { type Prompt, PromptView } from "../board/editors.tsx";
 import { DAY_LANES, GUTTER_PX, snapScroll } from "../board/geometry.ts";
 import { LABEL_PX } from "../board/labels.ts";
 import { belowNow, placeTags, type Rail, type TagPlace } from "../board/lane-labels.ts";
-import { laneRank, laneStatus, questionWait, useLaneWaits } from "../board/lane-wait.ts";
+import {
+  laneRank,
+  laneStatus,
+  questionWait,
+  useLaneLaterTexts,
+  useLaneWaits,
+} from "../board/lane-wait.ts";
 import {
   GridBackground,
   Gutter,
@@ -1655,6 +1661,9 @@ function AiSpanBlock({
   const item = b.item;
   // 問いで止まっている最後の線（猶予中を含む）は自分の番の印と `待ち 3m`（猶予中は `猶予 3m`。D-246）
   const laneWait = useLaneWaits().get(item.id);
+  // 後でにした自分の番（スヌーズ・明日へ・時間に置いた開始の前）は、放置の長さの代わりに戻る時刻の札
+  const laters = useLaneLaterTexts(now);
+  const later = b.last ? laters.get(item.id) : undefined;
   const status = b.last ? laneStatus(b.status, laneWait) : b.status;
   const qWait =
     b.last && item.status !== "needs_input" && item.status !== "error"
@@ -1679,33 +1688,35 @@ function AiSpanBlock({
             ? t("ai.carried", { date: item.carriedFrom.slice(5).replace("-", "/") })
             : null,
         ]
-      : qWait
-        ? [
-            t(qWait.grace ? "turn.graceShort" : "turn.waitLabel", {
-              time: fmtWait(Math.max(0, now - qWait.since)),
-            }),
-            fmtDuration(p.chainAiMs),
-          ]
-        : waiting
+      : later
+        ? [t(later.key, later.params), fmtDuration(p.chainAiMs)]
+        : qWait
           ? [
-              // 待ちの種類（`許可待ち 12m · 1h26m`。確定デザイン）
-              `${
-                item.status === "needs_input"
-                  ? t(
-                      item.reason === "ask_user_question"
-                        ? "board.needsAnswer"
-                        : "board.needsPermission",
-                    )
-                  : t(`status.${item.status}`)
-              } ${fmtWait(now - (waitStart ?? now))}`,
+              t(qWait.grace ? "turn.graceShort" : "turn.waitLabel", {
+                time: fmtWait(Math.max(0, now - qWait.since)),
+              }),
               fmtDuration(p.chainAiMs),
             ]
-          : [
-              fmtDuration(p.chainAiMs),
-              b.last && item.idleMs >= 60_000
-                ? t("board.idleLabel", { time: fmtDuration(item.idleMs) })
-                : null,
-            ]
+          : waiting
+            ? [
+                // 待ちの種類（`許可待ち 12m · 1h26m`。確定デザイン）
+                `${
+                  item.status === "needs_input"
+                    ? t(
+                        item.reason === "ask_user_question"
+                          ? "board.needsAnswer"
+                          : "board.needsPermission",
+                      )
+                    : t(`status.${item.status}`)
+                } ${fmtWait(now - (waitStart ?? now))}`,
+                fmtDuration(p.chainAiMs),
+              ]
+            : [
+                fmtDuration(p.chainAiMs),
+                b.last && item.idleMs >= 60_000
+                  ? t("board.idleLabel", { time: fmtDuration(item.idleMs) })
+                  : null,
+              ]
   )
     .filter(Boolean)
     .join(" · ");

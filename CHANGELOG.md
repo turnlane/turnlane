@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Your turn: when you answer an AI's question with a question of your own ("how do I see that?"), the question stays open instead of closing. It leaves Your turn while the AI answers you and comes back under its own title when the AI is done, unless the AI asks something new, which then takes its place. The item's flow shows such a run as "Asked back: …". This uses the saved first line of your input, so it needs the setting "Keep what the AI waited on" (on by default).
-- "Back to Your turn" (`u`, or the hover button and right-click on closed rows, the item's flow and the AI item menu) puts a closed item back on Your turn. It stays there until you close it or a new turn starts in that session.
-- Report from your own scripts and agents: `turnlane ai report` (also the MCP tool `report_ai_work` and `POST /api/ai/reports`) lets work that leaves no session log say it started, is waiting on you, finished, or failed. It shows up as AI work under the name you choose and its project; a waiting report lands on Your turn right away, with its question and options to read and the link it gave to open. If Turnlane isn't running, the report is saved and read when it starts.
+- Your turn: "Back to Your turn" (`u`, or the hover button and right-click on closed rows, the item's flow, and the AI item menu) puts a closed item back on Your turn. It stays there until you close it or a new turn starts in that session.
+- Reports from your own scripts and agents: `turnlane ai report` (also the MCP tool `report_ai_work` and `POST /api/ai/reports`) lets work that leaves no session log say it started, is waiting on you, finished, or failed. It shows up as AI work under the name you choose and its project; a waiting report lands on Your turn right away, with its question and options to read and the link it gave to open. If Turnlane isn't running, the report is saved and read when it starts.
+- Snooze and place: the snooze menu in the AI detail panel now has "Pick a time…", like `s` on a row, and `p` on a Your turn row puts it on the timeline, like dragging it onto the Me lane.
+- Calendars: "Hide" in Settings › Calendars takes a calendar's events off the board and day view for a while. Unlike "Ignore", its events still count as busy time (free slots, "in a meeting", focus mode).
 
 ### Fixed
 
 - Codex sessions: with Turnlane's hooks installed, Open now lands on the terminal tab the session runs in, and Answer and Next instruction work for Codex too (Turnlane learns the running `codex` process from the hooks). Sessions without hooks keep the 6-hour estimate on the AI screen.
+- Day view: the AI lane label of a snoozed item, one moved to tomorrow, or one placed on the timeline now says when it comes back, instead of showing idle time.
 
 ## [0.7.4] - 2026-10-29
 

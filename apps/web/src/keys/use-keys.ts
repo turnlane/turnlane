@@ -6,6 +6,7 @@
  * - `g` 始まりなどの2打鍵（1.2秒以内。D-077 で接頭辞は割り当てから決める）
  * - 後から登録したもの（パネルなど）が優先。処理が false を返したら次へ回す
  */
+
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { endFocus, startFocus, undoLast } from "../data/mutations.ts";
@@ -13,6 +14,7 @@ import { boardNav, dayNav } from "../lib/board-nav.ts";
 import { isFormControl, isTextEntry, passesInTextEntry } from "../lib/editable.ts";
 import { isImeKey } from "../lib/ime.ts";
 import { anyPanelOpen, getUi, setBoardMode, setUi } from "../lib/store.ts";
+import { placeTargetOf } from "../palette/place-target.ts";
 import { dispatchable, KEYMAP, keyName, keysOf } from "./keymap.ts";
 
 export type Handlers = Partial<Record<string, (e: KeyboardEvent) => boolean | undefined>>;
@@ -146,9 +148,9 @@ export function useGlobalKeys(): void {
         return true;
       },
       place: () => {
-        // 時間に置く（p）: 選んでいるタスクが1件なら、パレットに空き枠の候補を出す（ux-mvp 6.1）
-        const tasks = getUi().selection.filter((x) => x.kind === "task");
-        if (tasks.length !== 1) return false;
+        // 時間に置く（p）: 選んでいるタスク 1 件か、自分の番の行 1 件（タスクのある待ち。Issue #4。自分レーンへ
+        // ドラッグしたのと同じ）なら、パレットに空き枠の候補を出す（ux-mvp 6.1）
+        if (!placeTargetOf(getUi().selection)) return false;
         setUi({ palette: "place", helpOpen: false });
         return true;
       },

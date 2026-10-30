@@ -25,7 +25,8 @@ import {
   RotateCcw,
   Undo2,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { SnoozeTimeInput } from "../board/editors.tsx";
 import { AnswerSection, openAnswer, useAnswerOpen } from "../components/AnswerSection.tsx";
 import { ContextMenu, type MenuEntry } from "../components/ContextMenu.tsx";
 import { FlowSection } from "../components/Flow.tsx";
@@ -34,7 +35,7 @@ import { Nums } from "../components/Nums.tsx";
 import { openActionIcon, useOpenLabel } from "../components/OpenWith.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
 import { turnView, WhyBlock } from "../components/TurnWhy.tsx";
-import { SdkChip, viaSdk } from "../components/ui.tsx";
+import { Popover, SdkChip, viaSdk } from "../components/ui.tsx";
 import { useAnswerEnabled } from "../data/answer.ts";
 import { useGlance, useItemGlance } from "../data/glance.ts";
 import {
@@ -270,6 +271,9 @@ function Actions({
     staleTime: 30_000,
   }).data?.options;
   const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
+  // スヌーズの「時刻を指定…」（Issue #4。帯の行の `s` と同じ入力。… のボタンに付けて開く）
+  const [picking, setPicking] = useState<string | null>(null);
+  const moreRef = useRef<HTMLElement | null>(null);
   // 開いている自分の番（スヌーズ・明日へ・対応不要・完了は自分の番に効く）
   const fu =
     d.followUps.filter((f) => f.status === "open" || f.status === "snoozed").at(-1) ?? null;
@@ -292,12 +296,14 @@ function Actions({
       sep: o.action === "copy_resume" && i > 0,
       run: () => void openTask({ workItemId: id, action: o.action }),
     }));
-  const snoozeEntries = (fid: string): MenuEntry[] =>
-    (["30m", "1h", "tomorrow_morning"] as const).map((p) => ({
+  const snoozeEntries = (fid: string): MenuEntry[] => [
+    ...(["30m", "1h", "tomorrow_morning"] as const).map((p) => ({
       id: `snooze-${p}`,
       label: t(p === "tomorrow_morning" ? "snooze.tomorrow" : (`snooze.${p}` as MessageKey)),
       run: () => void snoozeFollowUp(fid, p),
-    }));
+    })),
+    { id: "snooze-pick", label: t("snooze.pick"), run: () => setPicking(fid) },
+  ];
   const moreEntries = (anchor: { x: number; y: number }): MenuEntry[] => {
     const st = d.workItem.status;
     const out: MenuEntry[] = [];
@@ -414,12 +420,28 @@ function Actions({
         testId="ai-more"
         className="absolute top-0 right-0"
         onClick={(e) => {
+          moreRef.current = e.currentTarget;
           const a = at(e.currentTarget, true);
           setMenu({ ...a, entries: moreEntries(a) });
         }}
       />
       {menu ? (
         <ContextMenu x={menu.x} y={menu.y} entries={menu.entries} onClose={() => setMenu(null)} />
+      ) : null}
+      {picking ? (
+        <Popover
+          anchor={moreRef.current}
+          onClose={() => setPicking(null)}
+          align="end"
+          className="w-72 p-2"
+        >
+          <SnoozeTimeInput
+            onSubmit={(until) => {
+              void snoozeFollowUp(picking, { until });
+              setPicking(null);
+            }}
+          />
+        </Popover>
       ) : null}
     </div>
   );

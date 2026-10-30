@@ -11,7 +11,7 @@ import type {
   WorkItemDetail,
 } from "@turnlane/core/web";
 import { blocksOf, metaOf } from "../src/board/AiLane.tsx";
-import { laneLatersOf } from "../src/board/lane-wait.ts";
+import { laneLatersOf, laneLaterTextsOf } from "../src/board/lane-wait.ts";
 import { translate } from "../src/i18n/index.tsx";
 import { deferredTurn, laterTextOf } from "../src/lib/later-text.ts";
 import { aiHeadOf } from "../src/panel/ai-state.ts";
@@ -217,5 +217,19 @@ describe("AI のレーンの札", () => {
       b: "board.later",
       c: "board.later",
     });
+  });
+});
+
+describe("デイビューの AI のレーンの札（戻る時刻つき）", () => {
+  test("スヌーズ・明日へ・時間に置いたものは戻る時刻の文。開いているものは出さない", () => {
+    const q = (x: QueueItem) => ({ items: [x], today: TODAY, tz: TZ });
+    const text = (x: QueueItem) => {
+      const v = laneLaterTextsOf(q(x), NOW).get("wi");
+      return v ? translate("ja", v.key, v.params) : null;
+    };
+    expect(text(snoozedToday)).toBe(translate("ja", "queue.later.snoozed", { time: "15:00" }));
+    expect(text(tomorrow)).toBe(translate("ja", "queue.later.tomorrow", { date: "10/29 10:00" }));
+    expect(text(placed)).toBe(translate("ja", "queue.later.scheduled", { time: "21:00" }));
+    expect(text(open)).toBeNull();
   });
 });

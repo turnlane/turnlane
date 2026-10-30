@@ -126,6 +126,8 @@ export function buildBoard(
          ORDER BY e.start_at`,
       )
       .all(rangeStart, rangeEnd, from, to);
+    const hidden = new Set(settings.hiddenCalendars);
+    const shown = (e: EventRow) => !hidden.has(e.calendar_id);
     const isBusy = (e: EventRow) =>
       derive.isBusyEvent({
         startAt: e.start_at,
@@ -505,8 +507,9 @@ export function buildBoard(
         logical,
         workday,
         plannedHours,
-        allDayEvents: allDay.map(eventView),
-        events: dayEvents.map(eventView),
+        // 表示しないカレンダー（Issue #5）の予定は描かない。上の busy・下の集計は全部の予定で数える
+        allDayEvents: allDay.filter(shown).map(eventView),
+        events: dayEvents.filter(shown).map(eventView),
         tasks: dayTasks.map((t) => taskView(t, titles, fus.get(t.id), ais.get(t.id))),
         crossTasks: crossTasks.map((t) => taskView(t, titles, fus.get(t.id), ais.get(t.id))),
         // 時間軸にかかるものと、この列のタスクのもの（タスクのブロックが翌日の 0:00 以降だけでも Unscheduled にしない）

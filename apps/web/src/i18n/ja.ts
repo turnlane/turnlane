@@ -597,6 +597,9 @@ export const ja: Dict = {
     "表示するカレンダーはボードに出て、予定中として数えます。無視したものは出しません。",
   "settings.calendars.role.source": "表示する",
   "settings.calendars.role.ignored": "無視する",
+  "settings.calendars.hide": "表示しない",
+  "settings.calendars.hide.hint":
+    "ボードとデイビューに描かないだけです。忙しい時間・空き枠・会議中・集中モードの判定には今までどおり数えます",
   "settings.calendars.holiday": "祝日",
   "settings.calendars.default": "Calendar.app のデフォルト",
   "settings.events.title": "予定の書き先",

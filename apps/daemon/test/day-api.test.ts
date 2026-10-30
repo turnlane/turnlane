@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { putSetting } from "@turnlane/core";
 import type { DayResponse } from "@turnlane/core/api";
 import { createApp } from "../src/http/app.ts";
 import { createPlanner } from "../src/planner/index.ts";
@@ -232,5 +233,31 @@ describe("深夜のデイビュー（暦日の時間軸、集計は論理日。D
     await env.sync();
     const d = (await day(D2)).day;
     expect([d.phase, d.logicalPhase, d.summary.date]).toEqual(["today", "today", D2]);
+  });
+});
+
+describe("表示しないカレンダー（Issue #5。calendar.hidden）", () => {
+  test("予定は描かないが、会議・空き枠・忙しい時間の数え方は変えない", async () => {
+    const { call } = setup();
+    addEvent(jst("11:00"), jst("12:00"), "Planning");
+    const before = (await call<DayResponse>("GET", `/api/day/${D}`)).body.day;
+    expect(before.events.map((e) => e.title)).toEqual(["Planning"]);
+    // 設定画面は PUT /api/config/calendar.hidden で書く（ここは同じ設定を直接）
+    putSetting(env.mutate, "calendar.hidden", ["cal1"]);
+    const after = (await call<DayResponse>("GET", `/api/day/${D}`)).body.day;
+    expect(after.events).toEqual([]);
+    expect(after.totals.meetingsMs).toBe(before.totals.meetingsMs);
+    expect(after.totals.meetingsMs).toBe(60 * MIN);
+    expect(after.freeSlots).toEqual(before.freeSlots);
+    expect(after.totals.eventsMs).toBe(before.totals.eventsMs);
+    const board = await call<{ days: { events: unknown[]; totals: { eventsMs: number } }[] }>(
+      "GET",
+      `/api/board?from=${D}&to=${D}`,
+    );
+    expect(board.body.days[0]?.events).toEqual([]);
+    expect(board.body.days[0]?.totals.eventsMs).toBe(60 * MIN);
+    // 戻すとまた描く
+    putSetting(env.mutate, "calendar.hidden", []);
+    expect((await call<DayResponse>("GET", `/api/day/${D}`)).body.day.events).toHaveLength(1);
   });
 });

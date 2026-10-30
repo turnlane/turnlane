@@ -161,6 +161,11 @@ export const CONFIG_SCHEMAS = {
     .refine((xs) => new Set(xs).size === xs.length, "duplicate weekday"),
   /** 祝日カレンダー（calendar.id）。null は自動判定、[] は祝日なし */
   "workdays.holiday_calendars": z.array(z.string().min(1)).nullable(),
+  /**
+   * 表示しないカレンダー（calendar.id。Issue #5）。ボード・デイビューに描かないだけで、忙しい時間・空き枠・会議中・
+   * 集中モードの判定は変えない。取り込みも続ける
+   */
+  "calendar.hidden": z.array(z.string().min(1).max(256)).max(500),
   /** クイック入力のグローバルホットキー（Tauri の書式。既定 Alt+Shift+Space。D-056 (2)、desktop-shell.md 5章） */
   "desktop.quick_add_shortcut": z
     .string()

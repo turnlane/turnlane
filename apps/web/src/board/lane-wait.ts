@@ -17,7 +17,7 @@ import {
 import { useMemo } from "react";
 import { useQueue } from "../data/queries.ts";
 import type { MessageKey } from "../i18n/index.tsx";
-import { deferredTurn, laterShortKey } from "../lib/later-text.ts";
+import { deferredTurn, type LaterText, laterShortKey, laterTextOf } from "../lib/later-text.ts";
 
 /** レーンの項目の開いている待ち */
 export interface LaneWait {
@@ -82,4 +82,28 @@ export function laneLatersOf(
 export function useLaneLaters(): Map<string, MessageKey> {
   const q = useQueue();
   return useMemo(() => laneLatersOf(q.data), [q.data]);
+}
+
+/**
+ * queue から 項目 → 後でにした自分の番の戻る時刻の文（`スヌーズ · 15:00 に戻る` / `明日へ · 10/29 10:00` / `9:00 に`）。
+ * デイビューの AI のレーンの札（幅があるので時刻まで出す）。3日ボードの列は狭いので短い札（laneLatersOf）
+ */
+export function laneLaterTextsOf(
+  q: Pick<QueueResponse, "items" | "today" | "tz"> | undefined,
+  now: number,
+): Map<string, LaterText> {
+  const out = new Map<string, LaterText>();
+  if (!q) return out;
+  for (const x of q.items) {
+    if (!deferredTurn(x as QueueItem)) continue;
+    const v = laterTextOf(x as QueueItem, q.today, now, q.tz);
+    if (v) out.set(x.workItemId, v);
+  }
+  return out;
+}
+
+/** 画面の queue から 項目 → 後での戻る時刻の文 */
+export function useLaneLaterTexts(now: number): Map<string, LaterText> {
+  const q = useQueue();
+  return useMemo(() => laneLaterTextsOf(q.data, now), [q.data, now]);
 }

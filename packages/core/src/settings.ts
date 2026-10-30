@@ -90,6 +90,11 @@ export interface TurnlaneSettings {
   workdays: number[];
   /** 祝日カレンダー（calendar.id）。null は自動判定、[] は祝日なし（M3-6） */
   holidayCalendars: string[] | null;
+  /**
+   * 表示しないカレンダー（calendar.id。Issue #5）。ボード・デイビューに描かないだけで、忙しい時間・空き枠・会議中の判定・
+   * 集中モードは変えない。取り込みも続ける。この Mac の設定
+   */
+  hiddenCalendars: string[];
   /** 計画の目安（曜日ごと。D-062・D-106。キーは work_hours.planned のまま）。空き時間と「明日朝」に使う */
   plannedHours: PlannedHours;
   /** 日報の AI 要約（M4-6） */
@@ -119,6 +124,7 @@ export const DEFAULT_SETTINGS: TurnlaneSettings = {
   waitRecomputeDays: 7,
   workdays: [1, 2, 3, 4, 5],
   holidayCalendars: null,
+  hiddenCalendars: [],
   plannedHours: defaultPlannedHours(),
   aiSummary: DEFAULT_AI_SUMMARY,
   scratchDirs: [],
@@ -188,6 +194,7 @@ export function readSettings(db: DB, tz: string = systemTimeZone()): TurnlaneSet
     waitRecomputeDays: DEFAULT_SETTINGS.waitRecomputeDays,
     workdays: weekdays(get("workdays.weekdays")),
     holidayCalendars: stringsOrNull(get("workdays.holiday_calendars")),
+    hiddenCalendars: stringsOrNull(get("calendar.hidden")) ?? [],
     plannedHours: readPlannedHours(get("work_hours.planned")),
     aiSummary: readAiSummary(get("report.ai_summary")),
     scratchDirs: readScratchDirs(get("ai.scratch_dirs")),

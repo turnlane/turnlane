@@ -1061,6 +1061,33 @@ export function CalendarsSection() {
   const qc = useQueryClient();
   const q = useCalendars();
   const [err, setErr] = useState(false);
+  // 表示しないカレンダー（Issue #5。calendar.hidden）。描かないだけで、忙しい時間・空き枠の数え方は変えない
+  const config = useQuery({
+    queryKey: ["settings", "config"],
+    queryFn: () =>
+      unwrap<{ values: Record<string, unknown> }>(api.api.config.$get()).then((r) => r.values),
+    staleTime: 60_000,
+  });
+  const hiddenRaw = config.data?.["calendar.hidden"];
+  const hidden = new Set(
+    Array.isArray(hiddenRaw) ? hiddenRaw.filter((x): x is string => typeof x === "string") : [],
+  );
+  const setHidden = async (id: string, hide: boolean) => {
+    setErr(false);
+    const next = [...hidden].filter((x) => x !== id);
+    if (hide) next.push(id);
+    try {
+      await unwrap(
+        api.api.config[":key"].$put({ param: { key: "calendar.hidden" }, json: { value: next } }),
+      );
+    } catch {
+      setErr(true);
+    }
+    void qc.invalidateQueries({ queryKey: ["settings"] });
+    void qc.invalidateQueries({
+      predicate: (x) => x.queryKey[0] === "board" || x.queryKey[0] === "day",
+    });
+  };
   if (q.isError) return null;
   if (!q.data) return null;
   const { calendars, status } = q.data;
@@ -1107,14 +1134,30 @@ export function CalendarsSection() {
               <span className="shrink-0 text-fg3 text-meta">{t("settings.calendars.default")}</span>
             ) : null}
           </div>
-          <MenuSelect
-            label={c.name}
-            className="w-48 shrink-0"
-            testId="settings-calendar-role"
-            value={c.role === "source" ? "source" : "ignored"}
-            onChange={(v) => void setRole(c.id, v)}
-            options={roles.map((r) => ({ value: r.v, label: t(r.k) }))}
-          />
+          <div className="flex shrink-0 items-center gap-3">
+            {c.role === "source" ? (
+              <label
+                className="flex shrink-0 items-center gap-1.5 text-fg2 text-meta"
+                title={t("settings.calendars.hide.hint")}
+              >
+                <input
+                  type="checkbox"
+                  checked={hidden.has(c.id)}
+                  onChange={(e) => void setHidden(c.id, e.target.checked)}
+                  data-testid="settings-calendar-hide"
+                />
+                {t("settings.calendars.hide")}
+              </label>
+            ) : null}
+            <MenuSelect
+              label={c.name}
+              className="w-48 shrink-0"
+              testId="settings-calendar-role"
+              value={c.role === "source" ? "source" : "ignored"}
+              onChange={(v) => void setRole(c.id, v)}
+              options={roles.map((r) => ({ value: r.v, label: t(r.k) }))}
+            />
+          </div>
         </div>
       ))}
       {status.connected ? <TimeblockCleanup /> : null}

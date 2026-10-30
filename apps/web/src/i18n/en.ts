@@ -623,6 +623,9 @@ export const en = {
     "Shown calendars appear on the board and count as busy. Ignored ones are hidden.",
   "settings.calendars.role.source": "Show",
   "settings.calendars.role.ignored": "Ignore",
+  "settings.calendars.hide": "Hide",
+  "settings.calendars.hide.hint":
+    "Only hides its events on the board and day view. They still count as busy time for free slots, “in a meeting”, and focus mode",
   "settings.calendars.holiday": "holidays",
   "settings.calendars.default": "Calendar.app default",
   "settings.events.title": "Where new events go",

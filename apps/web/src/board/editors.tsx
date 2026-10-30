@@ -207,7 +207,7 @@ function SnoozeMenu({
 }
 
 /** 「時刻を指定…」の 1 行の入力。下に戻る時刻（`9:00 に戻る` / `10/28 14:00 に戻る`）か、赤い理由を出す */
-function SnoozeTimeInput({ onSubmit }: { onSubmit: (until: number) => void }) {
+export function SnoozeTimeInput({ onSubmit }: { onSubmit: (until: number) => void }) {
   const { t } = useI18n();
   const meta = useQueue().data;
   const tz = meta?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
