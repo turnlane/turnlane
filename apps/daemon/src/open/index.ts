@@ -455,6 +455,25 @@ export class Opener {
     throw new OpError(409, "open_failed");
   }
 
+  /**
+   * 報告の開く先をそのまま開く（予定の詳細パネル。AI の項目がまだ無い。0.8.1）。url は呼ぶ側が isOpenableReportUrl で
+   * 確かめたもの（ai_session.open_url）
+   */
+  async openUrl(url: string): Promise<OpenResult> {
+    const r = await this.#run({ steps: [{ argv: [OPEN, url] }], outcome: "opened", app: null });
+    if (!r.ok) throw new OpError(409, "open_failed");
+    return {
+      action: "report_url",
+      outcome: "opened",
+      app: null,
+      command: null,
+      engagedAt: null,
+      fallback: null,
+      landing: null,
+      message: null,
+    };
+  }
+
   async #run(a: Attempt): Promise<{ ok: boolean; reason?: OpenFallbackReason; stdout?: string }> {
     for (const p of a.prepare ?? []) this.#prep(p);
     try {

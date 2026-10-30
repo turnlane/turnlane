@@ -22,6 +22,8 @@ export const keys = {
   away: () => ["away"] as const,
   inbox: () => ["inbox"] as const,
   workItem: (id: string) => ["workItem", id] as const,
+  /** 報告の作業 1 つ（予定の詳細パネル。0.8.1。GET /api/ai/reports/:source/:id） */
+  reportItem: (source: string, id: string) => ["reportItem", source, id] as const,
   /** タスクの詳細パネル（D-070） */
   task: (id: string) => ["task", id] as const,
   /** 確認支援（差分・テスト・CI。D-109）。workItemId か launchId */
@@ -105,6 +107,8 @@ export function shouldInvalidate(
         k === "queue" ||
         // AI の画面（プロセス・状態・片付け）
         k === "aiLive" ||
+        // 予定の詳細パネル（0.8.1）: 予定が動いた・started で AI の項目になった
+        k === "reportItem" ||
         // 離れていた間のまとめ（D-214 (2)）
         k === "away" ||
         // 頼んだタスクの状態は AI 項目から決まる（D-107）。確認支援（テストの結果）も

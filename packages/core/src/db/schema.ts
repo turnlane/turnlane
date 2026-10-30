@@ -495,6 +495,8 @@ export const aiSession = sqliteTable(
     openUrl: text("open_url"),
     // 0024: 報告の予定（state scheduled）の始める時刻。started などが来たら null。AI の項目にはしない
     scheduledAt: integer("scheduled_at"),
+    // 0025: 予定を非表示にしたときの始める時刻（scheduled_at と同じ値の間だけ隠す。送り直して時刻が変われば出る）
+    planHiddenAt: integer("plan_hidden_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },

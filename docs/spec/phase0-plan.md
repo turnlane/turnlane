@@ -549,7 +549,8 @@ CREATE TABLE ai_session (
   updated_at             INTEGER NOT NULL,
   project_name           TEXT,                         -- 報告のセッション（entrypoint 'report'。ADR 0021）のプロジェクトの名前
   open_url               TEXT,                         -- 報告の開く先（http(s) かアプリの URL スキーム）
-  scheduled_at           INTEGER                       -- 報告の予定（state scheduled）の始める時刻。started などが来たら NULL（0024）
+  scheduled_at           INTEGER,                      -- 報告の予定（state scheduled）の始める時刻。started などが来たら NULL（0024）
+  plan_hidden_at         INTEGER                       -- 予定を非表示にしたときの始める時刻。scheduled_at と同じ間だけ隠す（0025）
 );
 CREATE UNIQUE INDEX ai_session_uq          ON ai_session(tool, external_id);
 CREATE INDEX        ai_session_repo_idx    ON ai_session(repo_root);

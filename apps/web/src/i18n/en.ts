@@ -1654,6 +1654,11 @@ export const en = {
   "ai.live.more": { one: "{count} more", other: "{count} more" },
   "ai.plan.at": "Planned · {time}",
   "ai.plan.late": "Past its planned time",
+  "ai.plan.flow": "Planned",
+  "ai.plan.notStarted": "Not started yet",
+  "ai.plan.gone": "This plan is no longer scheduled.",
+  "toast.plan.hidden": "Plan hidden",
+  "toast.plan.hideFailed": "Couldn't hide the plan",
   "ai.live.cleanupAction": "Clean up…",
   "ai.live.emptyTitle": "No AI is running right now",
   "ai.live.emptyHint":

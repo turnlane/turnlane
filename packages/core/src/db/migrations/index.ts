@@ -26,6 +26,7 @@ import m0021 from "./0021_returned_follow_up.sql" with { type: "text" };
 import m0022 from "./0022_report_fields.sql" with { type: "text" };
 import m0023 from "./0023_hook_pid.sql" with { type: "text" };
 import m0024 from "./0024_report_scheduled.sql" with { type: "text" };
+import m0025 from "./0025_report_plan_hidden.sql" with { type: "text" };
 
 export const migrations: readonly Migration[] = [
   { id: "0000_init", sql: m0000 },
@@ -53,6 +54,7 @@ export const migrations: readonly Migration[] = [
   { id: "0022_report_fields", sql: m0022 },
   { id: "0023_hook_pid", sql: m0023 },
   { id: "0024_report_scheduled", sql: m0024 },
+  { id: "0025_report_plan_hidden", sql: m0025 },
 ];
 
 /** 現在のビルドのスキーマ番号（PRAGMA user_version に入る値）。エクスポートのヘッダにも使う */

@@ -89,7 +89,13 @@ export function useOpenExpired(): (date: string) => void {
  */
 export function flashExpired(): void {
   if (window.innerWidth < 1200)
-    setUi({ panelWorkItemId: null, panelTaskId: null, panelEventId: null, recordOpen: false });
+    setUi({
+      panelWorkItemId: null,
+      panelTaskId: null,
+      panelEventId: null,
+      panelPlan: null,
+      recordOpen: false,
+    });
   // 畳んだ「今日閉じたもの」は開いてから強調する（行が描かれるまで flashEls が少し待つ）
   window.dispatchEvent(new Event(CLOSED_OPEN_EVENT));
   flashEls(EXPIRED_ROWS);

@@ -991,6 +991,7 @@ if (REPORTS) {
       at: at("22:00"),
       title: L("週次のまとめ", "Weekly digest"),
       project: "Reports",
+      url: "https://example.com/runs/weekly-digest",
     }),
   );
 }

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Reports: `--state scheduled --at <time>` (also MCP and HTTP) shows a planned run as a band on the AI lane and in Later on the AI screen, without counting it as running or AI time. A band 30 minutes past its time reads "Past its planned time".
+- Reports: `--state scheduled --at <time>` (also MCP and HTTP) shows a planned run as a band on the AI lane and in Later on the AI screen (click it for its details: time, source, Open, Hide), without counting it as running or AI time. A band 30 minutes past its time reads "Past its planned time".
 - Updates: Settings › General now has an Updates section with the version you run, when it last checked, and a Check now button, and the app menu has Check for Updates…. When a new version is found, its download and Restart to update show there too.
 
 ### Changed

@@ -89,6 +89,78 @@ async function run(t: Ctx) {
 }
 
 /** 予定（scheduled。0.8.1）: AI の項目にはならず、デイビューの AI のレーンに予定の帯、AI の画面の「後で」に `Planned · 22:00` */
+async function planPanel(t: Ctx) {
+  const { page, board } = t;
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fday"));
+  const band = page.getByTestId("ai-plan").first();
+  await band.waitFor({ timeout: 15000 });
+  const cursor = await band.evaluate((el) => getComputedStyle(el).cursor);
+  await band.click();
+  const panel = page.getByTestId("ai-panel");
+  await panel.waitFor({ timeout: 15000 });
+  await settle(page, 400);
+  const text = await panel.innerText();
+  t.check(
+    "plan band click: the panel opens as a plan (title, source · project, Planned · 22:00, Open, one timeline row)",
+    cursor === "pointer" &&
+      text.includes("Weekly digest") &&
+      (await page.getByTestId("ai-report-from").innerText()).includes("nightly · Reports") &&
+      (await page.getByTestId("plan-label").innerText()) === "Planned · 22:00" &&
+      (await page.getByTestId("ai-primary").innerText()).startsWith("Open") &&
+      (await panel.locator('[data-flow="scheduled"]').count()) === 1 &&
+      (await page.getByTestId("ai-last-reply").count()) === 0,
+    `${cursor} ${text.replace(/\s+/g, " ").slice(0, 200)}`,
+  );
+  await page.getByTestId("ai-more").click();
+  const ids = await page
+    .locator('[data-testid="context-menu"] [data-menu-id]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("data-menu-id")));
+  t.check(
+    "plan panel ⋯: hide only",
+    JSON.stringify(ids) === JSON.stringify(["hide"]),
+    JSON.stringify(ids),
+  );
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  // 3 日ボードの AI のレーンの帯も同じパネル
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fboard"));
+  const boardBand = page.getByTestId("ai-plan").first();
+  await boardBand.waitFor({ timeout: 15000 });
+  await boardBand.click();
+  await page.getByTestId("plan-label").waitFor({ timeout: 15000 });
+  t.check(
+    "board plan band click: the same plan panel",
+    (await page.getByTestId("ai-panel").innerText()).includes("Weekly digest"),
+  );
+  await page.keyboard.press("Escape");
+  // AI の画面の「後で」の予定の行も同じパネル
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fai"));
+  const row = page.getByTestId("ai-plan-row").first();
+  await row.waitFor({ timeout: 15000 });
+  await row.click();
+  await page.getByTestId("plan-label").waitFor({ timeout: 15000 });
+  t.check(
+    "AI screen plan row click: the same plan panel",
+    (await page.getByTestId("ai-panel").innerText()).includes("Weekly digest"),
+  );
+  // started が来たら、開いているパネルはその AI の項目に切り替わる（SSE）
+  await board.api("POST", "/ai/reports", {
+    source: "nightly",
+    id: "weekly-digest",
+    state: "started",
+  });
+  const switched = await page
+    .locator('[data-testid="ai-state"]:not([data-state="scheduled"])')
+    .waitFor({ timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  t.check(
+    "started while the plan panel is open: it switches to the AI item",
+    switched && (await page.getByTestId("ai-plan-row").count()) === 0,
+  );
+  await page.keyboard.press("Escape");
+}
+
 async function planned(t: Ctx) {
   const { page, board } = t;
   const live = await board.api<{ items: { id: string }[]; plans?: { externalId: string }[] }>(
@@ -184,6 +256,7 @@ export const reportSuite: Suite = {
     await run(t);
     await settingsRow(t);
     await planned(t);
+    await planPanel(t);
     await reportPanel(t);
   },
 };

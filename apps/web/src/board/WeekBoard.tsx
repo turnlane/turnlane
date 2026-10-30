@@ -836,7 +836,12 @@ export function WeekBoard() {
                         onMore={() => {
                           // 画面を移るときはボードの詳細パネルを閉じる（キューの詳細と 2 枚にしない。D-214 の §4）。
                           // キューは帯に出しきれなかった最初の件を選んで開く
-                          setUi({ panelWorkItemId: null, panelTaskId: null, panelEventId: null });
+                          setUi({
+                            panelWorkItemId: null,
+                            panelTaskId: null,
+                            panelEventId: null,
+                            panelPlan: null,
+                          });
                           const next = band[limits.band];
                           void nav({
                             to: "/queue",
@@ -1283,7 +1288,13 @@ function YourTurnBand({
       onOpen={(x, d) => {
         void dismissAway(d.key);
         if (x.followUpId) void openTask({ followUpId: x.followUpId });
-        else setUi({ panelWorkItemId: x.workItemId, panelTaskId: null, panelEventId: null });
+        else
+          setUi({
+            panelWorkItemId: x.workItemId,
+            panelTaskId: null,
+            panelEventId: null,
+            panelPlan: null,
+          });
       }}
     />
   );

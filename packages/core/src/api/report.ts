@@ -31,6 +31,23 @@ export interface ReportPlanView {
   overdue: boolean;
 }
 
+/**
+ * GET /api/ai/reports/:source/:id（予定の詳細パネル。0.8.1）: 報告の作業 1 つ。予定のあいだは plan があり、started などで
+ * AI の項目になったら workItemId が入る（パネルはその項目の詳細に切り替える）
+ */
+export interface ReportItemResponse {
+  source: string;
+  externalId: string;
+  title: string | null;
+  project: string | null;
+  /** 報告の開く先（開けるものだけ。無ければ null） */
+  url: string | null;
+  /** 予定（非表示にした・予定でなくなったら null） */
+  plan: ReportPlanView | null;
+  /** この作業の AI 項目（まだ無ければ null） */
+  workItemId: string | null;
+}
+
 /** 予定の時刻を過ぎたとみなすまでの余裕 */
 export const REPORT_PLAN_LATE_MS = 30 * 60_000;
 

@@ -176,6 +176,13 @@
       "when": 1793347823825,
       "tag": "0024_report_scheduled",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793349593610,
+      "tag": "0025_report_plan_hidden",
+      "breakpoints": true
     }
   ]
 }

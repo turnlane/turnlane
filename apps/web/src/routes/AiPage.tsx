@@ -18,10 +18,10 @@ import {
   type QueueItem,
   type TaskDetailResponse,
 } from "@turnlane/core/web";
-import { CalendarClock, ChevronRight } from "lucide-react";
+import { CalendarClock, ChevronRight, EyeOff } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ItemActionsProvider, useItemActionsHost } from "../actions/item-actions.tsx";
-import { planLabel } from "../board/PlanBands.tsx";
+import { openPlanPanel, planLabel } from "../board/PlanBands.tsx";
 import {
   AiRow,
   type AiRowData,
@@ -32,12 +32,15 @@ import {
   rowFollowUp,
 } from "../components/AiRow.tsx";
 import { openAnswer } from "../components/AnswerSection.tsx";
+import { ContextMenu } from "../components/ContextMenu.tsx";
 import { useOpenWith } from "../components/OpenWith.tsx";
+import { rowSurface } from "../components/TurnRow.tsx";
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
 import {
   completeItems,
   dismissFollowUps,
   dismissLimitWait,
+  hidePlan,
   openTask,
   wakeFollowUp,
 } from "../data/mutations.ts";
@@ -164,7 +167,8 @@ export function AiPage() {
   const today = q.data?.today ?? "";
   const sections = liveSections(q.data, live.data?.items, now);
   const all = rowsOf(sections);
-  // 報告の予定（0.8.1）: 「後で」の節に `予定 · 22:00` の札で足す（AI の項目ではないので選べない行）
+  // 報告の予定（0.8.1）: 「後で」の節に `予定 · 22:00` の札で足す。j / k で選べ、⏎・クリックで予定の詳細パネル。
+  // AI の項目ではないので e（対応不要）などは効かない（非表示は右クリック）
   const plans = live.data?.plans ?? [];
   const count = (s: AiSection) => all[s].length + (s === "later" ? plans.length : 0);
   const [closed, setClosed] = useState<AiSection[]>(readClosed);
@@ -175,19 +179,29 @@ export function AiPage() {
       ? xs.slice(0, FOLD_AFTER)
       : xs;
   };
-  // j / k で動く行（開いた節だけ）
+  // j / k で動く行（開いた節だけ。「後で」の最後に予定の行）
   const rows = SECTIONS.flatMap((s) => (closed.includes(s) ? [] : shown(s)));
+  const nav: { key: string; row?: AiRowData; plan?: ReportPlanView }[] = SECTIONS.flatMap((s) =>
+    closed.includes(s)
+      ? []
+      : [
+          ...shown(s).map((r) => ({ key: r.key, row: r })),
+          ...(s === "later" ? plans.map((p) => ({ key: planRowKey(p), plan: p })) : []),
+        ],
+  );
   const [curKey, setCurKey] = useState<string | null>(null);
   const curIndex = Math.max(
     0,
-    rows.findIndex((r) => r.key === curKey),
+    nav.findIndex((n) => n.key === curKey),
   );
-  const sel = rows.length > 0 ? rows[Math.min(curIndex, rows.length - 1)] : undefined;
+  const cur = nav.length > 0 ? nav[Math.min(curIndex, nav.length - 1)] : undefined;
+  const sel = cur?.row;
+  const selPlan = cur?.plan;
   const panels = usePanelsAvailable();
   const answerOn = useAnswerEnabled();
   const openWith = useOpenWith();
   const select = (i: number) => {
-    const r = rows[Math.max(0, Math.min(rows.length - 1, i))];
+    const r = nav[Math.max(0, Math.min(nav.length - 1, i))];
     if (r) setCurKey(r.key);
   };
   const anchor = () =>
@@ -205,6 +219,10 @@ export function AiPage() {
       return true;
     },
     open: () => {
+      if (selPlan) {
+        if (panels) openPlanPanel(selPlan);
+        return panels;
+      }
       if (!sel) return false;
       const f = rowFollowUp(sel);
       // 片付けの行は worktree のフォルダ（項目の作業場所）
@@ -267,6 +285,10 @@ export function AiPage() {
       return false;
     },
     detail: () => {
+      if (selPlan && panels) {
+        openPlanPanel(selPlan);
+        return true;
+      }
       if (!sel || !panels) return false;
       setUi({ panelWorkItemId: sel.id });
       return true;
@@ -398,7 +420,19 @@ export function AiPage() {
                     />
                   ))}
               {s === "later" && !closed.includes(s)
-                ? plans.map((p) => <PlanRow key={p.id} plan={p} now={now} tz={tz} />)
+                ? plans.map((p) => (
+                    <PlanRow
+                      key={p.id}
+                      plan={p}
+                      now={now}
+                      tz={tz}
+                      selected={cur?.key === planRowKey(p)}
+                      onPick={() => {
+                        setCurKey(planRowKey(p));
+                        if (panels) openPlanPanel(p);
+                      }}
+                    />
+                  ))
                 : null}
               {!closed.includes(s) && rest > 0 ? (
                 <button
@@ -422,20 +456,69 @@ export function AiPage() {
   );
 }
 
-/** AI の画面の「後で」の予定の行（報告の state scheduled）: 題名、出どころ · プロジェクト、右に `予定 · 22:00` */
-function PlanRow({ plan, now, tz }: { plan: ReportPlanView; now: number; tz: string }) {
+const planRowKey = (p: Pick<ReportPlanView, "id">) => `plan:${p.id}`;
+
+/**
+ * AI の画面の「後で」の予定の行（報告の state scheduled）: 題名、出どころ · プロジェクト、右に `予定 · 22:00`（暦の今日でなければ
+ * `10/31 22:00`）。クリックで予定の詳細パネル、右クリックで非表示
+ */
+function PlanRow({
+  plan,
+  now,
+  tz,
+  selected,
+  onPick,
+}: {
+  plan: ReportPlanView;
+  now: number;
+  tz: string;
+  selected: boolean;
+  onPick: () => void;
+}) {
   const { t } = useI18n();
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const where = [plan.source, plan.project].filter(Boolean).join(" · ");
   return (
-    <div
-      className="flex h-9 min-w-0 items-center gap-2 rounded-card px-2 text-fg2"
-      data-testid="ai-plan-row"
-      data-plan-id={plan.id}
-    >
-      <CalendarClock size={16} strokeWidth={1.5} className="shrink-0 text-fg3" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-body">{plan.title ?? plan.externalId}</span>
-      {where ? <span className="shrink-0 truncate text-fg3 text-meta">{where}</span> : null}
-      <span className="shrink-0 font-mono text-meta">{planLabel(plan, now, tz, t)}</span>
-    </div>
+    <>
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={onPick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+        className={`flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-card px-2 text-left text-fg2 ${rowSurface({ selected })}`}
+        data-testid="ai-plan-row"
+        data-plan-id={plan.id}
+        data-selected={selected ? "" : undefined}
+      >
+        <CalendarClock
+          size={16}
+          strokeWidth={1.5}
+          className="shrink-0 text-fg3"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate text-body">{plan.title ?? plan.externalId}</span>
+        {where ? <span className="shrink-0 truncate text-fg3 text-meta">{where}</span> : null}
+        <span className="shrink-0 font-mono text-meta">{planLabel(plan, now, tz, t, true)}</span>
+      </button>
+      {menu ? (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          entries={[
+            {
+              id: "hide",
+              label: t("ai.hide"),
+              icon: EyeOff,
+              danger: true,
+              run: () => void hidePlan(plan.source, plan.externalId),
+            },
+          ]}
+        />
+      ) : null}
+    </>
   );
 }

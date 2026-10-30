@@ -736,6 +736,35 @@ export async function openTask(p: {
   }
 }
 
+/** 予定（報告の state scheduled）の開く先を開く（0.8.1。AI の項目がまだ無い） */
+export async function openPlan(source: string, id: string): Promise<void> {
+  const loc = getLocale();
+  try {
+    await unwrap<OpenResult>(
+      api.api.ai.reports[":source"][":id"].open.$post({ param: { source, id } }),
+    );
+  } catch {
+    toast(translate(loc, "toast.open.failed"));
+  }
+}
+
+/** 予定を非表示にする（帯・AI の画面の「後で」から消える。時刻を変えて送り直せばまた出る） */
+export async function hidePlan(source: string, id: string): Promise<void> {
+  const loc = getLocale();
+  try {
+    await unwrap<{ hidden: boolean }>(
+      api.api.ai.reports[":source"][":id"].hide.$post({ param: { source, id } }),
+    );
+    toast(translate(loc, "toast.plan.hidden"));
+  } catch {
+    toast(translate(loc, "toast.plan.hideFailed"));
+  }
+  if (getUi().panelPlan === `report:${source}:${id}`) setUi({ panelPlan: null });
+  void queryClient.invalidateQueries({
+    predicate: (q) => ["board", "day", "aiLive", "reportItem"].includes(q.queryKey[0] as string),
+  });
+}
+
 /**
  * 最初の開き方が失敗して別の開き方に落ちたときの知らせ（B-5。D-193）: 理由ごとの文（6 秒。普通の知らせより長い）。
  * 「コマンドはコピーしました」は実際にコピーに落ちたときだけ。ボタンは automation_denied でデスクトップアプリのときだけ

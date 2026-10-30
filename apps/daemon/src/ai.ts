@@ -307,6 +307,14 @@ export function createAiSystem(o: AiOptions): AiSystem {
       await supervisor.whenIdle();
       await runner.runNow();
     },
+    plansChanged: (ats) => {
+      const st = settings();
+      const dates = new Set([
+        toLocalDate(o.clock.now(), st.tz, st.dayBoundary),
+        ...ats.map((at) => toLocalDate(at, st.tz, st.dayBoundary)),
+      ]);
+      o.hub.publish("work_item", { dates: [...dates].sort(), ids: [] });
+    },
   });
   const deps: AiDeps = {
     reports,

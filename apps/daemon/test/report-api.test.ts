@@ -6,7 +6,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { putSetting } from "@turnlane/core";
-import type { QueueResponse, ReportResponse, ReportSourcesResponse } from "@turnlane/core/api";
+import type {
+  QueueResponse,
+  ReportItemResponse,
+  ReportResponse,
+  ReportSourcesResponse,
+} from "@turnlane/core/api";
 import { MASK } from "@turnlane/core/web";
 import { createApp } from "../src/http/app.ts";
 import { createPlanner } from "../src/planner/index.ts";
@@ -364,6 +369,55 @@ describe("予定（scheduled。0.8.1）", () => {
     await s.report({ ...base, state: "done" }, T0 + 2 * H + MIN);
     expect((await plans(s)).body.plans).toEqual([]);
     expect(s.item("myscript", "export-1")?.status).toBe("done");
+  });
+
+  test("予定の詳細（GET /api/ai/reports/:source/:id）: 予定の間は plan、started で workItemId。開く・非表示", async () => {
+    const s = await setup();
+    const at = T0 + 13 * H;
+    const seen: { type: string; dates?: unknown }[] = [];
+    const unsub = env.hub.subscribe((e) => seen.push({ type: e.type, dates: e.data.dates }));
+    await s.report({
+      ...base,
+      state: "scheduled",
+      at,
+      title: "Nightly export",
+      project: "Reports",
+      url: "https://example.com/runs/9",
+    });
+    env.hub.flush();
+    // 予定は AI の項目が変わらないので、受け口が知らせる（ボード・デイビューを読み直させる）
+    expect(seen).toContainEqual({ type: "work_item", dates: ["2026-10-02"] });
+    const one = await s.call<ReportItemResponse>("GET", "/api/ai/reports/myscript/export-1");
+    expect(one.status).toBe(200);
+    expect(one.body).toMatchObject({
+      source: "myscript",
+      externalId: "export-1",
+      title: "Nightly export",
+      project: "Reports",
+      url: "https://example.com/runs/9",
+      plan: { at, overdue: false },
+      workItemId: null,
+    });
+    const opened = await s.call("POST", "/api/ai/reports/myscript/export-1/open");
+    expect(opened.status).toBe(200);
+    expect(env.open.runs).toContainEqual(["/usr/bin/open", "https://example.com/runs/9"]);
+    expect((await s.call("GET", "/api/ai/reports/myscript/nope")).status).toBe(404);
+
+    // 非表示: 帯・後でから消える。同じ時刻で送り直しても隠したまま、時刻が変われば出る
+    expect((await s.call("POST", "/api/ai/reports/myscript/export-1/hide")).status).toBe(200);
+    expect((await plans(s)).body.plans).toEqual([]);
+    expect((await board(s)).body.days[0]?.aiPlans ?? []).toEqual([]);
+    await s.report({ ...base, state: "scheduled", at }, T0 + MIN);
+    expect((await plans(s)).body.plans).toEqual([]);
+    await s.report({ ...base, state: "scheduled", at: at + H }, T0 + 2 * MIN);
+    expect((await plans(s)).body.plans[0]?.at).toBe(at + H);
+
+    await s.report({ ...base, state: "started" }, at + H);
+    const started = await s.call<ReportItemResponse>("GET", "/api/ai/reports/myscript/export-1");
+    expect(started.body.plan).toBeNull();
+    expect(started.body.workItemId).toBe(s.item("myscript", "export-1")?.id ?? "missing");
+    expect((await s.call("POST", "/api/ai/reports/myscript/export-1/hide")).status).toBe(404);
+    unsub();
   });
 
   test("scheduled には at が要る", async () => {

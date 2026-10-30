@@ -233,6 +233,22 @@ export function createAiRoutes(
         return c.json({ error: r.error }, 500);
       })
       .get("/ai/reports/sources", (c) => c.json(deps().reports.sources()))
+      // 予定の詳細パネル（0.8.1。m2-api 37 章）: 報告の作業 1 つ。AI の項目になったら workItemId が入る
+      .get("/ai/reports/:source/:id", (c) => {
+        const r = deps().reports.item(c.req.param("source"), c.req.param("id"));
+        return r ? c.json(r) : c.json({ error: "not_found" }, 404);
+      })
+      .post("/ai/reports/:source/:id/hide", (c) => {
+        const ok = deps().reports.hidePlan(c.req.param("source"), c.req.param("id"));
+        return ok ? c.json({ hidden: true }) : c.json({ error: "not_found" }, 404);
+      })
+      .post("/ai/reports/:source/:id/open", async (c) => {
+        const d = deps();
+        const r = d.reports.item(c.req.param("source"), c.req.param("id"));
+        if (!r) return c.json({ error: "not_found" }, 404);
+        if (!r.url) return c.json({ error: "unavailable" }, 409);
+        return c.json(await d.opener.openUrl(r.url));
+      })
       .get("/work-items", (c) => {
         const date = c.req.query("date");
         if (date !== undefined && !isLocalDate(date)) bad("date must be YYYY-MM-DD");

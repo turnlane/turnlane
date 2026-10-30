@@ -1602,6 +1602,11 @@ export const ja: Dict = {
   "ai.live.more": { other: "ほか {count} 件" },
   "ai.plan.at": "予定 · {time}",
   "ai.plan.late": "予定の時刻を過ぎています",
+  "ai.plan.flow": "予定",
+  "ai.plan.notStarted": "まだ動いていません",
+  "ai.plan.gone": "この予定はもうありません。",
+  "toast.plan.hidden": "予定を非表示にしました",
+  "toast.plan.hideFailed": "予定を非表示にできませんでした",
   "ai.live.cleanupAction": "片付け…",
   "ai.live.emptyTitle": "いま動いている AI はありません",
   "ai.live.emptyHint":

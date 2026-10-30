@@ -11,6 +11,7 @@ import type {
   InboxResponse,
   ProjectView,
   QueueResponse,
+  ReportItemResponse,
   SearchResponse,
   UpdateStatus,
   WorkItemDetail,
@@ -206,6 +207,20 @@ export function useWorkItem(id: string | null) {
         unwrap<WorkItemDetail>(api.api["work-items"][":id"].$get({ param: { id: id ?? "" } })),
       ),
     enabled: id !== null,
+  });
+}
+
+/** 報告の作業 1 つ（予定の詳細パネル。0.8.1）。無ければ 404 で isError */
+export function useReportItem(ref: { source: string; externalId: string } | null) {
+  const source = ref?.source ?? "";
+  const id = ref?.externalId ?? "";
+  return useQuery({
+    queryKey: keys.reportItem(source, id),
+    queryFn: () =>
+      unwrap<ReportItemResponse>(
+        api.api.ai.reports[":source"][":id"].$get({ param: { source, id } }),
+      ),
+    enabled: ref !== null,
   });
 }
 

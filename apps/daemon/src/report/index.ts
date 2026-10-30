@@ -17,7 +17,8 @@ import {
   toReportSpoolLine,
 } from "@turnlane/collectors";
 import type { Clock } from "@turnlane/core";
-import type { ReportResponse, ReportSourcesResponse } from "@turnlane/core/api";
+import type { ReportItemResponse, ReportResponse, ReportSourcesResponse } from "@turnlane/core/api";
+import { hidePlan, reportItem, scheduledAtOf } from "./plans.ts";
 
 export interface ReportReceiverOptions {
   sqlite: Database;
@@ -30,6 +31,11 @@ export interface ReportReceiverOptions {
   settle(): Promise<void>;
   /** 待つ上限（既定 2 秒） */
   settleMs?: number;
+  /**
+   * 予定（state scheduled）が出た・動いた・消えた（受けた前後の始める時刻）。AI の項目が変わらないので判定の知らせが出ない。
+   * ボード・デイビュー・AI の画面・予定のパネルを読み直させる
+   */
+  plansChanged?(ats: number[]): void;
 }
 
 export type ReportResult =
@@ -48,6 +54,7 @@ export class ReportReceiver {
     const text = reportSpoolText(line);
     if (text === null) return { ok: false, status: 400, field: "body" };
     const path = join(this.o.spoolDir, reportSpoolName(now));
+    const before = scheduledAtOf(this.o.sqlite, p.report.source, p.report.id);
     try {
       mkdirSync(this.o.spoolDir, { recursive: true, mode: 0o700 });
       // 1 回の追記（O_APPEND。4 KB 未満なので行が混ざらない）
@@ -70,6 +77,9 @@ export class ReportReceiver {
         }),
       ]);
       if (timer) clearTimeout(timer);
+      const after = scheduledAtOf(this.o.sqlite, p.report.source, p.report.id);
+      if (before !== after)
+        this.o.plansChanged?.([before, after].filter((x): x is number => x !== null));
     }
     return {
       ok: true,
@@ -92,6 +102,19 @@ export class ReportReceiver {
         )
         .get(source, id)?.w ?? null
     );
+  }
+
+  /** 報告の作業 1 つ（予定の詳細パネル。0.8.1）。無ければ null */
+  item(source: string, id: string): ReportItemResponse | null {
+    return reportItem(this.o.sqlite, this.o.clock.now(), source, id, this.workItemOf(source, id));
+  }
+
+  /** 予定を非表示にする（予定が無ければ false） */
+  hidePlan(source: string, id: string): boolean {
+    const at = hidePlan(this.o.sqlite, source, id);
+    if (at === null) return false;
+    this.o.plansChanged?.([at]);
+    return true;
   }
 
   /** 報告してきた出どころ（設定 › AI の取り込み） */

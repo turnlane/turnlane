@@ -63,6 +63,7 @@ import { useNotifications } from "../notify/use-notifications.ts";
 import { CommandPalette } from "../palette/CommandPalette.tsx";
 import { AiPanel } from "../panel/AiPanel.tsx";
 import { EventPanel } from "../panel/EventPanel.tsx";
+import { PlanPanel } from "../panel/PlanPanel.tsx";
 import { RecordPanel } from "../panel/RecordPanel.tsx";
 import { TaskPanel } from "../panel/TaskPanel.tsx";
 import { useAiSummary } from "../routes/AiPage.tsx";
@@ -101,6 +102,7 @@ export function AppShell({ conn }: { conn: ConnState }) {
             </PanelsAvailable.Provider>
           </main>
           <AiPanel />
+          <PlanPanel />
           <TaskPanel />
           <EventPanel />
           {/* 記録のパネル（D-192）: デイビューだけ。詳細パネルと同じ場所に排他で開く */}

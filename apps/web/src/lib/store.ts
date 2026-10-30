@@ -13,9 +13,14 @@ export interface Toast {
 
 /** 開いている詳細パネル（AI・タスク・予定のどれか1つ。D-070） */
 export function anyPanelOpen(
-  s: Pick<UiState, "panelWorkItemId" | "panelTaskId" | "panelEventId">,
+  s: Pick<UiState, "panelWorkItemId" | "panelTaskId" | "panelEventId" | "panelPlan">,
 ): boolean {
-  return s.panelWorkItemId !== null || s.panelTaskId !== null || s.panelEventId !== null;
+  return (
+    s.panelWorkItemId !== null ||
+    s.panelTaskId !== null ||
+    s.panelEventId !== null ||
+    s.panelPlan !== null
+  );
 }
 
 /** 画面で選んでいる項目（⌘K の Selected と `p`。ux-mvp 6.1）。各画面が選択の変化で書く */
@@ -62,6 +67,11 @@ export interface UiState {
   panelTaskId: string | null;
   /** 予定の詳細パネル（D-070。読み取り専用） */
   panelEventId: string | null;
+  /**
+   * 報告の予定（state scheduled）の詳細パネル（0.8.1）。AI の項目がまだ無いので `report:<source>:<id>`（planKey）。
+   * started などで AI の項目になったら、その項目の AI 詳細パネルに切り替える
+   */
+  panelPlan: string | null;
   /** 記録のパネル（デイビューの右。D-192）。詳細パネルと同じ場所に排他で開く（どれかを開いたら閉じる） */
   recordOpen: boolean;
   helpOpen: boolean;
@@ -104,6 +114,7 @@ let state: UiState = {
   answerFor: null,
   panelTaskId: null,
   panelEventId: null,
+  panelPlan: null,
   recordOpen: false,
   helpOpen: false,
   palette: null,
@@ -126,7 +137,7 @@ export function getUi(): UiState {
   return state;
 }
 
-const PANELS = ["panelWorkItemId", "panelTaskId", "panelEventId"] as const;
+const PANELS = ["panelWorkItemId", "panelTaskId", "panelEventId", "panelPlan"] as const;
 
 export function setUi(p: Partial<UiState> | ((s: UiState) => Partial<UiState>)): void {
   const patch = typeof p === "function" ? p(state) : p;
@@ -138,7 +149,7 @@ export function setUi(p: Partial<UiState> | ((s: UiState) => Partial<UiState>)):
         recordOpen: false,
       }
     : patch.recordOpen === true
-      ? { panelWorkItemId: null, panelTaskId: null, panelEventId: null }
+      ? { panelWorkItemId: null, panelTaskId: null, panelEventId: null, panelPlan: null }
       : {};
   state = { ...state, ...others, ...patch };
   for (const l of listeners) l();
@@ -163,4 +174,14 @@ export function toast(text: string, action?: Toast["action"], ms = 5000): void {
 
 export function dismissToast(id: number): void {
   setUi((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+}
+
+/** 予定の詳細パネルの鍵（出どころは `^[a-z0-9_]{2,32}$` なので最初の `:` までが出どころ。ID は `:` を含んでよい） */
+export function planKey(p: { source: string; externalId: string }): string {
+  return `report:${p.source}:${p.externalId}`;
+}
+
+export function parsePlanKey(k: string): { source: string; externalId: string } | null {
+  const m = /^report:([a-z0-9_]{2,32}):(.+)$/s.exec(k);
+  return m?.[1] && m[2] ? { source: m[1], externalId: m[2] } : null;
 }

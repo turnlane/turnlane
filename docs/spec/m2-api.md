@@ -1447,5 +1447,6 @@ ReportInput {
 - 予定（`state: "scheduled"`。2026-10-30。ADR 0021 追記 1）: その時刻に始める予定で、まだ動いていない。CLI は `--state scheduled --at 2026-10-30T22:00:00+09:00`（ISO 8601 か epoch ms）。AI の項目は作らず、`ai_session.scheduled_at`（マイグレーション 0024）に持つ。表示用に `ReportPlanView { id, source, externalId, title, project, at, overdue }`（`overdue` は `at` + 30 分を過ぎた）を返す:
   - `GET /api/board` の `DayColumn.aiPlans?: ReportPlanView[]`（その列の軸の範囲。AI のレーンの予定の帯）
   - `GET /api/ai/live` の `plans?: ReportPlanView[]`（AI の画面の「後で」の行）
+- 予定の詳細パネル（2026-10-30 追記）: `GET /api/ai/reports/:source/:id` → `ReportItemResponse { source, externalId, title, project, url, plan: ReportPlanView | null, workItemId: string | null }`（無い・取り込み元を止めている間は 404）。予定の間は `plan`、started などで AI の項目になったら `workItemId`（web はその項目の AI 詳細パネルに切り替える）。`POST /api/ai/reports/:source/:id/open` は報告の `url` を `open` に渡す（無ければ 409）。`POST /api/ai/reports/:source/:id/hide` は予定を非表示にする（`ai_session.plan_hidden_at` にいまの始める時刻。マイグレーション 0025。違う時刻で送り直せばまた出る。予定が無ければ 404）。予定が出た・動いた・消えた報告は、AI の項目が変わらなくても `work_item` の知らせ（`dates` は今日と前後の始める日、`ids` は空）を出す。web のキーは `["reportItem", source, id]`（`work_item` で読み直す）
 - 報告の項目の詳細パネル（web）: 出どころ（バッジ + 識別子）・プロジェクト・状態・開く先（`report_url` があるときだけ「開く」）・待ちの中身・流れだけ。最後の返答（`GET /api/work-items/:id/last-reply`）は呼ばない。`⋯` は 完了にする・自分の番に戻す・非表示
 

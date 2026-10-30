@@ -189,7 +189,7 @@ export function useGlobalKeys(): void {
         if (u.palette) setUi({ palette: null });
         else if (u.helpOpen) setUi({ helpOpen: false });
         else if (anyPanelOpen(u))
-          setUi({ panelWorkItemId: null, panelTaskId: null, panelEventId: null });
+          setUi({ panelWorkItemId: null, panelTaskId: null, panelEventId: null, panelPlan: null });
         else if (u.recordOpen) setUi({ recordOpen: false });
         else return false;
         return true;
