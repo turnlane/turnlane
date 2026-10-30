@@ -30,6 +30,9 @@ pub struct NativeMenu {
 #[serde(rename_all = "camelCase")]
 pub struct AppText {
     pub about: String,
+    /// アップデートを確認…（設定 › 一般の「更新」の節を開いて確かめる。古いデーモンは返さないので代わりの文言）
+    #[serde(default = "check_updates_en")]
+    pub check_updates: String,
     pub settings: String,
     pub hide: String,
     pub hide_others: String,
@@ -75,6 +78,10 @@ impl Default for NativeMenu {
 
 fn restart_to_update_en() -> String {
     "Restart to Finish Update".into()
+}
+
+fn check_updates_en() -> String {
+    "Check for Updates…".into()
 }
 
 fn undo_en() -> String {
@@ -152,6 +159,7 @@ pub fn fallback(lang: &str) -> NativeMenu {
             quit: s("Turnlane を終了"),
             app: AppText {
                 about: s("Turnlane について"),
+                check_updates: s("アップデートを確認…"),
                 settings: s("設定…"),
                 hide: s("Turnlane を隠す"),
                 hide_others: s("ほかを隠す"),
@@ -182,6 +190,7 @@ pub fn fallback(lang: &str) -> NativeMenu {
             quit: s("Quit Turnlane"),
             app: AppText {
                 about: s("About Turnlane"),
+                check_updates: check_updates_en(),
                 settings: s("Settings…"),
                 hide: s("Hide Turnlane"),
                 hide_others: s("Hide Others"),
@@ -229,6 +238,8 @@ mod tests {
         assert_eq!(m.app.hide_others, "ho");
         assert_eq!(m.view.three, "3日");
         assert_eq!(m.restart_to_update, "Restart to Finish Update");
+        // 古いデーモン（アップデートを確認…の文言が無い）
+        assert_eq!(m.app.check_updates, "Check for Updates…");
         // 古いデーモン（取り消す・やり直すの文言が無い）
         assert_eq!(m.edit.undo, "Undo");
         assert_eq!(m.edit.redo, "Redo");

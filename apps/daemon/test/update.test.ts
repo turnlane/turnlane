@@ -31,13 +31,17 @@ function fakeFeed(body: () => { status: number; json: unknown }) {
   };
 }
 
-function checker(feedUrl: string | null, o: { enabled?: () => boolean; clock?: FakeClock } = {}) {
+function checker(
+  feedUrl: string | null,
+  o: { enabled?: () => boolean; clock?: FakeClock; build?: string } = {},
+) {
   let state: UpdateState | null = null;
   let published = 0;
   const clock = o.clock ?? new FakeClock(1_000_000);
   const c = new UpdateChecker({
     feedUrl,
     version: "0.6.0",
+    ...(o.build ? { build: o.build } : {}),
     clock,
     logger: nullLogger,
     enabled: o.enabled ?? (() => true),
@@ -107,7 +111,7 @@ describe("更新確認（M6-12、ADR 0008 の追記 2）", () => {
     expect(feed.seen).toHaveLength(2);
   });
 
-  test("update.check がオフなら接続が0回（tick・check・checkNow）", async () => {
+  test("update.check がオフなら自動の接続は0回（tick・check）。「今すぐ確認」（checkNow）は押したときだけ確かめる", async () => {
     feed = fakeFeed(() => ({
       status: 200,
       json: { version: "9.0.0", url: "https://github.com/o/r" },
@@ -115,10 +119,32 @@ describe("更新確認（M6-12、ADR 0008 の追記 2）", () => {
     const e = checker(feed.url, { enabled: () => false });
     await e.c.tick();
     await e.c.check();
-    await expect(e.c.checkNow()).rejects.toThrow("update_check_off");
     expect(feed.seen).toHaveLength(0);
     expect(e.state()).toBeNull();
-    expect(e.c.status()).toMatchObject({ enabled: false, available: false, checkedAt: null });
+    expect(e.c.status()).toMatchObject({
+      enabled: false,
+      available: false,
+      checkedAt: null,
+      result: null,
+    });
+    const s = await e.c.checkNow();
+    expect(feed.seen).toHaveLength(1);
+    expect(s).toMatchObject({ enabled: false, available: true, result: "available" });
+  });
+
+  test("最後の確認の結果（result）とビルドの印（build）", async () => {
+    let n = 0;
+    feed = fakeFeed(() => {
+      n++;
+      return n === 1
+        ? { status: 200, json: { version: "0.0.1", url: "https://github.com/o/r" } }
+        : { status: 500, json: {} };
+    });
+    const e = checker(feed.url, { build: "0.6.0+abc1234" });
+    await e.c.check();
+    expect(e.c.status()).toMatchObject({ result: "up_to_date", build: "0.6.0+abc1234" });
+    await e.c.check();
+    expect(e.c.status()).toMatchObject({ result: "failed", error: "http_500" });
   });
 
   test("確認先の無いビルドは何もしない", async () => {
@@ -190,13 +216,15 @@ describe("デーモンに組み込んだ更新確認（M6-12）", () => {
       configured: true,
       current: VERSION,
     });
-    expect((await call("POST", "/api/update/check")).status).toBe(409);
-    expect(feed.seen).toHaveLength(0);
+    // 自動の確認がオフでも、「今すぐ確認」は押したときだけ確かめる
+    const manual = await call("POST", "/api/update/check");
+    expect(manual.status).toBe(200);
+    expect(feed.seen).toHaveLength(1);
     putSetting(daemon.mutateCtx, "update.check", true);
     const r = await call("POST", "/api/update/check");
     expect(r.status).toBe(200);
     expect(r.data.available).toBe(true);
-    expect(feed.seen).toHaveLength(1);
+    expect(feed.seen).toHaveLength(2);
   });
 
   test.each([

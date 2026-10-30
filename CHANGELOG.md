@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Updates: Settings › General now has an Updates section with the version you run, when it last checked, and a Check now button, and the app menu has Check for Updates…. When a new version is found, its download and Restart to update show there too.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added

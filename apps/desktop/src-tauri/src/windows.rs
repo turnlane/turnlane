@@ -662,6 +662,7 @@ pub fn app_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         true,
         &[
             &PredefinedMenuItem::about(app, Some(&t.app.about), None)?,
+            &MenuItem::with_id(app, "check_updates", &t.app.check_updates, true, None::<&str>)?,
             &sep()?,
             &MenuItem::with_id(app, "settings", &t.app.settings, true, Some("CmdOrCtrl+,"))?,
             &sep()?,
@@ -848,6 +849,28 @@ fn edit_command(app: &AppHandle, cmd: &str) {
     }
 }
 
+/// 開いている SPA なら __turnlaneCheckUpdates を呼ぶ。無ければ `?check=updates` 付きで設定を開く（Web が読んで確かめる）
+fn check_updates(app: &AppHandle) {
+    const PATH: &str = "/settings?check=updates";
+    let a = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(w) = a.get_webview_window(MAIN) {
+            let on_spa = current_url(&w).map(|u| u.scheme() == "http").unwrap_or(false);
+            if on_spa {
+                let p = serde_json::to_string(PATH).unwrap_or_default();
+                let _ = w.eval(format!(
+                    "window.__turnlaneCheckUpdates ? window.__turnlaneCheckUpdates() : window.__turnlaneOpen && window.__turnlaneOpen({p})"
+                ));
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+                return;
+            }
+        }
+        open_main_now(&a, Some(PATH));
+    });
+}
+
 pub fn on_menu_event(app: &AppHandle, e: MenuEvent) {
     if let Some((view, path)) = view_of(e.id().as_ref()) {
         switch_view(app, view, path);
@@ -859,6 +882,8 @@ pub fn on_menu_event(app: &AppHandle, e: MenuEvent) {
     }
     match e.id().as_ref() {
         "settings" => open_main(app, Some("/settings".into())),
+        // アップデートを確認…: 設定 › 一般の「更新」の節を開いて確かめる（判定と文言は Web とデーモン。ADR 0010）
+        "check_updates" => check_updates(app),
         "reload" => {
             if let Some(w) = app.get_webview_window(MAIN) {
                 let _ = w.reload();

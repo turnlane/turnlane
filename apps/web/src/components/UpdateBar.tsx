@@ -66,7 +66,7 @@ export function updateNotice(s: UpdateStatus | null | undefined): UpdateNotice |
   }
 }
 
-const NOTE_TEXT = {
+export const NOTE_TEXT = {
   downloading: "update.downloading",
   installing: "update.restarting",
   failed_verify: "update.failedVerify",

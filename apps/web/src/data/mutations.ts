@@ -1495,6 +1495,18 @@ export async function dismissUpdate(version: string): Promise<void> {
  * 取得・検証の済んだ更新を入れる（Restart to update。ADR 0008 の追記 4）。入れ終わったら true。デーモンは新しい版で
  * 起き直し、アプリは SSE update の installed で開き直す。入れられなかった・ready でなかったら false
  */
+/** 今すぐ確認（設定 › 一般の「更新」・アプリのメニューの「アップデートを確認…」）。失敗なら null */
+export async function checkUpdateNow(): Promise<UpdateStatus | null> {
+  try {
+    const v = await unwrap<UpdateStatus>(api.api.update.check.$post());
+    queryClient.setQueryData(keys.update(), v);
+    return v;
+  } catch {
+    void queryClient.invalidateQueries({ queryKey: keys.update() });
+    return null;
+  }
+}
+
 export async function installUpdate(): Promise<boolean> {
   try {
     const v = await unwrap<UpdateStatus>(api.api.update.install.$post());

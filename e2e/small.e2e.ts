@@ -144,6 +144,92 @@ async function calendarHide(t: Ctx) {
   );
 }
 
+/** 設定 › 一般の「更新」: 今すぐ確認を押すと行が変わる（dev-board は確認しないので、/api/update は偽の応答） */
+async function updateCheckNow(t: Ctx) {
+  const { page, board } = t;
+  const checkedAt = Date.parse(`${TODAY}T16:02:00+09:00`);
+  const base = {
+    enabled: true,
+    configured: true,
+    current: "0.8.0",
+    build: "0.8.0+e820ba7",
+    latest: {
+      version: "0.8.0",
+      url: "https://github.com/o/r/releases/download/v0.8.0/x.zip",
+      sha256: null,
+    },
+    available: false,
+    checkedAt,
+    error: null,
+    result: "up_to_date",
+    channel: "download",
+    upgradeCommand: null,
+    releasesUrl: "https://github.com/o/r/releases/latest",
+    dismissed: null,
+    off: null,
+    downloadEnabled: true,
+    download: { state: "idle", version: null, path: null, error: null, at: 0 },
+  };
+  let status: Record<string, unknown> = base;
+  let posted = 0;
+  await page.route(
+    (u) => u.pathname === "/api/update" || u.pathname === "/api/update/check",
+    async (route) => {
+      if (route.request().method() === "POST") {
+        posted++;
+        status = {
+          ...base,
+          latest: {
+            version: "0.8.1",
+            url: "https://github.com/o/r/releases/download/v0.8.1/x.zip",
+            sha256: null,
+          },
+          available: true,
+          result: "available",
+          checkedAt: checkedAt + 25 * 60_000,
+          download: { state: "ready", version: "0.8.1", path: "/tmp/x", error: null, at: 0 },
+        };
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(status),
+      });
+    },
+  );
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fsettings%23general"));
+  const row = page.getByTestId("settings-update-line");
+  await row.waitFor({ timeout: 15000 });
+  await settle(page, 400);
+  t.check(
+    "settings: the line shows the version, the last check and up to date",
+    (await row.innerText()) === "v0.8.0+e820ba7 · Last checked 16:02 · Up to date",
+    await row.innerText(),
+  );
+  await page.getByTestId("settings-update-check-now").click();
+  await until(
+    () => row.innerText(),
+    (x) => x.includes("0.8.1 is available"),
+  );
+  t.check("settings: Check now asks the daemon", posted === 1);
+  t.check(
+    "settings: the line changes to the new version",
+    (await row.innerText()) === "v0.8.0+e820ba7 · Last checked 16:27 · 0.8.1 is available",
+    await row.innerText(),
+  );
+  t.check(
+    "settings: the same flow as the bar (ready → Restart to update) is here too",
+    (await page.getByTestId("settings-update-install").count()) === 1 &&
+      (await page.getByTestId("settings-update-notice").innerText()).includes("0.8.1 is ready"),
+  );
+}
+
+export const updateCheckSuite: Suite = {
+  name: "update-check",
+  args: ["--lang", "en"],
+  run: updateCheckNow,
+};
+
 export const snoozePickSuite: Suite = {
   name: "snooze-pick",
   args: ["--lang", "en"],

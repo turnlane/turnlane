@@ -16,7 +16,7 @@
  * - POST /api/onboarding/open-settings { pane } システム設定の画面を開く（calendars / notifications）
  * 更新確認（M6-12）:
  * - GET  /api/update                          状態（接続しない）
- * - POST /api/update/check                    今すぐ確かめる（update.check がオフなら 409 update_check_off）
+ * - POST /api/update/check                    今すぐ確かめる（update.check がオフでも押したときは確かめる。ビルドのオフは 409）
  * - POST /api/update/dismiss { version }       ボードの更新の知らせを閉じる（その版は次の起動まで出さない。接続しない）
  * - POST /api/update/install                  取得・検証の済んだ更新を入れる（ready 以外は 409 update_not_ready。ADR 0008 の追記 4）
  */

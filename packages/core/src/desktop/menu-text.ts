@@ -17,7 +17,15 @@ export interface NativeMenuText {
   restartToUpdate: string;
   quit: string;
   // アプリのメニュー
-  app: { about: string; settings: string; hide: string; hideOthers: string; showAll: string };
+  app: {
+    about: string;
+    /** アップデートを確認…（設定 › 一般の「更新」の節を開いて確かめる） */
+    checkUpdates: string;
+    settings: string;
+    hide: string;
+    hideOthers: string;
+    showAll: string;
+  };
   edit: {
     title: string;
     undo: string;
@@ -44,6 +52,7 @@ export const NATIVE_MENU: { en: NativeMenuText; ja: NativeMenuText } = {
     quit: "Quit Turnlane",
     app: {
       about: "About Turnlane",
+      checkUpdates: "Check for Updates…",
       settings: "Settings…",
       hide: "Hide Turnlane",
       hideOthers: "Hide Others",
@@ -73,6 +82,7 @@ export const NATIVE_MENU: { en: NativeMenuText; ja: NativeMenuText } = {
     quit: "Turnlane を終了",
     app: {
       about: "Turnlane について",
+      checkUpdates: "アップデートを確認…",
       settings: "設定…",
       hide: "Turnlane を隠す",
       hideOthers: "ほかを隠す",

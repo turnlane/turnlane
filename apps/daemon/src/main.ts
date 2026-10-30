@@ -2,6 +2,7 @@ import { mkdirSync, statSync } from "node:fs";
 import { errorFields, type MetaOnlyLogger, meta, type SourceAdapter } from "@turnlane/collectors";
 import {
   addDays,
+  BUILD,
   type Clock,
   createDb,
   DEFAULT_DAY_BOUNDARY,
@@ -401,6 +402,7 @@ export async function startDaemon(opts: StartOptions): Promise<RunningDaemon> {
   const updater = new UpdateChecker({
     feedUrl: updateFeed,
     version: VERSION,
+    build: BUILD,
     clock,
     logger,
     enabled: () => getSetting<unknown>(db, "update.check") !== false,

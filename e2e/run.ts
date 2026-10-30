@@ -36,7 +36,7 @@ import { paletteSuite } from "./palette.e2e.ts";
 import { panelResizeSuite } from "./panel-resize.e2e.ts";
 import { panelsSuite } from "./panels.e2e.ts";
 import { reportSuite } from "./report.e2e.ts";
-import { calendarHideSuite, snoozePickSuite } from "./small.e2e.ts";
+import { calendarHideSuite, snoozePickSuite, updateCheckSuite } from "./small.e2e.ts";
 
 const SUITES: Suite[] = [
   boardDnd,
@@ -72,6 +72,7 @@ const SUITES: Suite[] = [
   reportSuite,
   snoozePickSuite,
   calendarHideSuite,
+  updateCheckSuite,
 ];
 const args = process.argv.slice(2);
 const opt = (k: string) => {

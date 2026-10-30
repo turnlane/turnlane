@@ -29,6 +29,7 @@ import { type AnyMessageKey, type MessageKey, translate, useI18n, useT } from ".
 import { api, unwrap } from "../lib/api.ts";
 import { inDesktop } from "../lib/desktop.ts";
 import { isImeKey } from "../lib/ime.ts";
+import { requestUpdateCheck } from "../lib/update-line.ts";
 import { KeyboardSection } from "./KeyboardSection.tsx";
 import { LaunchSection } from "./LaunchSettings.tsx";
 import { PlanGuideSection } from "./PlanGuideSection.tsx";
@@ -85,6 +86,15 @@ export function SettingsPage() {
     if (anchor) flashSetting(anchor);
     else top.current?.scrollIntoView({ block: "start" });
   };
+  // アプリのメニューの「アップデートを確認…」で新しく開いたとき（`?check=updates`）: 一般を開いて確かめる
+  const search = useRouterState({ select: (s) => s.location.searchStr });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 開いたときだけ
+  useEffect(() => {
+    if (!new URLSearchParams(search).has("check")) return;
+    void nav({ to: "/settings", hash: "general", search: {}, replace: true });
+    requestUpdateCheck();
+    flashSetting("update");
+  }, [search]);
   // 節を変えたら先頭から見せる
   // biome-ignore lint/correctness/useExhaustiveDependencies: 節が変わったときだけ
   useEffect(() => {

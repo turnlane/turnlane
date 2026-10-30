@@ -1,3 +1,4 @@
+import { requestUpdateCheck } from "./lib/update-line.ts";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -22,6 +23,11 @@ setAppNavigate((path) => void router.navigate({ href: path }));
 // デスクトップアプリ（Rust）が main ウインドウの画面を移すときに呼ぶ（通知のクリック、turnlane open。desktop-shell.md 4.3）
 // `?panel=<workItemId>` は AI 詳細パネルを開く（メニューバーの → / ⌘⏎。D-067）
 (window as unknown as { __turnlaneOpen?: (path: string) => void }).__turnlaneOpen = openInApp;
+// デスクトップアプリのメニューの「アップデートを確認…」: 設定 › 一般の「更新」の節を開いて確かめる（判定と文言はデーモン）
+(window as unknown as { __turnlaneCheckUpdates?: () => void }).__turnlaneCheckUpdates = () => {
+  openInApp("/settings#general");
+  requestUpdateCheck();
+};
 // デスクトップアプリの表示メニュー（⌘1〜⌘3。D-075）。WKWebView ではメニューのキーが先に取るので、Rust から呼ぶ
 const VIEW_KEY = { three: "viewThree", week: "viewWeek", day: "viewDay" } as const;
 (window as unknown as { __turnlaneView?: (v: keyof typeof VIEW_KEY) => void }).__turnlaneView = (

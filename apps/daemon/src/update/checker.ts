@@ -66,6 +66,8 @@ export interface UpdateCheckerOptions {
   feedUrl: string | null;
   /** 今の版 */
   version: string;
+  /** 版とビルドの印（`0.8.0+e820ba7`。設定 › 一般の「更新」の行。無ければ version） */
+  build?: string;
   clock: Clock;
   logger: MetaOnlyLogger;
   /** 設定 update.check（既定オン） */
@@ -164,24 +166,26 @@ export class UpdateChecker {
     const off = this.#off();
     if (off === "custom_build") throw new OpError(409, "update_check_custom_build");
     if (off === "dev_install") throw new OpError(409, "update_check_dev_install");
-    if (off) throw new OpError(409, "update_check_off");
-    await this.check();
+    // 自動の確認をオフにしていても、利用者が「今すぐ確認」を押したときは確かめる（設定 › 一般の「更新」。アプリのメニューの
+    // 「アップデートを確認…」）
+    await this.check(off === "setting");
     return this.status();
   }
 
-  /** 1回確かめる。オフなら接続しない */
-  check(): Promise<void> {
+  /** 1回確かめる。オフなら接続しない（manual は「今すぐ確認」: 設定の update.check がオフでも確かめる） */
+  check(manual = false): Promise<void> {
     if (this.#inflight) return this.#inflight;
-    this.#inflight = this.#check().finally(() => {
+    this.#inflight = this.#check(manual).finally(() => {
       this.#inflight = null;
     });
     return this.#inflight;
   }
 
-  async #check(): Promise<void> {
+  async #check(manual = false): Promise<void> {
     const url = this.#o.feedUrl;
-    // オフ（update.check=false・拡張を組み込んだビルド・開発時の配置）・確認先なしのときは、ここより先（接続）に進まない
-    if (url === null || !this.#enabled()) return;
+    // オフ（update.check=false・拡張を組み込んだビルド・開発時の配置）・確認先なしのときは、ここより先（接続）に進まない。
+    // 手で押したときは update.check のオフだけは越える（ビルドのオフは越えない）
+    if (url === null || this.#o.buildOff || (!manual && !this.#enabled())) return;
     const prev = this.#o.load();
     let latest: LatestRelease | null = prev?.latest ?? null;
     let error: string | null = null;
@@ -251,6 +255,15 @@ export class UpdateChecker {
       enabled: this.#setting(),
       configured: this.configured,
       current: this.#o.version,
+      build: this.#o.build ?? this.#o.version,
+      result:
+        s?.checkedAt == null
+          ? null
+          : s.error
+            ? "failed"
+            : latest !== null && (compareVersions(latest.version, this.#o.version) ?? 0) > 0
+              ? "available"
+              : "up_to_date",
       latest,
       available: latest !== null && (compareVersions(latest.version, this.#o.version) ?? 0) > 0,
       checkedAt: s?.checkedAt ?? null,

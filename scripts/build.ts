@@ -149,7 +149,18 @@ export async function build(
   );
 
   const v = buildVersion(ROOT);
-  const define = ["--define", `__TURNLANE_VERSION__=${JSON.stringify(v)}`];
+  const define = [
+    "--define",
+    `__TURNLANE_VERSION__=${JSON.stringify(v)}`,
+    // 短いコミット（設定 › 一般の「更新」の行の `0.8.0+e820ba7`）。git が無ければ付けない
+    ...(() => {
+      const c = Bun.spawnSync(["git", "rev-parse", "--short=7", "HEAD"], { cwd: ROOT });
+      const sha = c.exitCode === 0 ? c.stdout.toString().trim() : "";
+      return /^[0-9a-f]{7,40}$/.test(sha)
+        ? ["--define", `__TURNLANE_COMMIT__=${JSON.stringify(sha)}`]
+        : [];
+    })(),
+  ];
   const targets = [
     { name: "turnlaned", entry: join(buildDir, "turnlaned.ts") },
     { name: "turnlane", entry: join(ROOT, "apps/cli/src/main.ts") },

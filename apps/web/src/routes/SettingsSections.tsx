@@ -27,17 +27,21 @@ import type {
   TimeblockEventsSummary,
 } from "@turnlane/daemon";
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CalendarColorButton } from "../components/CalendarColors.tsx";
 import { MenuSelect } from "../components/MenuSelect.tsx";
-import { ConfirmDialog } from "../components/ui.tsx";
+import { NOTE_TEXT, updateNotice } from "../components/UpdateBar.tsx";
+import { Button, ConfirmDialog } from "../components/ui.tsx";
 import { useHiddenCalendars } from "../data/calendar-visibility.ts";
 import { keys } from "../data/invalidate.ts";
-import { useSources } from "../data/queries.ts";
+import { checkUpdateNow, installUpdate } from "../data/mutations.ts";
+import { useQueue, useSources, useUpdateStatus } from "../data/queries.ts";
 import { type MessageKey, useI18n, useT } from "../i18n/index.tsx";
 import { ApiError, api, unwrap } from "../lib/api.ts";
 import { calColor } from "../lib/cal-color.ts";
+import { useNow } from "../lib/clock.ts";
 import { blurOnEnter, isImeKey } from "../lib/ime.ts";
+import { getUpdateCheckRequest, subscribeUpdateCheck, updateLine } from "../lib/update-line.ts";
 import { CalendarConnectRow } from "./CalendarConnectRow.tsx";
 import { ProjectLaunchFields } from "./LaunchSettings.tsx";
 
@@ -535,8 +539,107 @@ export function FollowUpSection() {
 }
 
 /**
- * 更新（設定 › 一般。ADR 0008 の追記 2・4）: 更新を確かめる（update.check）と、更新を自動でダウンロードする（update.download）。
- * どちらも既定オン。確認がオフのときはダウンロードも行わない
+ * 「更新」の節の先頭の行（設定 › 一般）: 版・最後の確認・結果と「今すぐ確認」。新しい版があれば、ボードの帯と同じ流れ
+ * （ダウンロード中 → 準備ができました → 再起動して更新 / 手動の案内）をここにも出す。アプリのメニューの「アップデートを確認…」
+ * （requestUpdateCheck）でも確かめる
+ */
+export function UpdateStatusRow() {
+  const t = useT();
+  const q = useUpdateStatus();
+  const now = useNow();
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  // 時刻はデーモンのタイムゾーン（ほかの画面と同じ）
+  const tz = useQueue().data?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const req = useSyncExternalStore(
+    subscribeUpdateCheck,
+    getUpdateCheckRequest,
+    getUpdateCheckRequest,
+  );
+  const check = () => {
+    if (checking) return;
+    setChecking(true);
+    void checkUpdateNow().finally(() => setChecking(false));
+  };
+  const s = q.data;
+  const line = s ? updateLine(s, now, tz, t) : null;
+  // アプリのメニューから頼まれたら（開いた後も）確かめる
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 頼まれた時刻が変わったときだけ
+  useEffect(() => {
+    if (req > 0 && line?.canCheck) check();
+  }, [req, line?.canCheck]);
+  if (!s || !line) return null;
+  const notice = s.available ? updateNotice({ ...s, dismissed: null }) : null;
+  const note = notice && "note" in notice ? notice.note : undefined;
+  return (
+    <section className="flex flex-col gap-1.5" data-testid="settings-update" data-setting="update">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-section">{t("settings.update.title")}</h2>
+          <p className="truncate text-fg2 text-meta" data-testid="settings-update-line">
+            {checking ? `v${s.build ?? s.current} · ${t("settings.update.checking")}` : line.text}
+          </p>
+        </div>
+        {line.canCheck ? (
+          <Button
+            onClick={check}
+            disabled={checking}
+            data-testid="settings-update-check-now"
+            className="shrink-0"
+          >
+            {t("settings.update.checkNow")}
+          </Button>
+        ) : null}
+      </div>
+      {notice ? (
+        <div className="flex items-center gap-2 text-body" data-testid="settings-update-notice">
+          <span className="min-w-0 flex-1 truncate text-fg2 text-meta">
+            {note
+              ? t(NOTE_TEXT[note], { version: notice.version })
+              : notice.action === "install"
+                ? t("update.ready", { version: notice.version })
+                : t("update.available", { version: notice.version })}
+          </span>
+          {notice.action === "install" ? (
+            <Button
+              size="sm"
+              disabled={installing}
+              onClick={() => {
+                setInstalling(true);
+                void installUpdate().finally(() => setInstalling(false));
+              }}
+              data-testid="settings-update-install"
+            >
+              {t("update.restart")}
+            </Button>
+          ) : notice.action === "copy" ? (
+            <Button
+              size="sm"
+              onClick={() => void navigator.clipboard?.writeText(notice.command)}
+              data-testid="settings-update-copy"
+            >
+              {t("update.copy", { command: notice.command })}
+            </Button>
+          ) : notice.action === "open" ? (
+            <a
+              href={notice.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-card border border-line bg-raised px-2 font-medium text-fg text-meta hover:border-fg3"
+              data-testid="settings-update-open"
+            >
+              {t("update.open")}
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * 更新（設定 › 一般。ADR 0008 の追記 2・4）: 先頭に版・最後の確認・今すぐ確認（UpdateStatusRow）、その下に更新を確かめる
+ * （update.check）と、更新を自動でダウンロードする（update.download）。どちらも既定オン。確認がオフのときはダウンロードも行わない
  */
 export function UpdateSettingsRows() {
   const t = useT();
@@ -561,6 +664,7 @@ export function UpdateSettingsRows() {
   ];
   return (
     <>
+      <UpdateStatusRow />
       <section
         className="flex items-center justify-between gap-4"
         data-testid="settings-update-check"

@@ -198,6 +198,13 @@ export interface UpdateStatus {
   /** このビルドに確認先があるか（無ければ確認しない） */
   configured: boolean;
   current: string;
+  /** 版とビルドの印（`0.8.0+e820ba7`。コミットが分からなければ current と同じ。古いデーモンには無い） */
+  build?: string;
+  /**
+   * 最後の確認の結果（設定 › 一般の「更新」の行）: up_to_date / available / failed（理由は error）。まだ確認していなければ null。
+   * 古いデーモンには無い
+   */
+  result?: "up_to_date" | "available" | "failed" | null;
   latest: { version: string; url: string; sha256: string | null } | null;
   /** latest が current より新しい */
   available: boolean;

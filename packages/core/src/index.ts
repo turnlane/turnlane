@@ -338,4 +338,4 @@ export {
   type UpdatePhase,
   updatePhase,
 } from "./update-download.ts";
-export { VERSION } from "./version.ts";
+export { BUILD, COMMIT, VERSION } from "./version.ts";
