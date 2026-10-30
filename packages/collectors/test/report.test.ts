@@ -252,3 +252,43 @@ describe("report アダプタ", () => {
     }
   });
 });
+
+describe("予定（scheduled）", () => {
+  test("scheduled はターンを作らず始める時刻だけ。started で予定が消えてターン。at が無ければだめ", async () => {
+    expect(parseReport({ source: "nightly", id: "b", state: "scheduled" })).toEqual({
+      ok: false,
+      field: "at",
+    });
+    const tmp = mkdtempSync(join(tmpdir(), "turnlane-report-"));
+    try {
+      const at = FIXTURE_NOW + 12 * 60 * M;
+      const line = (o: object, n: number) =>
+        JSON.stringify({
+          v: 1,
+          kind: "report",
+          received_at: FIXTURE_NOW + n * M,
+          client_id: `p${n}`,
+          source: "nightly",
+          id: "backup",
+          ...o,
+        });
+      writeFileSync(
+        join(tmp, "report-20261001.jsonl"),
+        `${[
+          line({ state: "scheduled", at, title: "Backup" }, 0),
+          line({ state: "started" }, 720),
+        ].join("\n")}\n`,
+      );
+      const ev = await readAll(report, rootFor(report, tmp), DETAIL);
+      const seen = ev.filter((e): e is SessionSeenEvent => e.kind === "session_seen");
+      expect(seen.map((e) => e.scheduledAt)).toEqual([at, null]);
+      // 予定の出来事の時刻は受けた時刻（at は始める時刻で、未来に丸めない）
+      expect(seen[0]?.at).toBe(FIXTURE_NOW);
+      expect(turns(ev).map((e) => [e.status, e.startedAt])).toEqual([
+        ["running", FIXTURE_NOW + 720 * M],
+      ]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});

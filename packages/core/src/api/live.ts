@@ -1,7 +1,9 @@
 /** AI の画面（GET /api/ai/live。m2-api 33章、ux-mvp 4.19）の型 */
+
 import type { OpenWaitBrief } from "./answer.ts";
 import type { AiItemSummary } from "./board.ts";
 import type { EpochMs, ReadMeta } from "./common.ts";
+import type { ReportPlanView } from "./report.ts";
 
 /**
  * AI のプロセス: alive = Claude Code のプロセスが動いている（sessions/<pid>.json の確かめが新しい）/ gone = 終わった /
@@ -68,4 +70,6 @@ export interface LiveItem
  */
 export interface AiLiveResponse extends ReadMeta {
   items: LiveItem[];
+  /** 報告の予定（state scheduled。0.8.1）。AI の画面の「後で」に `予定 · 22:00` の札で出す。古いデーモンには無い */
+  plans?: ReportPlanView[];
 }

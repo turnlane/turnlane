@@ -94,9 +94,10 @@ Work that leaves no session log for Turnlane to read, such as your own scripts, 
 turnlane ai report --source myscript --id nightly --title "Nightly export" --project Reports --state started
 turnlane ai report --source myscript --id nightly --state waiting --kind question --text "Overwrite last night's file?" --option Overwrite --option "Keep both" --url https://example.com/runs/42
 turnlane ai report --source myscript --id nightly --state done
+turnlane ai report --source myscript --id weekly --title "Weekly digest" --state scheduled --at 2026-10-30T22:00:00+09:00
 ```
 
-`--source` is any lowercase name you choose; `--state` is `started`, `running`, `waiting`, `done`, or `error`. If Turnlane isn't running, the report is saved and read when it starts. The same report can be sent with the MCP tool `report_ai_work` or `POST /api/ai/reports`. For now you answer in your own tool: Turnlane shows the question and opens the `--url`.
+`--source` is any lowercase name you choose; `--state` is `scheduled`, `started`, `running`, `waiting`, `done`, or `error`; `scheduled` with `--at` puts a planned run on the AI lane until it starts. If Turnlane isn't running, the report is saved and read when it starts. The same report can be sent with the MCP tool `report_ai_work` or `POST /api/ai/reports`. For now you answer in your own tool: Turnlane shows the question and opens the `--url`.
 
 ## Supported agents
 

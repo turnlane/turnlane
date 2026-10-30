@@ -117,6 +117,7 @@ import {
 } from "./geometry.ts";
 import { InboxTray, useInboxTray } from "./InboxTray.tsx";
 import { HoverLinks, hoverWorkItem, OffscreenHint } from "./overlays.tsx";
+import { PlanBands } from "./PlanBands.tsx";
 import { ribbonOf } from "./ribbon.ts";
 import {
   GridBackground,
@@ -1580,6 +1581,8 @@ function DayGrid({
             top={yOf(day.plannedHours?.start ?? axis.start + 9 * 3_600_000, axis.start) + 4}
           />
           <AiLane day={day} now={now} tz={tz} isSel={isSel} onPick={onPick} replies={replies} />
+          {/* 報告の予定の帯（0.8.1） */}
+          <PlanBands plans={day.aiPlans ?? []} y={(ms) => yOf(ms, axis.start)} tz={tz} now={now} />
         </div>
       ) : null}
       {isToday ? <NowLine axis={axis} now={now} /> : null}

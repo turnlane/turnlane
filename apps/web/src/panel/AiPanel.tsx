@@ -35,7 +35,7 @@ import { Nums } from "../components/Nums.tsx";
 import { openActionIcon, useOpenLabel } from "../components/OpenWith.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
 import { turnView, WhyBlock } from "../components/TurnWhy.tsx";
-import { Popover, SdkChip, viaSdk } from "../components/ui.tsx";
+import { Popover, SdkChip, sourceBadgeText, viaSdk } from "../components/ui.tsx";
 import { useAnswerEnabled } from "../data/answer.ts";
 import { useGlance, useItemGlance } from "../data/glance.ts";
 import {
@@ -98,6 +98,14 @@ export function AiPanel() {
 }
 
 const closeAi = () => setUi({ panelWorkItemId: null });
+
+/**
+ * 報告の項目（ADR 0021）: リポジトリも端末のセッションも無い。詳細は出どころ・プロジェクト・状態・開く先・待ちの中身・流れだけで、
+ * セッションに戻る・他の開き方・最後の返答・次の指示は出さない（0.8.1）
+ */
+export function isReportItem(w: Pick<WorkItemDetail["workItem"], "repoRoot" | "sources">): boolean {
+  return !w.repoRoot && w.sources.some((s) => s.report);
+}
 
 function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
   const { t, locale } = useI18n();
@@ -202,10 +210,29 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
             {viaSdk(d.workItem.sources) ? <SdkChip label={t("ai.viaSdk")} /> : null}
           </div>
         ) : null}
+        {isReportItem(d.workItem) ? (
+          <div
+            className="flex items-center gap-1.5 text-fg2 text-meta"
+            data-testid="ai-report-from"
+          >
+            {d.workItem.sources
+              .filter((s) => s.report)
+              .map((s) => (
+                <span
+                  key={s.tool}
+                  className="shrink-0 font-mono text-fg3 text-micro"
+                  title={s.tool}
+                >
+                  {sourceBadgeText(s)}
+                </span>
+              ))}
+            <span className="min-w-0 truncate">{whereName(d.workItem, t("ai.scratch"))}</span>
+          </div>
+        ) : null}
         <Actions id={id} d={d} head={head} answer={canAnswer} answering={answering} />
       </div>
       {/* 最後の返答（Issue #8）: 開いた瞬間に記録から読む。答えている間の問いは「答える」の節が全文で出すので出さない */}
-      {answering && wait?.kind !== "permission" ? null : (
+      {isReportItem(d.workItem) ? null : answering && wait?.kind !== "permission" ? null : (
         <LastReplySection
           key={id}
           workItemId={id}
@@ -304,6 +331,8 @@ function Actions({
     })),
     { id: "snooze-pick", label: t("snooze.pick"), run: () => setPicking(fid) },
   ];
+  const report = isReportItem(d.workItem);
+  const reportUrl = report && opts?.some((o) => o.action === "report_url");
   const moreEntries = (anchor: { x: number; y: number }): MenuEntry[] => {
     const st = d.workItem.status;
     const out: MenuEntry[] = [];
@@ -348,6 +377,8 @@ function Actions({
       danger: true,
       run: () => void patchWorkItem(id, { hidden: true }),
     };
+    // 報告の項目: 完了にする・自分の番に戻す・非表示だけ（0.8.1）
+    if (report) return [...(st === "done" ? [] : [done()]), ...back, { ...hide, sep: true }];
     if (st === "done") {
       if (d.workItem.manualDoneAt !== null)
         out.push({
@@ -393,20 +424,34 @@ function Actions({
       className="relative mt-0.5 flex flex-wrap items-center gap-1.5 pr-10"
       data-testid="ai-actions"
     >
-      <ActionButton
-        primary={!answering}
-        onClick={primary}
-        keys={keyHint("open")}
-        testId="ai-primary"
-      >
-        {t(head.primary)}
-      </ActionButton>
+      {report ? (
+        // 報告の項目は報告の開く先（URL）があるときだけ「開く」
+        reportUrl ? (
+          <ActionButton
+            primary={!answering}
+            onClick={() => void openTask({ workItemId: id, action: "report_url" })}
+            keys={keyHint("open")}
+            testId="ai-primary"
+          >
+            {t("menu.openAi")}
+          </ActionButton>
+        ) : null
+      ) : (
+        <ActionButton
+          primary={!answering}
+          onClick={primary}
+          keys={keyHint("open")}
+          testId="ai-primary"
+        >
+          {t(head.primary)}
+        </ActionButton>
+      )}
       {answer && !answering ? (
         <ActionButton onClick={() => openAnswer(id)} keys={keyHint("answer")} testId="ai-answer">
           {t("answer.action")}
         </ActionButton>
       ) : null}
-      {opts && opts.length > 0 ? (
+      {!report && opts && opts.length > 0 ? (
         <ActionButton
           keys={keyHint("openWith")}
           onClick={(e) => setMenu({ ...at(e.currentTarget), entries: openEntries() })}

@@ -59,6 +59,7 @@ import {
   useLaneLaterTexts,
   useLaneWaits,
 } from "../board/lane-wait.ts";
+import { PlanBands } from "../board/PlanBands.tsx";
 import {
   GridBackground,
   Gutter,
@@ -1420,6 +1421,8 @@ function Timeline({
           empty={day.phase === "today" && day.aiLane.length === 0}
           top={yAt(day.plannedHours?.start ?? axis.start + 9 * 3_600_000, axis.start) + 4}
         />
+        {/* 報告の予定の帯（0.8.1） */}
+        <PlanBands plans={day.aiPlans ?? []} y={(ms) => yAt(ms, axis.start)} tz={tz} now={now} />
         {lines.map((l) => (
           <WaitLineView
             key={l.key}

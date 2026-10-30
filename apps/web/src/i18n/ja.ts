@@ -1600,6 +1600,8 @@ export const ja: Dict = {
     "hooks の届いていない Codex はプロセスの有無が分からないので、最後の動きから 6 時間出します",
   "ai.live.lastActivity": "最後の動き {time}",
   "ai.live.more": { other: "ほか {count} 件" },
+  "ai.plan.at": "予定 · {time}",
+  "ai.plan.late": "予定の時刻を過ぎています",
   "ai.live.cleanupAction": "片付け…",
   "ai.live.emptyTitle": "いま動いている AI はありません",
   "ai.live.emptyHint":

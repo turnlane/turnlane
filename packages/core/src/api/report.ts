@@ -12,6 +12,28 @@ export interface ReportResponse {
   queued: boolean;
 }
 
+/**
+ * 報告の予定（state scheduled。0.8.1）: その時刻に始める予定で、まだ動いていない作業。AI の項目にはせず、AI のレーンの
+ * 予定の帯（DayColumn.aiPlans）と AI の画面の「後で」（AiLiveResponse.plans）にだけ出す
+ */
+export interface ReportPlanView {
+  /** ai_session.id */
+  id: string;
+  /** 出どころ */
+  source: string;
+  /** 出どころの中の作業の ID */
+  externalId: string;
+  title: string | null;
+  project: string | null;
+  /** 始める時刻 */
+  at: number;
+  /** 始める時刻を 30 分過ぎても started などが来ていない（札を「予定の時刻を過ぎています」にする。自分の番にはしない） */
+  overdue: boolean;
+}
+
+/** 予定の時刻を過ぎたとみなすまでの余裕 */
+export const REPORT_PLAN_LATE_MS = 30 * 60_000;
+
 /** GET /api/ai/reports/sources の 1 行（報告してきた出どころ） */
 export interface ReportSourceView {
   source: string;

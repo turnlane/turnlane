@@ -45,7 +45,7 @@
  *   Claude のアカウントは一時 HOME の main と sandbox の2つ（D-122）。--orca で端末の選択肢に Orca を足す
  * - --event-detail: 予定の詳細パネルの確認用（D-138）。今日の Design review（参加者あり・読み取り専用）に会議のリンク、
  *   今日 16:00〜16:45 に参加者のいない Pairing with Kim（場所とリンク付き。編集できる）を足す
- * - --reports: 外の作業の報告（ADR 0021）を 2 件足す。myscript の Nightly export（プロジェクト Reports。問いで待っている。
+ * - --reports: 外の作業の報告（ADR 0021）を 3 件足す（3 件目は今夜 22:00 の予定。AI のレーンに予定の帯）。myscript の Nightly export（プロジェクト Reports。問いで待っている。
  *   開く先は https://example.com/runs/42）と、nightly の Backup（実行中）。spool の report-*.jsonl に書き、取り込みで読む。
  *   開く先は偽の OS（何も起動しない）
  * - --finish-delay <ms>: 完了のときの片付けの worktree の削除を遅らせる（片付けの途中の見え方。偽の git なので何も消さない）
@@ -981,6 +981,17 @@ if (REPORTS) {
   );
   step(at("12:30"), () =>
     report(at("12:30"), { source: "nightly", id: "backup", state: "started", title: "Backup" }),
+  );
+  // 今夜 22:00 に始める予定（scheduled。AI の項目にはせず、AI のレーンに予定の帯）
+  step(at("12:40"), () =>
+    report(at("12:40"), {
+      source: "nightly",
+      id: "weekly-digest",
+      state: "scheduled",
+      at: at("22:00"),
+      title: L("週次のまとめ", "Weekly digest"),
+      project: "Reports",
+    }),
   );
 }
 // 待っている件の見え方（--design glance / glance-edge。D-207、spec-glance §9）。本文・コマンドはすべてダミー。今は 17:10

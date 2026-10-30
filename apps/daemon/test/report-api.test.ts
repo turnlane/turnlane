@@ -314,6 +314,66 @@ describe("POST /api/ai/reports", () => {
   });
 });
 
+describe("予定（scheduled。0.8.1）", () => {
+  const plans = (s: Awaited<ReturnType<typeof setup>>) =>
+    s.call<{ plans: { externalId: string; at: number; overdue: boolean }[] }>(
+      "GET",
+      "/api/ai/live",
+    );
+  const board = (s: Awaited<ReturnType<typeof setup>>) =>
+    s.call<{ days: { aiPlans?: { externalId: string; at: number }[]; aiLane: unknown[] }[] }>(
+      "GET",
+      "/api/board?from=2026-10-02&to=2026-10-02",
+    );
+
+  test("scheduled → started → done: 予定の間は AI の項目を作らず帯だけ。started で帯が消えて通常の項目", async () => {
+    const s = await setup();
+    const at = T0 + 13 * H; // 22:00 JST
+    const r = await s.report({ ...base, state: "scheduled", at, title: "Nightly export" });
+    expect(r.status).toBe(202);
+    expect(s.item("myscript", "export-1")).toBeNull();
+    expect((await plans(s)).body.plans).toEqual([
+      expect.objectContaining({ externalId: "export-1", at, overdue: false }),
+    ]);
+    expect((await board(s)).body.days[0]?.aiPlans).toEqual([
+      expect.objectContaining({ externalId: "export-1", at }),
+    ]);
+    // 送り直しで時刻を更新
+    await s.report({ ...base, state: "scheduled", at: at + H }, T0 + MIN);
+    expect((await plans(s)).body.plans[0]?.at).toBe(at + H);
+    await s.report({ ...base, state: "started" }, at + H);
+    expect((await plans(s)).body.plans).toEqual([]);
+    expect(s.item("myscript", "export-1")?.status).toBe("running");
+    await s.report({ ...base, state: "done" }, at + 2 * H);
+    expect(s.item("myscript", "export-1")?.status).toBe("done");
+  });
+
+  test("scheduled → 時刻を 30 分過ぎても started が来ない: 帯の札だけが過ぎた印（自分の番にしない）", async () => {
+    const s = await setup();
+    const at = T0 + 2 * H;
+    await s.report({ ...base, state: "scheduled", at });
+    env.clock.set(at + 31 * MIN);
+    expect((await plans(s)).body.plans[0]?.overdue).toBe(true);
+    expect(await s.items()).toEqual([]);
+    expect(s.item("myscript", "export-1")).toBeNull();
+  });
+
+  test("scheduled → done: 帯を消して完了の項目", async () => {
+    const s = await setup();
+    await s.report({ ...base, state: "scheduled", at: T0 + 2 * H });
+    await s.report({ ...base, state: "done" }, T0 + 2 * H + MIN);
+    expect((await plans(s)).body.plans).toEqual([]);
+    expect(s.item("myscript", "export-1")?.status).toBe("done");
+  });
+
+  test("scheduled には at が要る", async () => {
+    const s = await setup();
+    const r = await s.report({ ...base, state: "scheduled" });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe("at");
+  });
+});
+
 function existsSpool(): boolean {
   try {
     return readdirSync(join(env.dataDir, "spool")).some(

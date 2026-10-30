@@ -15,6 +15,7 @@ import type {
   QueueResponse,
   QueueSummaryResponse,
   ReadMeta,
+  ReportPlanView,
 } from "@turnlane/core/api";
 import { backToTurnInput, mergeWorkItemInput, snoozeInput } from "@turnlane/core/api";
 import { queueSummary, type UpdateMenuItem } from "@turnlane/core/web";
@@ -101,6 +102,8 @@ export interface AiDeps {
   ingestStatus(): { backfillDone: boolean };
   /** 外の作業の報告（ADR 0021。m2-api 37 章） */
   reports: ReportReceiver;
+  /** 報告の予定（state scheduled。0.8.1。AI の画面の「後で」） */
+  plans?(): ReportPlanView[];
 }
 
 /** API に返すフォローアップ（DB の行から必要な列だけ） */
@@ -342,7 +345,11 @@ export function createAiRoutes(
       // AI の画面（ux-mvp 4.19）: 生きている AI 項目の候補。節への振り分けは画面（core の liveSections）
       .get("/ai/live", async (c) => {
         const d = deps();
-        return c.json({ ...d.meta(), items: (await d.live?.()) ?? [] } satisfies AiLiveResponse);
+        return c.json({
+          ...d.meta(),
+          items: (await d.live?.()) ?? [],
+          plans: d.plans?.() ?? [],
+        } satisfies AiLiveResponse);
       })
       // 離れていた間のまとめ（ux-mvp 4.13、D-214 (2)）。保存は閉じた印だけ。通知は出さない
       .get("/away", async (c) => {

@@ -369,7 +369,7 @@ exports[`スキーマ スナップショット（sqlite_master） 1`] = `
 	\`file_path\` text,
 	\`transcript_missing_at\` integer,
 	\`created_at\` integer NOT NULL,
-	\`updated_at\` integer NOT NULL, \`project_name\` text, \`open_url\` text,
+	\`updated_at\` integer NOT NULL, \`project_name\` text, \`open_url\` text, \`scheduled_at\` integer,
 	FOREIGN KEY (\`source_id\`) REFERENCES \`ai_source\`(\`id\`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (\`parent_session_id\`) REFERENCES \`ai_session\`(\`id\`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "ai_session_tool_ck" CHECK(length(tool) BETWEEN 2 AND 32 AND tool NOT GLOB '*[^a-z0-9_]*'),

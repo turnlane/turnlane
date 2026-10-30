@@ -88,6 +88,79 @@ async function run(t: Ctx) {
   );
 }
 
+/** 予定（scheduled。0.8.1）: AI の項目にはならず、デイビューの AI のレーンに予定の帯、AI の画面の「後で」に `Planned · 22:00` */
+async function planned(t: Ctx) {
+  const { page, board } = t;
+  const live = await board.api<{ items: { id: string }[]; plans?: { externalId: string }[] }>(
+    "GET",
+    "/ai/live",
+  );
+  t.check(
+    "API: the scheduled report is a plan, not an AI item",
+    (live.plans ?? []).some((p) => p.externalId === "weekly-digest"),
+    JSON.stringify(live.plans ?? null),
+  );
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fday"));
+  const band = page.getByTestId("ai-plan").first();
+  await band.waitFor({ timeout: 15000 });
+  const text = await band.innerText();
+  t.check(
+    "day view: a plan band on the AI lane with “Planned · 22:00” and source · project",
+    text.includes("Weekly digest") &&
+      text.includes("Planned · 22:00") &&
+      text.includes("nightly · Reports"),
+    text,
+  );
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fai"));
+  const row = page.getByTestId("ai-plan-row").first();
+  await row.waitFor({ timeout: 15000 });
+  t.check(
+    "AI screen: the plan is in Later with “Planned · 22:00”",
+    (await row.innerText()).includes("Planned · 22:00") &&
+      (await page
+        .locator('[data-testid="ai-section"][data-section="later"] [data-testid="ai-plan-row"]')
+        .count()) === 1,
+  );
+}
+
+/** 報告の項目の詳細パネル（0.8.1）: 出どころ・開く・待ちの中身・流れだけ。セッションに戻る・他の開き方・最後の返答は出さない */
+async function reportPanel(t: Ctx) {
+  const { page, board } = t;
+  const q = await board.api<QueueResponse>("GET", "/queue");
+  const mine = q.items.find((x) => x.sources.some((s) => s.tool === "myscript"));
+  if (!mine) return;
+  await page.goto(
+    board.url.replace(
+      /next=[^&]*/,
+      `next=${encodeURIComponent(`/board?panel=${mine.workItemId}`)}`,
+    ),
+  );
+  const panel = page.getByTestId("ai-panel");
+  await panel.waitFor({ timeout: 15000 });
+  await settle(page, 600);
+  const primary = await page
+    .getByTestId("ai-primary")
+    .innerText()
+    .catch(() => "");
+  t.check(
+    "panel: source and project, Open (the reported link), no open-with, no last reply",
+    (await page.getByTestId("ai-report-from").innerText()).includes("myscript · Reports") &&
+      primary.startsWith("Open") &&
+      (await page.getByTestId("ai-open-with").count()) === 0 &&
+      (await page.getByTestId("ai-last-reply").count()) === 0,
+    primary,
+  );
+  await page.getByTestId("ai-more").click();
+  const ids = await page
+    .locator('[data-testid="context-menu"] [data-menu-id]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("data-menu-id")));
+  t.check(
+    "panel ⋯: mark done and hide only",
+    JSON.stringify(ids) === JSON.stringify(["done", "hide"]),
+    JSON.stringify(ids),
+  );
+}
+
 async function settingsRow(t: Ctx) {
   const { page, board } = t;
   // 設定 › AI の取り込みの「報告」の行: 説明と、報告してきた出どころ
@@ -99,7 +172,7 @@ async function settingsRow(t: Ctx) {
     "settings: the Reports row lists myscript and nightly",
     text.includes("turnlane ai report") &&
       text.includes("myscript (1)") &&
-      text.includes("nightly (1)"),
+      text.includes("nightly (2)"),
     text,
   );
 }
@@ -110,5 +183,7 @@ export const reportSuite: Suite = {
   run: async (t) => {
     await run(t);
     await settingsRow(t);
+    await planned(t);
+    await reportPanel(t);
   },
 };

@@ -11,6 +11,7 @@ import type {
   WorkItemStatus,
 } from "./common.ts";
 import type { TaskAiView } from "./launch.ts";
+import type { ReportPlanView } from "./report.ts";
 
 export interface CalendarEventView {
   id: string;
@@ -231,6 +232,8 @@ export interface DayColumn {
   totals: DayTotals;
   /** 過去日のリボン（稼働区間の和集合）。今日・未来は空 */
   aiRibbon: Interval[];
+  /** 報告の予定（state scheduled。0.8.1）のうち、この列の時間軸にかかるもの（AI のレーンの予定の帯） */
+  aiPlans?: ReportPlanView[];
   /** 今日だけ。他の日は null */
   aiLane: AiLaneItem[] | null;
   /**

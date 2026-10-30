@@ -88,7 +88,10 @@ function eventsOf(
     ...(r.title && ctx.privacy.storeTitles ? { title: r.title, titleSource: "session_name" } : {}),
     ...(r.project ? { project: r.project } : {}),
     ...(r.url ? { openUrl: r.url } : {}),
+    // 予定（scheduled）は始める時刻だけを持ち、ターンは作らない（AI の項目にしない）。ほかの状態が来たら予定は消える
+    scheduledAt: r.state === "scheduled" ? (r.at ?? null) : null,
   });
+  if (r.state === "scheduled") return out;
   const prev = carry.open[key];
   const fresh = (): OpenTurn => ({ turnKey: `r:${pos.file}:${pos.offset}`, startedAt: at });
   // 新しいターン（started、または開いたターンを知らない続きの報告）は、前の開いたターンをシンクに閉じさせる
@@ -268,7 +271,11 @@ export default defineAdapter({
         continue;
       }
       // 時刻: 報告の at（未来は受けた時刻に丸める）。無ければ受けた時刻
-      const at = Math.min(v.report.at ?? v.receivedAt, v.receivedAt);
+      // 予定（scheduled）の at は始める時刻なので、出来事の時刻は受けた時刻
+      const at =
+        v.report.state === "scheduled"
+          ? v.receivedAt
+          : Math.min(v.report.at ?? v.receivedAt, v.receivedAt);
       events.push(...eventsOf(v.report, at, { file: stream.key, offset: line.offset }, carry, ctx));
     }
     return {

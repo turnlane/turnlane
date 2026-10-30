@@ -1426,14 +1426,14 @@ AI の詳細パネルの「最後の返答」の下の入力欄から、待ち�
 ReportInput {
   source: string;    // ^[a-z0-9_]{2,32}$。claude_code / codex / claude_desktop / hook_spool / report は使えない
   id: string;        // 出どころの中の作業の ID（1〜128 文字）。(source, id) が AI 項目のセッション
-  state: "started" | "running" | "waiting" | "done" | "error";
+  state: "scheduled" | "started" | "running" | "waiting" | "done" | "error";  // scheduled は 2026-10-30
   title?: string;    // 120 文字で切る
   project?: string;  // プロジェクトの名前（無ければ作る）。80 文字で切る
   wait?: { kind: "question" | "permission"; text: string; options?: string[]; label?: string };
                      // state = waiting のときだけ（必須）。text 300、options 10 個 × 60（JSON 2000）、label 60 文字で切る
   error?: { kind: string };  // state = error のときだけ。種類だけ（[A-Za-z0-9_.-]{1,32}）
   url?: string;      // 開く先。http(s) かアプリの URL スキーム（file: javascript: data: vbscript: blob: about: turnlane: は受けない）
-  at?: number;       // 出来事の時刻（epoch ms）。省略は受けた時刻。未来は受けた時刻に丸める
+  at?: number;       // 出来事の時刻（epoch ms）。省略は受けた時刻。未来は受けた時刻に丸める。scheduled では始める時刻で必須（丸めない）
   client_id?: string;  // 冪等の鍵（UUIDv7 を勧める。[A-Za-z0-9-]{1,64}）
 }
 ```
@@ -1443,4 +1443,9 @@ ReportInput {
 - 開く: `GET /api/open/options` の既定と唯一の開き方が `report_url`（報告の `url`。無ければ開き方は無い）。`POST /api/open` は `open <url>` を実行する
 - 答える: `GET /api/work-items/:id/wait` は保存した中身（`wait_detail`、無ければ `ai_turn.wait_json`）の問いと選択肢・許可の説明を返し、`delivery` は `{ deliverable: false, reason: "report", terminal: <出どころ> }`。`POST /api/work-items/:id/answer` は 409 `undeliverable`。次の指示も送れない（`unsupported`）
 - 保存: `ai_session.project_name`・`open_url`、`ai_turn.wait_json`（マイグレーション 0022）。`wait_json` は `turn.store_detail` がオンのときだけ、伏せ字の後。「保存した中身を消す」（`DELETE /api/stored-detail`）で消える。`turnlane doctor` の監査の上限は `ai_turn.wait_json` 2600・`ai_session.open_url` 2048
+
+- 予定（`state: "scheduled"`。2026-10-30。ADR 0021 追記 1）: その時刻に始める予定で、まだ動いていない。CLI は `--state scheduled --at 2026-10-30T22:00:00+09:00`（ISO 8601 か epoch ms）。AI の項目は作らず、`ai_session.scheduled_at`（マイグレーション 0024）に持つ。表示用に `ReportPlanView { id, source, externalId, title, project, at, overdue }`（`overdue` は `at` + 30 分を過ぎた）を返す:
+  - `GET /api/board` の `DayColumn.aiPlans?: ReportPlanView[]`（その列の軸の範囲。AI のレーンの予定の帯）
+  - `GET /api/ai/live` の `plans?: ReportPlanView[]`（AI の画面の「後で」の行）
+- 報告の項目の詳細パネル（web）: 出どころ（バッジ + 識別子）・プロジェクト・状態・開く先（`report_url` があるときだけ「開く」）・待ちの中身・流れだけ。最後の返答（`GET /api/work-items/:id/last-reply`）は呼ばない。`⋯` は 完了にする・自分の番に戻す・非表示
 

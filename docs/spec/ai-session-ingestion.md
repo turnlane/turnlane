@@ -176,7 +176,8 @@ Codex のピン留めスレッド（`threads.is_pinned`）とゴール（`goals_
 | ターン | `started`: 新しいターン（`turn_key = r:<spool のファイル>:<行の位置>`、`initiator: system`）。`running`: 開いたターンの最後の活動。`waiting(question)`: 開いたまま `pending_question = 1`。`waiting(permission)`: 開いたまま、許可待ちの hook（`hook_event_name: PermissionRequest`、`tool_name` = 許可の説明、`source: report`）。`done`: `completed`・`end_turn`。`error`: `error`・`error`。同じ spool の中の開いたターンは carry に覚え、別の日の spool に続きが来たらその報告で新しいターンを始め、シンクが同じセッションの前の開いたターンを閉じる（`TurnEvent.closeOpen`）。古い spool を後から読み直して後のターンより前の開いたターンができたら、後のターンの始まりで閉じる |
 | 待ちの中身 | `turn.store_detail` がオンのときだけ、伏せ字を通して `ai_turn.wait_json` に持ち、自分の番ができたら `wait_detail` に写す（問いは `ask`、許可は `permission`）。上限は ADR 0018 と同じ（m2-api 37 章） |
 | 実行中の鮮度 | 最後の報告から 1 日（アダプタの `runningStaleMs`。セッションの tool は出どころなので、判定は entrypoint で報告のセッションを見分ける `derive.runningStaleOf`） |
-| 冪等・上限 | 同じ `client_id` は 1 回だけ（carry に最近 500 件）。出どころ 1 つにつき受けた時刻の 1 分で 60 件まで（超えた行は捨て、ログに `report.rate_limited`）。未来の `at` は受けた時刻に丸める |
+| 予定（`scheduled`。2026-10-30） | `at`（始める時刻）が必須。ターンを作らず、セッションの `ai_session.scheduled_at` に `at` を持つ（マイグレーション 0024。送り直せば上書き）。未来の `at` を丸めない。`scheduled` 以外の報告で `scheduled_at` を消す（`started` で通常の項目、`done`・`error` で完了・エラーの項目）。ターンが無いので work item・自分の番・AI 時間にならない。表示はデーモンの `reportPlans`（取り込み元 `report` がオンの間だけ。`at` + 30 分を過ぎたら `overdue`） |
+| 冪等・上限 | 同じ `client_id` は 1 回だけ（carry に最近 500 件）。出どころ 1 つにつき受けた時刻の 1 分で 60 件まで（超えた行は捨て、ログに `report.rate_limited`）。未来の `at` は受けた時刻に丸める（`scheduled` を除く） |
 | 取り込み元 | `ai_source` の `report` の 1 行（spool のディレクトリ）。オンボーディングの検出・「取り込み元がある」の判定には数えない（hooks の spool と同じ内部の取り込み元。`isInternalSource`）。spool は 7 日より古く取り込み済みなら消す |
 | PARSER_VERSION | 1 |
 

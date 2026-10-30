@@ -9,16 +9,19 @@
  * （節をまたぐ。閉じた節は飛ばす）。節の開閉はブラウザに覚える（プロセスが残っているの節だけ既定で畳む）。帯・メニューバー・
  * 通知・件数は変えない
  */
+
 import { Link } from "@tanstack/react-router";
+import type { ReportPlanView } from "@turnlane/core/web";
 import {
   type LiveItem,
   liveSections,
   type QueueItem,
   type TaskDetailResponse,
 } from "@turnlane/core/web";
-import { ChevronRight } from "lucide-react";
+import { CalendarClock, ChevronRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ItemActionsProvider, useItemActionsHost } from "../actions/item-actions.tsx";
+import { planLabel } from "../board/PlanBands.tsx";
 import {
   AiRow,
   type AiRowData,
@@ -161,6 +164,9 @@ export function AiPage() {
   const today = q.data?.today ?? "";
   const sections = liveSections(q.data, live.data?.items, now);
   const all = rowsOf(sections);
+  // 報告の予定（0.8.1）: 「後で」の節に `予定 · 22:00` の札で足す（AI の項目ではないので選べない行）
+  const plans = live.data?.plans ?? [];
+  const count = (s: AiSection) => all[s].length + (s === "later" ? plans.length : 0);
   const [closed, setClosed] = useState<AiSection[]>(readClosed);
   const [expanded, setExpanded] = useState<AiSection[]>([]);
   const shown = (s: AiSection): AiRowData[] => {
@@ -285,12 +291,12 @@ export function AiPage() {
     setClosed(next);
     writeClosed(next);
   };
-  const total = SECTIONS.reduce((n, s) => n + all[s].length, 0);
+  const total = SECTIONS.reduce((n, s) => n + count(s), 0);
   const loaded = q.isSuccess && live.isSuccess;
   const noSources = sources.isSuccess && sources.data.sources.length === 0;
   const laterLimits = sections.later.filter((x) => x.limitWait).length;
   const head = (s: AiSection): ReactNode => {
-    const n = all[s].length;
+    const n = count(s);
     const hint = [
       t(`ai.live.time.${s}` as MessageKey),
       s === "stopped" && all.stopped.some((r) => liveOf(r)?.process === "unknown")
@@ -368,7 +374,7 @@ export function AiPage() {
             )}
           </div>
         ) : null}
-        {SECTIONS.filter((s) => all[s].length > 0).map((s) => {
+        {SECTIONS.filter((s) => count(s) > 0).map((s) => {
           const xs = shown(s);
           const rest = all[s].length - xs.length;
           return (
@@ -391,6 +397,9 @@ export function AiPage() {
                       selected={sel?.key === r.key}
                     />
                   ))}
+              {s === "later" && !closed.includes(s)
+                ? plans.map((p) => <PlanRow key={p.id} plan={p} now={now} tz={tz} />)
+                : null}
               {!closed.includes(s) && rest > 0 ? (
                 <button
                   type="button"
@@ -410,5 +419,23 @@ export function AiPage() {
         {host.node}
       </div>
     </ItemActionsProvider>
+  );
+}
+
+/** AI の画面の「後で」の予定の行（報告の state scheduled）: 題名、出どころ · プロジェクト、右に `予定 · 22:00` */
+function PlanRow({ plan, now, tz }: { plan: ReportPlanView; now: number; tz: string }) {
+  const { t } = useI18n();
+  const where = [plan.source, plan.project].filter(Boolean).join(" · ");
+  return (
+    <div
+      className="flex h-9 min-w-0 items-center gap-2 rounded-card px-2 text-fg2"
+      data-testid="ai-plan-row"
+      data-plan-id={plan.id}
+    >
+      <CalendarClock size={16} strokeWidth={1.5} className="shrink-0 text-fg3" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-body">{plan.title ?? plan.externalId}</span>
+      {where ? <span className="shrink-0 truncate text-fg3 text-meta">{where}</span> : null}
+      <span className="shrink-0 font-mono text-meta">{planLabel(plan, now, tz, t)}</span>
+    </div>
   );
 }

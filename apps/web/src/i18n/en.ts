@@ -1652,6 +1652,8 @@ export const en = {
     "Without hooks, Codex doesn't tell whether its process is still running, so it stays here for 6 hours after its last activity",
   "ai.live.lastActivity": "Last activity {time}",
   "ai.live.more": { one: "{count} more", other: "{count} more" },
+  "ai.plan.at": "Planned · {time}",
+  "ai.plan.late": "Past its planned time",
   "ai.live.cleanupAction": "Clean up…",
   "ai.live.emptyTitle": "No AI is running right now",
   "ai.live.emptyHint":

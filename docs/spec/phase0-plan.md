@@ -548,7 +548,8 @@ CREATE TABLE ai_session (
   created_at             INTEGER NOT NULL,
   updated_at             INTEGER NOT NULL,
   project_name           TEXT,                         -- 報告のセッション（entrypoint 'report'。ADR 0021）のプロジェクトの名前
-  open_url               TEXT                          -- 報告の開く先（http(s) かアプリの URL スキーム）
+  open_url               TEXT,                         -- 報告の開く先（http(s) かアプリの URL スキーム）
+  scheduled_at           INTEGER                       -- 報告の予定（state scheduled）の始める時刻。started などが来たら NULL（0024）
 );
 CREATE UNIQUE INDEX ai_session_uq          ON ai_session(tool, external_id);
 CREATE INDEX        ai_session_repo_idx    ON ai_session(repo_root);

@@ -189,6 +189,8 @@ function applyEvent(
           // 報告（ADR 0021）: プロジェクトの名前と開く先。来たときだけ代入する（省略は前の値のまま）
           project_name: e.project,
           open_url: e.openUrl,
+          // 報告の予定（scheduled）。null は予定ではなくなった
+          scheduled_at: e.scheduledAt,
         }),
         updated_at: now,
       });

@@ -368,7 +368,7 @@ export const TOOLS: Tool[] = [
     name: "report_ai_work",
     description:
       "Report the state of work done by your own script or agent so it shows in Turnlane next to Claude Code and Codex. " +
-      "Send started when you begin, waiting when you need the user (it shows on their Your turn right away), and done or error at the end. " +
+      "Send scheduled with at for a planned run, started when you begin, waiting when you need the user (it shows on their Your turn right away), and done or error at the end. " +
       "Same fields as `turnlane ai report`. Text is cut to short limits; do not send secrets or whole conversations.",
     inputSchema: {
       type: "object",
@@ -378,7 +378,11 @@ export const TOOLS: Tool[] = [
           description: "your lowercase id (2-32 of a-z, 0-9, _), e.g. myscript",
         },
         id: { type: "string", description: "id of this piece of work, unique within source" },
-        state: { type: "string", enum: ["started", "running", "waiting", "done", "error"] },
+        state: {
+          type: "string",
+          enum: ["scheduled", "started", "running", "waiting", "done", "error"],
+          description: "scheduled = will start at `at` and is not running yet",
+        },
         title: { type: "string", description: "short title (needed on the first report)" },
         project: { type: "string", description: "project name (created if missing)" },
         wait: {
@@ -398,7 +402,10 @@ export const TOOLS: Tool[] = [
           required: ["kind"],
         },
         url: { type: "string", description: "where the user answers (http(s) or an app URL)" },
-        at: { type: "number", description: "epoch ms of the event (default now)" },
+        at: {
+          type: "number",
+          description: "epoch ms of the event (default now); for scheduled, when it will start",
+        },
         client_id: {
           type: "string",
           description: "idempotency key (UUIDv7); one is added if missing",

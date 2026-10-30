@@ -39,6 +39,7 @@ import { subagentRuns } from "../derive/subagents.ts";
 import { titleResolver } from "../derive/subject.ts";
 import { aiTimeByWorkItem, openWaitStarts, subagentRunDetail } from "../derive/views.ts";
 import { aiByTask } from "../launch/views.ts";
+import { reportPlans } from "../report/plans.ts";
 import {
   followUpsByTask,
   readMeta,
@@ -546,6 +547,8 @@ export function buildBoard(
           expired: expiredBy.get(date) ?? 0,
         },
         aiRibbon,
+        // 報告の予定（0.8.1）: この列の時間軸に始めるもの
+        aiPlans: reportPlans(db, now, { from: axis.start, to: axis.end }),
         aiLane,
       };
     });

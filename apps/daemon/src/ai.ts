@@ -60,6 +60,7 @@ import { type OpenSystem, systemOpen } from "./open/system.ts";
 import { readMeta } from "./planner/common.ts";
 import { readUiPrefs } from "./planner/ui-prefs.ts";
 import { ReportReceiver } from "./report/index.ts";
+import { reportPlans } from "./report/plans.ts";
 
 export interface AiOptions {
   sqlite: Database;
@@ -309,6 +310,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
   });
   const deps: AiDeps = {
     reports,
+    plans: () => reportPlans(o.sqlite, o.clock.now()),
     days: (date, days) => {
       const s = settings();
       const now = o.clock.now();

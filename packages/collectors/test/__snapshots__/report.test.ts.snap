@@ -11,6 +11,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "export-1",
       "tool": "myscript",
     },
+    "scheduledAt": null,
     "startedAt": 1790812800000,
     "title": "Nightly export",
     "titleSource": "session_name",
@@ -37,6 +38,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "export-1",
       "tool": "myscript",
     },
+    "scheduledAt": null,
     "startedAt": 1790813100000,
   },
   {
@@ -68,6 +70,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "export-1",
       "tool": "myscript",
     },
+    "scheduledAt": null,
     "startedAt": 1790813340000,
   },
   {
@@ -90,6 +93,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "export-1",
       "tool": "myscript",
     },
+    "scheduledAt": null,
     "startedAt": 1790813520000,
   },
   {
@@ -115,6 +119,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "backup",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790814000000,
     "title": "Backup",
     "titleSource": "session_name",
@@ -140,6 +145,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "backup",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790814060000,
   },
   {
@@ -182,6 +188,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "backup",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790814300000,
   },
   {
@@ -207,6 +214,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "sync",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790814600000,
     "title": "Sync",
     "titleSource": "session_name",
@@ -235,6 +243,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "backup",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790814720000,
   },
   {
@@ -258,6 +267,7 @@ exports[`report: golden v1/lifecycle 1`] = `
       "externalId": "sync",
       "tool": "nightly",
     },
+    "scheduledAt": null,
     "startedAt": 1790815200000,
   },
   {

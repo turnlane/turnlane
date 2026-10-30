@@ -160,6 +160,11 @@ export interface SessionSeenEvent {
   project?: string;
   /** 報告の開く先（http(s) かアプリの URL スキーム。ADR 0021）。追加の任意項目 */
   openUrl?: string;
+  /**
+   * 報告の予定（state scheduled）の始める時刻。null は「予定ではなくなった」（started などが来た）。省略はシンクが触らない。
+   * 追加の任意項目
+   */
+  scheduledAt?: number | null;
 }
 
 /** 報告の待ちの中身（ADR 0021。ReadContext.privacy.storeDetails のときだけ。伏せ字の前の文。上限は report.ts） */

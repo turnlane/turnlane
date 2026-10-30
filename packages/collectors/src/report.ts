@@ -18,7 +18,17 @@ export const RESERVED_REPORT_SOURCES: readonly string[] = [
   "hook_spool",
   "report",
 ];
-export const REPORT_STATES = ["started", "running", "waiting", "done", "error"] as const;
+/**
+ * scheduled = その時刻（at）に始める予定で、まだ動いていない（AI の項目は作らず、AI のレーンに予定の帯を出す。0.8.1）
+ */
+export const REPORT_STATES = [
+  "scheduled",
+  "started",
+  "running",
+  "waiting",
+  "done",
+  "error",
+] as const;
 export type ReportState = (typeof REPORT_STATES)[number];
 /** 報告のセッションの entrypoint（isReportSession） */
 export const REPORT_ENTRYPOINT = "report";
@@ -232,6 +242,8 @@ export function parseReport(v: unknown): ReportParse {
     if (typeof at !== "number" || !Number.isFinite(at) || at <= 0) return bad("at");
     r.at = Math.floor(at);
   }
+  // 予定（scheduled）は始める時刻（at）が要る
+  if (r.state === "scheduled" && r.at === undefined) return bad("at");
   if (clientId !== undefined) {
     if (typeof clientId !== "string" || !CLIENT_ID_RE.test(clientId)) return bad("client_id");
     r.client_id = clientId;

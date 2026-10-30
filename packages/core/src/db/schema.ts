@@ -493,6 +493,8 @@ export const aiSession = sqliteTable(
     // 0022（ADR 0021）: 報告のセッションのプロジェクトの名前と開く先（http(s) かアプリの URL スキーム）
     projectName: text("project_name"),
     openUrl: text("open_url"),
+    // 0024: 報告の予定（state scheduled）の始める時刻。started などが来たら null。AI の項目にはしない
+    scheduledAt: integer("scheduled_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
