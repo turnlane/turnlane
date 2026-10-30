@@ -15,6 +15,7 @@ export * from "./live.ts";
 export * from "./onboarding.ts";
 export * from "./open.ts";
 export * from "./queue.ts";
+export * from "./report.ts";
 export * from "./search.ts";
 export * from "./tasks.ts";
 export * from "./work-items.ts";

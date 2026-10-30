@@ -36,6 +36,7 @@ import {
   type WatchSpec,
 } from "@turnlane/collectors";
 import { addDays, type Clock, dayStartMs, newId, toLocalDate } from "@turnlane/core";
+import { isInternalSource } from "@turnlane/core/api";
 import {
   claudePlan,
   codexInspect,
@@ -340,7 +341,7 @@ export class Supervisor {
     const since = this.recentSince();
     const out: DetectSummary[] = [];
     for (const row of this.sources()) {
-      if (row.tool === "hook_spool" || !this.#detected.has(`${row.tool}\0${row.root_path}`))
+      if (isInternalSource(row.tool) || !this.#detected.has(`${row.tool}\0${row.root_path}`))
         continue;
       const adapter = this.#o.adapters.find((a) => a.tool === row.tool);
       if (!adapter) continue;
@@ -416,7 +417,7 @@ export class Supervisor {
             since !== null &&
             m < since &&
             s.priority !== "live" &&
-            a.adapter.tool !== "hook_spool"
+            !isInternalSource(a.adapter.tool)
           )
             continue;
           if (this.#changed(a.adapter, s, c)) {
@@ -811,6 +812,22 @@ export class Supervisor {
     }
   }
 
+  /**
+   * いま書いたファイルをすぐ取り込む（報告の受け口。ADR 0021）。そのツールの有効な取り込み元のストリームなら、待たずに
+   * キューに入れて true。同意の前・取り込み元が無効なら false（次に読めるようになったときに取り込む）
+   */
+  ingestPath(tool: string, abs: string): boolean {
+    if (!this.consented || !this.#begun) return false;
+    for (const [sourceId, a] of this.#sources) {
+      if (a.adapter.tool !== tool) continue;
+      const stream = a.adapter.streamFor(a.root, abs);
+      if (!stream) continue;
+      this.#enqueue({ sourceId, stream, mtimeMs: mtimeOf(abs), bulk: false }, 0);
+      return true;
+    }
+    return false;
+  }
+
   #pollSet(sourceId: string, dir: string): Map<string, { path: string; mtime: number }> {
     let bySpec = this.#polled.get(sourceId);
     if (!bySpec) {
@@ -908,9 +925,10 @@ export class Supervisor {
   /** Turnlane の spool（自分のデータ）のうち、7日より古く取り込み済みのものを消す */
   #cleanSpool(): void {
     for (const [sourceId, a] of this.#sources) {
-      if (a.adapter.tool !== "hook_spool" || !existsSync(a.root.rootPath)) continue;
+      if (!isInternalSource(a.adapter.tool) || !existsSync(a.root.rootPath)) continue;
+      const own = a.adapter.tool === "report" ? /^report-\d{8}\.jsonl$/ : /^hooks-\d{8}\.jsonl$/;
       for (const name of readdirSync(a.root.rootPath)) {
-        if (!/^hooks-\d{8}\.jsonl$/.test(name)) continue;
+        if (!own.test(name)) continue;
         const p = `${a.root.rootPath}/${name}`;
         try {
           const st = statSync(p);

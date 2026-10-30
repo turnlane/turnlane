@@ -6,7 +6,7 @@
  */
 
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import type { QueueItem } from "@turnlane/core/web";
+import { isInternalSource, type QueueItem } from "@turnlane/core/web";
 import type { SourceView } from "@turnlane/daemon";
 import {
   Bot,
@@ -822,7 +822,7 @@ export function Toasts() {
 
 /** 利用者に見せる取り込み元（hooks の spool は内部のものなので出さない） */
 function userSources(xs: SourceView[] | undefined): SourceView[] {
-  return (xs ?? []).filter((x) => x.enabled && x.tool !== "hook_spool");
+  return (xs ?? []).filter((x) => x.enabled && !isInternalSource(x.tool));
 }
 
 /** MCP から追加されたタスクのトースト（ux-mvp 5章: 「<client> が1件追加しました [元に戻す]」） */

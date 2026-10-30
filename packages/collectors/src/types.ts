@@ -156,6 +156,18 @@ export interface SessionSeenEvent {
    * 「終わった後にまた活動があった（終わっていない）」。省略はシンクが触らない。追加の任意項目なので ADAPTER_API_VERSION は上げない
    */
   endedAt?: number | null;
+  /** 報告（adapters/report。ADR 0021）のプロジェクトの名前。追加の任意項目 */
+  project?: string;
+  /** 報告の開く先（http(s) かアプリの URL スキーム。ADR 0021）。追加の任意項目 */
+  openUrl?: string;
+}
+
+/** 報告の待ちの中身（ADR 0021。ReadContext.privacy.storeDetails のときだけ。伏せ字の前の文。上限は report.ts） */
+export interface ReportWait {
+  kind: "question" | "permission";
+  text: string;
+  options?: string[];
+  label?: string;
 }
 
 export interface TurnEvent {
@@ -183,6 +195,13 @@ export interface TurnEvent {
    * 伏せ字の前の文。carry には残さず、指示の行を読んだチャンクのイベントにだけ付く。ADR 0018）
    */
   instruction?: string;
+  /**
+   * そのセッションの、このターンより前に始まった開いたターンを閉じる（報告で新しいターンを始めたとき。ADR 0021）。
+   * 追加の任意項目
+   */
+  closeOpen?: boolean;
+  /** 報告の待ちの中身（ADR 0021）。追加の任意項目 */
+  reportWait?: ReportWait;
 }
 
 export interface ArtifactEvent {

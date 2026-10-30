@@ -59,6 +59,7 @@ import { Opener } from "./open/index.ts";
 import { type OpenSystem, systemOpen } from "./open/system.ts";
 import { readMeta } from "./planner/common.ts";
 import { readUiPrefs } from "./planner/ui-prefs.ts";
+import { ReportReceiver } from "./report/index.ts";
 
 export interface AiOptions {
   sqlite: Database;
@@ -291,7 +292,20 @@ export function createAiSystem(o: AiOptions): AiSystem {
   let liveLaunchesFn: (() => Promise<ReadonlyMap<string, LiveLaunch>>) | null = null;
   let prCachedFn: PrChangeCached | null = null;
 
+  // 報告の受け口（ADR 0021）: spool に追記してすぐ取り込み、判定まで待って AI 項目を返す（上限 2 秒）
+  const reports = new ReportReceiver({
+    sqlite: o.sqlite,
+    clock: o.clock,
+    logger: o.logger,
+    spoolDir: `${o.dataDir.replace(/\/+$/, "")}/spool`,
+    ingestPath: (tool, path) => supervisor.ingestPath(tool, path),
+    settle: async () => {
+      await supervisor.whenIdle();
+      await runner.runNow();
+    },
+  });
   const deps: AiDeps = {
+    reports,
     days: (date, days) => {
       const s = settings();
       const now = o.clock.now();
@@ -330,6 +344,8 @@ export function createAiSystem(o: AiOptions): AiSystem {
       o.sqlite.transaction(() => {
         o.sqlite.run("DELETE FROM wait_detail");
         o.sqlite.run("DELETE FROM ai_instruction");
+        // 報告の待ちの中身（ADR 0021）も同じ「保存した中身」
+        o.sqlite.run("UPDATE ai_turn SET wait_json = NULL WHERE wait_json IS NOT NULL");
       })();
       // 消した分を読み直さない（保存をオフにしていなければ、これからの指示・待ちはまた保存する）
       for (const r of o.sqlite

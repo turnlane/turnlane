@@ -72,7 +72,7 @@ turnlane today                  # events, tasks, Your turn
 turnlane add "Reply to the design review" --date 2026-10-03 --est 30
 ```
 
-The same data is exposed to agents through a stdio MCP server (`turnlane mcp`) with the tools `add_task`, `list_tasks`, `get_today`, `get_day`, `get_free_slots`, `schedule_task`, `complete_task`, `list_your_turn`, `get_ai_work`, and `get_daily_report`, so a Claude Code or Codex session can add a task to your Inbox or read today's plan.
+The same data is exposed to agents through a stdio MCP server (`turnlane mcp`) with the tools `add_task`, `list_tasks`, `get_today`, `get_day`, `get_free_slots`, `schedule_task`, `complete_task`, `list_your_turn`, `get_ai_work`, `get_daily_report`, and `report_ai_work`, so a Claude Code or Codex session can add a task to your Inbox or read today's plan.
 
 ### Connect Claude Code and Codex
 
@@ -85,6 +85,18 @@ turnlane mcp status      # where it is registered (also shown by turnlane doctor
 ```
 
 Both commands apply to every Claude Code profile found (`~/.claude` and the `~/.claude-*` directories used with `CLAUDE_CONFIG_DIR`) and to Codex (`~/.codex`); narrow with `--claude-dir <dir>` / `--codex`, preview with `--dry-run`. Turnlane only adds and removes its own entries (tagged `--managed-by turnlane`), never touches other tools' hooks, and backs up each file before writing (`*.bak-turnlane-<timestamp>`). Restart a running agent to pick the change up; `turnlane hooks uninstall` / `turnlane mcp uninstall` remove it.
+
+### Report from your own scripts and agents
+
+Work that leaves no session log for Turnlane to read, such as your own scripts, cron jobs, or an agent running in a sandbox, can report its state itself. Each report shows up as AI work next to Claude Code and Codex, and a `waiting` report lands on *Your turn* right away:
+
+```sh
+turnlane ai report --source myscript --id nightly --title "Nightly export" --project Reports --state started
+turnlane ai report --source myscript --id nightly --state waiting --kind question --text "Overwrite last night's file?" --option Overwrite --option "Keep both" --url https://example.com/runs/42
+turnlane ai report --source myscript --id nightly --state done
+```
+
+`--source` is any lowercase name you choose; `--state` is `started`, `running`, `waiting`, `done`, or `error`. If Turnlane isn't running, the report is saved and read when it starts. The same report can be sent with the MCP tool `report_ai_work` or `POST /api/ai/reports`. For now you answer in your own tool: Turnlane shows the question and opens the `--url`.
 
 ## Supported agents
 
@@ -106,6 +118,7 @@ Turnlane is built so that you can check these claims in the code.
 - **Everything stays on your Mac.** The daemon listens on `127.0.0.1` only. There is no account, no cloud sync, no telemetry, and no server run by the author. All data lives in `~/Library/Application Support/turnlane/`; `turnlane export --json` gets it all out again.
 - **Conversation text never leaves your Mac.** Turnlane itself sends nothing to an LLM, a server, a relay, or telemetry; the two opt-in features that hand data to tools you already run (the daily note summary and the MCP server) are described below. From Claude Code and Codex sessions, Turnlane stores timestamps, repository, branch, and state, plus the session title the tool assigned (optional). Turnlane stores only, after masking secrets on a best-effort basis: the first line of each of your instructions (up to 120 characters), the question the AI asked you and its options, the tool and command (or file path) it asked permission for, and the error kind. That is what keeps an item's name stable all day and keeps it after Claude Code deletes its logs. AI replies, diffs, file contents, and copies of the session log are never stored. The daily record and its MCP tool may include these lines; the optional AI summary of your day never receives them. Turn storing off, or delete what is stored, in Settings › Data ([ADR 0018](docs/adr/0018-bounded-local-storage-of-wait-details.md), amending [ADR 0005](docs/adr/0005-no-ai-session-body-storage-or-transmission.md)). `turnlane doctor` audits the database for anything longer than these limits.
 - **Answer from Turnlane.** When you answer a waiting item, the full question is read from the local session log only while the answer box is open, and your answer is typed into the session's own terminal tab on this Mac (for Terminal and iTerm2, macOS asks once to let Turnlane control the app). Neither is stored; the log keeps only the character count and which terminal it went to ([ADR 0019](docs/adr/0019-answer-from-turnlane.md)). The same goes for a next instruction sent from the AI detail panel: it is typed into the tab and not stored (only its first line is kept later, from the session log, like any instruction you type).
+- **Reports from your own scripts and agents.** A report is written to a file in Turnlane's own data directory and read from there. Turnlane keeps its title, project, and link, and, when storing is on, the question or permission text and options cut to the limits above and masked the same way. It calls nothing back ([ADR 0021](docs/adr/0021-report-from-own-scripts-and-agents.md)).
 - **Presence.** Idle time (how long you kept an agent waiting) only counts while you were at the Mac. Every 30 seconds the daemon reads two numbers: seconds since the last keyboard or mouse input, and whether the screen is locked. It stores only the start and end of each stretch of activity, never which keys or which apps ([ADR 0013](docs/adr/0013-presence-from-input-idle-only.md)).
 - **Ask AI.** The prompt built from your task is handed to the `claude` or `codex` you already have installed, in your terminal, under your own account. Turnlane does not keep the prompt and does not talk to Anthropic or OpenAI itself ([ADR 0014](docs/adr/0014-ai-launch-via-launch-id.md)).
 - **Daily note summary (opt-in, off by default).** If you turn it on, Turnlane runs your local `claude` or `codex` CLI with a fixed instruction and the day's Markdown note (task titles, AI work titles, repository names, PR numbers, durations, your notes). That request goes to the tool's provider through the tool itself, under your account. The run uses a scratch directory and a flag that does not save a session, and it is not counted as AI work.

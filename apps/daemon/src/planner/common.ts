@@ -165,11 +165,22 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
   );
   const out = new Map<string, SourceBadge[]>();
   for (const r of db
-    .query<{ work_item_id: string; tool: string; profile_label: string | null; sdk: number }, []>(
+    .query<
+      {
+        work_item_id: string;
+        tool: string;
+        profile_label: string | null;
+        sdk: number;
+        report: number;
+        project_name: string | null;
+      },
+      []
+    >(
       `SELECT DISTINCT t.work_item_id, s.tool, src.profile_label,
-              (COALESCE(s.entrypoint, '') LIKE 'sdk-%') AS sdk
+              (COALESCE(s.entrypoint, '') LIKE 'sdk-%') AS sdk,
+              (COALESCE(s.entrypoint, '') = 'report') AS report, s.project_name
        FROM ai_turn t JOIN ai_session s ON s.id = t.session_id JOIN ai_source src ON src.id = s.source_id
-       WHERE t.work_item_id IS NOT NULL ORDER BY s.tool, src.profile_label`,
+       WHERE t.work_item_id IS NOT NULL ORDER BY s.tool, src.profile_label, s.last_activity_at DESC`,
     )
     .all()) {
     const badge: SourceBadge = {
@@ -184,6 +195,11 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
     }
     // プログラム経由のセッションがあれば印を付ける（SDK 経由の札）
     if (r.sdk === 1) b.sdk = true;
+    // 報告の出どころ（ADR 0021）と、最後に報告されたプロジェクトの名前
+    if (r.report === 1) {
+      b.report = true;
+      if (r.project_name && !b.project) b.project = r.project_name;
+    }
     out.set(r.work_item_id, xs);
   }
   return out;

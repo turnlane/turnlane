@@ -546,7 +546,9 @@ CREATE TABLE ai_session (
   file_path              TEXT,
   transcript_missing_at  INTEGER,                      -- 元ファイルの消失（30日削除）を検知した時刻
   created_at             INTEGER NOT NULL,
-  updated_at             INTEGER NOT NULL
+  updated_at             INTEGER NOT NULL,
+  project_name           TEXT,                         -- 報告のセッション（entrypoint 'report'。ADR 0021）のプロジェクトの名前
+  open_url               TEXT                          -- 報告の開く先（http(s) かアプリの URL スキーム）
 );
 CREATE UNIQUE INDEX ai_session_uq          ON ai_session(tool, external_id);
 CREATE INDEX        ai_session_repo_idx    ON ai_session(repo_root);
@@ -577,7 +579,8 @@ CREATE TABLE ai_turn (
                                                        -- 締めの決まり文句の質問で終わった（「他に何かありますか？」等。3.3.1）。
                                                        -- アダプタがパース中に判定した真偽値だけを残す。1 なら返答タスクを作らず your_turn の (c) にも数えない
   created_at          INTEGER NOT NULL,
-  updated_at          INTEGER NOT NULL
+  updated_at          INTEGER NOT NULL,
+  wait_json           TEXT                             -- 報告の待ちの中身（伏せ字の後。ADR 0018 の上限。turn.store_detail のときだけ。ADR 0021）
 );
 CREATE UNIQUE INDEX ai_turn_uq       ON ai_turn(session_id, turn_key);
 CREATE INDEX        ai_turn_wi_idx   ON ai_turn(work_item_id, started_at);
@@ -1308,6 +1311,8 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | GET | `/api/inbox` | 日付なしタスク |
 | POST | `/api/tasks` | 作成（`{title, date?, estimateMin?, projectId?, notes?, source, external?: {source, id, url?}}`。`raw` を渡すと NL パーサを通す）。`external` があれば `(external.source, external.id)` で冪等: 新規は 201 `{task, created: true}`、既存は 200 `{task, created: false}`（タイトル等は上書きしない）、ユーザーが削除済みなら 200 `{task: null, created: false, skipped: 'deleted'}` |
 | GET | `/api/tasks/by-external?source=&id=` | 外部の識別子でタスクを引く（無ければ 404） |
+| POST | `/api/ai/reports` | 外の作業の報告（ADR 0021。m2-api 37 章）。spool に 1 行追記してすぐ取り込み、202 `{accepted, workItemId, queued}`。だめなら 400 `{error: "invalid_input", field}` |
+| GET | `/api/ai/reports/sources` | 報告してきた出どころ（設定 › AI の取り込み） |
 | POST | `/api/tasks/parse` | NL パーサのプレビュー（チップ表示用） |
 | PATCH | `/api/tasks/:id` | タイトル、メモ、見積、優先度、プロジェクト、ハイライト |
 | POST | `/api/tasks/:id/move` | `{date|null, beforeId?, afterId?}` 日付移動と並べ替え（fractional index を計算） |
@@ -1366,6 +1371,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | `list_your_turn` | — | 要対応キュー（WorkItem、種別、経過時間） | |
 | `get_ai_work` | `date?` | その日の AIカード（タイトル、状態、AI時間） | 本文は無いので安全 |
 | `get_daily_report` | `date?` | 日報 Markdown | |
+| `report_ai_work` | `source`, `id`, `state`, `title?`, `project?`, `wait?`, `error?`, `url?`, `at?`, `client_id?` | `{accepted, work_item_id, queued}` | 外の作業の報告（ADR 0021。`POST /api/ai/reports` と同じ型。`client_id` が無ければ付ける）。デーモンが止まっていればエラー（CLI の `turnlane ai report` は spool に書ける） |
 
 外部サービスからの取り込み: Turnlane は外部サービスの API を呼びに行かない（ADR 0008）。外部側（そのサービスの CLI・MCP クライアント・利用者のスクリプト）が `add_task` / `turnlane add --source --external-id` / `POST /api/tasks` を呼ぶ。`source` は呼び出し側が名乗る小文字の識別子（`^[a-z0-9._-]{1,64}$`）で、Turnlane 側に登録は要らない。外部側の更新（タイトル変更など）を反映する upsert は Phase0 では作らない（必要になったら `add_task` に `update: true` を足す）。
 
@@ -1385,6 +1391,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | `turnlane rm <id>` | タスクの論理削除（`DELETE /api/tasks/:id`。外部の識別子の付いたものは削除後に同じ識別子で送られても作り直さない） |
 | 共通 | どのサブコマンドも `--help` / `-h` でそのコマンドの使い方を出して 0（実行しない）。`turnlane help [<command>]` も同じ。未知のオプション・余分な位置引数（例 `turnlane ls inbox`）はエラーにして使い方を出し、終了コード 2。`--` より後は位置引数（`-` で始まる題名）。`turnlane hook` は従来どおり未知の引数を無視する（`--help` だけ使い方） |
 | `turnlane ai [--date|--days 7] [--json]` | AIカード一覧（取り込みの確認用。M1 の完了条件に使う） |
+| `turnlane ai report --source <s> --id <id> --state started\|running\|waiting\|done\|error [--title] [--project] [--kind question\|permission --text [--option]... [--label]] [--error-kind] [--url] [--at] [--client-id] [--json]` | 外の作業の報告（ADR 0021）。デーモンに届けば `POST /api/ai/reports`、届かなければ `spool/report-YYYYMMDD.jsonl` に 1 行追記して 0、spool にも書けなければ 1 と 1 行。だめなオプションは 2。`--json` で `{accepted, workItemId, queued}`。`turnlane doctor` は spool で取り込みを待っている報告の数を出す |
 | `turnlane ai run <起動 ID>` | 「AI に頼む」が端末に入力する。依頼を1回だけ受け取り、Claude Code / Codex を引数の配列で起動して終了コードを返す（D-107。ADR 0014、m2-api 27章） |
 | `turnlane queue [--json]` | 要対応キュー |
 | `turnlane report [date] [--copy]` | 日報 Markdown（`--copy` で pbcopy） |

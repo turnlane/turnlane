@@ -136,6 +136,10 @@ export function planOpen(
     finder(dir),
   ];
   switch (action) {
+    case "report_url": {
+      if (!t.reportUrl) return null;
+      return [{ steps: [{ argv: [OPEN, t.reportUrl] }], outcome: "opened", app: null }];
+    }
     case "pr":
     case "pr_files": {
       if (!t.prUrl) return null;
@@ -250,6 +254,8 @@ export function planOpen(
 
 /** カードだけで開いたときの既定（open なフォローアップの既定 → PR → セッション → Finder） */
 function defaultFor(t: OpenTargetInfo): OpenAction[] {
+  // 報告の項目（ADR 0021）は報告の開く先だけ（端末のセッション・リポジトリは無い）
+  if (t.reportUrl) return ["report_url"];
   const kind = t.followUp?.kind ?? t.openKind;
   if (t.followUp) return [...openMenu(t.followUp.kind)];
   const all = [...openMenu(null)];

@@ -143,6 +143,17 @@ export class Answerer {
     };
   }
 
+  /** 報告のセッションか（ADR 0021） */
+  #reportSource(sessionId: string): boolean {
+    return (
+      this.o.sqlite
+        .query<{ e: string | null }, [string]>(
+          "SELECT entrypoint AS e FROM ai_session WHERE id = ?",
+        )
+        .get(sessionId)?.e === "report"
+    );
+  }
+
   async wait(workItemId: string): Promise<WaitResponse | null> {
     const w = readWait(this.o.sqlite, workItemId, {
       showDetail: this.o.showDetail(),
@@ -157,8 +168,11 @@ export class Answerer {
       readAt: this.o.now(),
     };
     const off = !this.o.enabled();
-    const { d, tool } =
-      off || w.kind === "none"
+    // 報告の項目（ADR 0021）: 端末に送る口は無い。答えは報告した側で（開く先）
+    const reporter = w.session && this.#reportSource(w.session.id) ? w.session.tool : null;
+    const { d, tool } = reporter
+      ? { d: { ok: false, app: reporter, reason: "report" } as Delivery, tool: null }
+      : off || w.kind === "none"
         ? { d: { ok: false, app: null, reason: off ? "off" : "not_live" } as Delivery, tool: null }
         : await this.#deliveryFor(workItemId, w);
     const delivery = this.#delivery(d, tool);

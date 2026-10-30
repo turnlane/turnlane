@@ -115,7 +115,7 @@ describe("同意のゲート（onboarding.md 5.1・5.2、M6-18）", () => {
     const v = await api<OnboardingView>(d, "GET", "/api/onboarding");
     expect(v.data).toMatchObject({ state: "pending", consented: false, consentedAt: null });
     // 検出（ai_source の登録）だけ。セッション・カーソル・hooks の状態は読まない
-    expect(count(paths, "SELECT count(*) AS n FROM ai_source")).toBe(3);
+    expect(count(paths, "SELECT count(*) AS n FROM ai_source")).toBe(4);
     expect(count(paths, "SELECT count(*) AS n FROM ingest_cursor")).toBe(0);
     expect(count(paths, "SELECT count(*) AS n FROM ai_session")).toBe(0);
     await d.supervisor?.reconcile();
@@ -144,7 +144,12 @@ describe("同意のゲート（onboarding.md 5.1・5.2、M6-18）", () => {
       }),
     );
     const pre = await api<{ sources: SourceView[] }>(d, "GET", "/api/sources");
-    expect(pre.data.sources.map((s) => s.mcpState)).toEqual(["unknown", "unknown", "unknown"]);
+    expect(pre.data.sources.map((s) => s.mcpState)).toEqual([
+      "unknown",
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
 
     // 段は同意なしに sources を done にできない
     expect(

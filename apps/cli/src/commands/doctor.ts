@@ -11,7 +11,7 @@
  * - オンボーディング（取り込みの同意。M6-18）と更新確認（M6-12。デーモンが知っている結果を出すだけで、接続しない）
  * - --redact（M6-6）: issue に貼れる形。ホームのパス・ユーザー名・リポジトリ名・題名などを伏せる（doctor-redact.ts）
  */
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { arch, hostname, userInfo } from "node:os";
 import { basename, join } from "node:path";
 import { builtinAdapters, satisfiesRange } from "@turnlane/collectors";
@@ -103,7 +103,47 @@ export const AUDIT_LIMITS: Record<string, number> = {
   "wait_detail.command": 300,
   "wait_detail.tool": 120,
   "wait_detail.options_json": 2000,
+  // 報告（ADR 0021）: 待ちの中身の JSON（問い 300・選択肢 2000・説明 60 と伏せ字）と開く先の URL（2048）
+  "ai_turn.wait_json": 2600,
+  "ai_session.open_url": 2048,
 };
+
+/**
+ * spool に残っている、まだ取り込んでいない報告の行の数（ADR 0021）。デーモンが止まっている間に `turnlane ai report` が
+ * 書いたもの。ファイルの大きさとカーソルの位置だけを見て、カーソルより後の改行を数える（中身は読まない）
+ */
+export function reportSpoolBacklog(dbPath: string, spoolDir: string): number {
+  let names: string[] = [];
+  try {
+    names = readdirSync(spoolDir).filter((f) => /^report-\d{8}\.jsonl$/.test(f));
+  } catch {
+    return 0;
+  }
+  if (names.length === 0) return 0;
+  const offsets = new Map<string, number>();
+  const db = existsSync(dbPath) ? openDatabase(dbPath, { readonly: true }) : null;
+  try {
+    for (const r of db
+      ?.query<{ k: string; o: number }, []>(
+        `SELECT c.stream_key AS k, c.byte_offset AS o FROM ingest_cursor c JOIN ai_source s ON s.id = c.source_id
+         WHERE s.tool = 'report'`,
+      )
+      .all() ?? [])
+      offsets.set(r.k, r.o);
+  } catch {
+    // 古いスキーマ
+  } finally {
+    db?.close();
+  }
+  let n = 0;
+  for (const f of names) {
+    try {
+      const buf = readFileSync(join(spoolDir, f));
+      for (let i = offsets.get(f) ?? 0; i < buf.length; i++) if (buf[i] === 0x0a) n++;
+    } catch {}
+  }
+  return n;
+}
 
 /** 保存した待ちの中身の件数（ADR 0018。中身は出さない。古いスキーマなら null） */
 export function storedDetailCounts(dbPath: string): { instructions: number; waits: number } | null {
@@ -254,6 +294,7 @@ export async function doctorCommand(
   }
   const audit = auditDb(paths.dbPath);
   const stored = storedDetailCounts(paths.dbPath);
+  const reportBacklog = reportSpoolBacklog(paths.dbPath, paths.spoolDir);
   const db = openDatabase(paths.dbPath, { readonly: true });
   let sources: {
     tool: string;
@@ -428,6 +469,7 @@ export async function doctorCommand(
     onboarding,
     update,
     install: { ...install, appPath: info?.appPath ?? null },
+    reportSpool: { pending: reportBacklog },
   };
   if (o.json) {
     env.out(JSON.stringify(result));
@@ -455,6 +497,13 @@ export async function doctorCommand(
       tr(
         `Stored wait details (masked, never sent): ${stored.instructions} instruction lines, ${stored.waits} waits`,
         `保存した待ちの中身（伏せ字の後、外には送らない）: 指示 ${stored.instructions} 件、待ち ${stored.waits} 件`,
+      ),
+    );
+  if (reportBacklog > 0)
+    env.out(
+      tr(
+        `Reports waiting in the spool (read when Turnlane runs): ${reportBacklog}`,
+        `spool で取り込みを待っている報告（Turnlane が動くと読む）: ${reportBacklog} 件`,
       ),
     );
   for (const s of sources) {

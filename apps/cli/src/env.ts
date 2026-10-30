@@ -72,6 +72,16 @@ export function parseArgs(args: string[]): {
     "--lang",
     "--title",
     "--estimate",
+    // turnlane ai report（ADR 0021）
+    "--id",
+    "--state",
+    "--kind",
+    "--text",
+    "--option",
+    "--label",
+    "--error-kind",
+    "--at",
+    "--client-id",
   ]);
   for (let i = 0; i < args.length; i++) {
     const a = args[i] as string;

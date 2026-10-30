@@ -3,6 +3,7 @@
  * 「Start importing →」で O2 → O3 だけをやり直す。× で隠す（この端末で覚える）
  */
 import { useNavigate } from "@tanstack/react-router";
+import { isInternalSource } from "@turnlane/core/web";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useSources } from "../data/queries.ts";
@@ -68,7 +69,7 @@ export function AiLaneEmpty({ empty, top }: { empty: boolean; top: number }) {
   const sources = useSources();
   if (!empty || !ob.data || ob.data.consentedAt === null) return null;
   const configured = (sources.data?.sources ?? []).some(
-    (x) => x.enabled && x.tool !== "hook_spool",
+    (x) => x.enabled && !isInternalSource(x.tool),
   );
   if (!configured) return null;
   return (

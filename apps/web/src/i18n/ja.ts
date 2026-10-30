@@ -11,6 +11,7 @@ export const ja: Dict = {
   "app.name": "Turnlane",
   "sources.tool.claude_code": "Claude Code",
   "sources.tool.codex": "Codex",
+  "sources.tool.report": "報告",
   "sources.tool.claude_desktop": "Claude Desktop",
   "common.none": "—",
   "nav.yourTurn": "自分の番",
@@ -429,6 +430,7 @@ export const ja: Dict = {
   "open.action.session": "{app} でセッションに戻る",
   "open.action.sessionLive": "実行中のセッションに戻る",
   "open.action.codex_app": "Codex で開く",
+  "open.action.report_url": "報告の開く先で開く",
   "open.action.copy_resume": "再開コマンドをコピー",
   "open.menu": "開き方",
   "ai.markDone": "完了にする",
@@ -551,6 +553,10 @@ export const ja: Dict = {
   "settings.unit.hours": "時間",
   "settings.unit.sec": "秒",
   "settings.sources": "AI の取り込み元",
+  "settings.sources.report.hint":
+    "スクリプトや他のエージェントが turnlane ai report で書いたもの（README の「Report from your own scripts and agents」）。",
+  "settings.sources.report.none": "まだ報告はありません。",
+  "settings.sources.report.item": "{source}（{count} 件）",
   "settings.sources.hint":
     "Claude Code と Codex のフォルダから見つけたもの。プロファイルごとに1行です。データはこの Mac の外に出ません。",
   "settings.sources.rescan": "再検出",
@@ -692,6 +698,7 @@ export const ja: Dict = {
   "answer.cantSend.unsupported":
     "{app} には Turnlane から文字を送る口がありません。tmux の中のセッションなら答えられます。",
   "answer.cantSend.off": "設定で「Turnlane から答える」がオフです。",
+  "answer.cantSend.report": "答えは {app} で（開く）。",
   "answer.open": "開く",
   "answer.allow": "許可する",
   "answer.openToDecide": "開いて決める",

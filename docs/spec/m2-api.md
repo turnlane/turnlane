@@ -1415,3 +1415,32 @@ AI の詳細パネルの「最後の返答」の下の入力欄から、待ち�
 - 自動で閉じる規則（phase0-plan 3.3）: 問い返しの入力は返答に数えない（`auto:human_input` の時刻は、問いの形でない最初の人の入力）。問い返しのターンが新しい問い（締めの問いを除く）で終わったら `superseded`・`auto:asked_back_replaced`
 - **`POST /api/work-items/:id/back-to-turn`** `{ followUpId? }` → `{ rev, followUp: FollowUpView, changed: boolean }`。対象は `followUpId`（そのカードの行でなければ 404）、省けばカードの問い返し中の行 → 開いている行・スヌーズ中の行があればそれ（`changed: false`。何もしない）→ 最後に閉じた行（`closed_at` の新しい順）→ どれも無ければ返答タスクを作る（`reply-task` と同じ。頼んだタスクに結び付いていて作れなければ 409）。対象を `open` にし、`closed_at`・`close_reason`・`snooze_until` を外して `returned_at = now`（マイグレーション 0021 の列）。閉じたときに一緒に完了にしたタスクは未完了に戻し、完了で足した応答の実績（`followup_estimate`）を消す（`reopen` と同じ）。カードが無ければ 404
 - 戻した行（`returned_at` あり）は、手で閉じる（完了・対応不要）か、`returned_at` より後にそのカードで新しいターンが始まって `done`・`auto:new_record`（時刻はそのターンの始まり）で閉じるまで残る。人の入力・シグナル（PR・コミット）・状態の変化（`status_left`）・期限（72 時間）では閉じない
+
+## 37. 外の作業の報告（2026-10-30。ADR 0021、[ai-session-ingestion.md](ai-session-ingestion.md) 1.5）
+
+- **`POST /api/ai/reports`**（Bearer・クッキー）: 本文は報告の型（下）。collectors の `parseReport` で確かめ、`spool/report-YYYYMMDD.jsonl` に 1 行追記して（`client_id` が無ければ付ける）、すぐ取り込む。取り込みと判定を待って（上限 2 秒）202 `{ accepted: true, workItemId: string | null, queued: boolean }`（`queued` は取り込みがまだ。同意の前・取り込み元がオフ）。だめなら 400 `{ error: "invalid_input", field }`（項目の名前だけ。値は返さない）、spool に書けなければ 500 `{ error: "spool_unwritable" }`
+- **`GET /api/ai/reports/sources`** → `{ enabled, sources: { source, items, lastReportAt }[] }`（報告してきた出どころ。設定 › AI の取り込みの「報告」の行）
+- 報告の型（3 つの口で同じ）:
+
+```ts
+ReportInput {
+  source: string;    // ^[a-z0-9_]{2,32}$。claude_code / codex / claude_desktop / hook_spool / report は使えない
+  id: string;        // 出どころの中の作業の ID（1〜128 文字）。(source, id) が AI 項目のセッション
+  state: "started" | "running" | "waiting" | "done" | "error";
+  title?: string;    // 120 文字で切る
+  project?: string;  // プロジェクトの名前（無ければ作る）。80 文字で切る
+  wait?: { kind: "question" | "permission"; text: string; options?: string[]; label?: string };
+                     // state = waiting のときだけ（必須）。text 300、options 10 個 × 60（JSON 2000）、label 60 文字で切る
+  error?: { kind: string };  // state = error のときだけ。種類だけ（[A-Za-z0-9_.-]{1,32}）
+  url?: string;      // 開く先。http(s) かアプリの URL スキーム（file: javascript: data: vbscript: blob: about: turnlane: は受けない）
+  at?: number;       // 出来事の時刻（epoch ms）。省略は受けた時刻。未来は受けた時刻に丸める
+  client_id?: string;  // 冪等の鍵（UUIDv7 を勧める。[A-Za-z0-9-]{1,64}）
+}
+```
+
+- 知らないキーは 400（綴りの間違いを黙って落とさない）。文は改行・制御文字を空白にして 1 行にする
+- 自分の番: `waiting(question)` は返答タスク（`<turn>:ask`。猶予なし）、`waiting(permission)` は許可のタスク、`error` はエラーと再開のタスク。`GET /api/queue` の item の `sources[]` に `report: true` と `project`（最後に報告されたプロジェクトの名前）が付く（`SourceBadge`）。web はリポジトリの欄を `出どころ · プロジェクト` にする
+- 開く: `GET /api/open/options` の既定と唯一の開き方が `report_url`（報告の `url`。無ければ開き方は無い）。`POST /api/open` は `open <url>` を実行する
+- 答える: `GET /api/work-items/:id/wait` は保存した中身（`wait_detail`、無ければ `ai_turn.wait_json`）の問いと選択肢・許可の説明を返し、`delivery` は `{ deliverable: false, reason: "report", terminal: <出どころ> }`。`POST /api/work-items/:id/answer` は 409 `undeliverable`。次の指示も送れない（`unsupported`）
+- 保存: `ai_session.project_name`・`open_url`、`ai_turn.wait_json`（マイグレーション 0022）。`wait_json` は `turn.store_detail` がオンのときだけ、伏せ字の後。「保存した中身を消す」（`DELETE /api/stored-detail`）で消える。`turnlane doctor` の監査の上限は `ai_turn.wait_json` 2600・`ai_session.open_url` 2048
+

@@ -46,6 +46,7 @@ import type {
   OnboardingSummary,
   OnboardingView,
 } from "@turnlane/core/api";
+import { isInternalSource } from "@turnlane/core/api";
 import {
   claudeHooksDisabled,
   claudePlan,
@@ -287,7 +288,7 @@ export class OnboardingService {
   async consent(enabledSourceIds: readonly string[]): Promise<OnboardingView> {
     const sup = this.#d.supervisor();
     if (!sup) throw new OpError(409, "ingest_unavailable");
-    const rows = sup.sources().filter((r) => r.tool !== "hook_spool");
+    const rows = sup.sources().filter((r) => !isInternalSource(r.tool));
     const known = new Set(rows.map((r) => r.id));
     const unknown = enabledSourceIds.filter((id) => !known.has(id));
     if (unknown.length > 0) throw new OpError(400, "unknown_source");
@@ -322,7 +323,7 @@ export class OnboardingService {
     const sourceIds = sup
       ? sup
           .sources()
-          .filter((r) => r.tool !== "hook_spool" && r.enabled === 1)
+          .filter((r) => !isInternalSource(r.tool) && r.enabled === 1)
           .map((r) => r.id)
       : [];
     return computeProgress(

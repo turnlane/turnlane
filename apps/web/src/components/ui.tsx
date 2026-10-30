@@ -75,7 +75,13 @@ export function SourceBadges({
   return (
     <span className={`inline-flex shrink-0 gap-1 font-mono text-micro text-fg3 ${className}`}>
       {sources.map((s) => (
-        <span key={`${s.tool}:${s.profile ?? ""}`}>{sourceBadgeText(s)}</span>
+        <span
+          key={`${s.tool}:${s.profile ?? ""}`}
+          // 知らない出どころ（報告。ADR 0021）は汎用のバッジ（先頭 2 文字）なので、ホバーで識別子そのまま
+          title={TOOL_BADGE[s.tool] ? undefined : s.tool}
+        >
+          {sourceBadgeText(s)}
+        </span>
       ))}
     </span>
   );

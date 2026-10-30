@@ -38,6 +38,11 @@ Usage:
   turnlane ai [--date YYYY-MM-DD] [--days N] [--json]
                                     Show AI work by day (AI time, idle, expired)
   turnlane ai run <launch ID>             Typed into the terminal by Ask AI. Picks up the request and starts Claude Code / Codex
+  turnlane ai report --source <s> --id <id> --state started|running|waiting|done|error
+         [--title t] [--project p] [--kind question|permission --text t [--option o]... [--label l]]
+         [--error-kind k] [--url u] [--at <ms or ISO time>] [--client-id id] [--json]
+                                    Report work from your own scripts and agents (a waiting report shows on
+                                    Your turn right away). If Turnlane isn't running, it is saved and read when it starts
   turnlane add <text...> [--date YYYY-MM-DD] [--est <min>] [--project p] [--note n]
          [--source s --external-id id [--url u]] [--json]
                                     Add a task (natural language; no date means Inbox. If Turnlane isn't running,
@@ -114,6 +119,11 @@ const USAGE_JA = `turnlane ${VERSION}
   turnlane ai [--date YYYY-MM-DD] [--days N] [--json]
                                     AI の作業を日ごとに表示（AI の時間・放置・期限切れ）
   turnlane ai run <起動 ID>               「AI に頼む」が端末に入力する。依頼を受け取り Claude Code / Codex を起動する
+  turnlane ai report --source <s> --id <id> --state started|running|waiting|done|error
+         [--title t] [--project p] [--kind question|permission --text t [--option o]... [--label l]]
+         [--error-kind k] [--url u] [--at <ms か ISO の時刻>] [--client-id id] [--json]
+                                    自分のスクリプト・エージェントの作業を書く（waiting はすぐ自分の番に出る）。
+                                    Turnlane が止まっていれば一時保存し、起動したときに読む
   turnlane add <text...> [--date YYYY-MM-DD] [--est <分>] [--project p] [--note n]
          [--source s --external-id id [--url u]] [--json]
                                     タスクを追加（自然言語。日付が無ければ Inbox。止まっている間は一時保存し、
@@ -202,7 +212,27 @@ export const ARG_SPECS: Record<string, ArgSpec> = {
   desktop: { flags: ["--dry-run", "--json"], opts: ["--app"], pos: 1 },
   backup: {},
   export: { flags: ["--json"], opts: ["--out"] },
-  ai: { flags: ["--json"], opts: ["--date", "--days"], pos: 2 },
+  ai: {
+    flags: ["--json"],
+    opts: [
+      "--date",
+      "--days",
+      "--source",
+      "--id",
+      "--title",
+      "--project",
+      "--state",
+      "--kind",
+      "--text",
+      "--option",
+      "--label",
+      "--error-kind",
+      "--url",
+      "--at",
+      "--client-id",
+    ],
+    pos: 2,
+  },
   add: {
     flags: ["--json"],
     opts: ["--date", "--est", "--project", "--note", "--source", "--external-id", "--url"],
@@ -369,6 +399,25 @@ export async function runCommand(cmd: string, args: string[], env: CliEnv = syst
       if (pos[0] === "run") {
         const { aiRunCommand } = await import("./commands/ai-run.ts");
         return aiRunCommand(env, pos[1]);
+      }
+      if (pos[0] === "report") {
+        const { aiReportCommand } = await import("./commands/ai-report.ts");
+        return aiReportCommand(env, {
+          source: opts.get("--source"),
+          id: opts.get("--id"),
+          title: opts.get("--title"),
+          project: opts.get("--project"),
+          state: opts.get("--state"),
+          kind: opts.get("--kind"),
+          text: opts.get("--text"),
+          options: multi.get("--option") ?? [],
+          label: opts.get("--label"),
+          errorKind: opts.get("--error-kind"),
+          url: opts.get("--url"),
+          at: opts.get("--at"),
+          clientId: opts.get("--client-id"),
+          json: flags.has("--json"),
+        });
       }
       const { aiCommand } = await import("./commands/ai.ts");
       return aiCommand(env, {

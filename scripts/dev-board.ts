@@ -45,6 +45,9 @@
  *   Claude のアカウントは一時 HOME の main と sandbox の2つ（D-122）。--orca で端末の選択肢に Orca を足す
  * - --event-detail: 予定の詳細パネルの確認用（D-138）。今日の Design review（参加者あり・読み取り専用）に会議のリンク、
  *   今日 16:00〜16:45 に参加者のいない Pairing with Kim（場所とリンク付き。編集できる）を足す
+ * - --reports: 外の作業の報告（ADR 0021）を 2 件足す。myscript の Nightly export（プロジェクト Reports。問いで待っている。
+ *   開く先は https://example.com/runs/42）と、nightly の Backup（実行中）。spool の report-*.jsonl に書き、取り込みで読む。
+ *   開く先は偽の OS（何も起動しない）
  * - --scratch: 壁打ち（D-135）の状態を足す。Codex のアプリのプロジェクト外の会話（質問で終わって自分の番）、CLI で
  *   ~/Documents/Codex の下で始めた会話、設定で印を付けたフォルダ（一時 HOME の ~/scratch）の Claude Code の会話。
  *   詳細パネルの開く先は偽の OS（Codex のアプリが入っている扱い。「Codex で開く」が出る。何も起動しない）
@@ -241,6 +244,8 @@ const SCRATCH = args.includes("--scratch");
 /** 予定の詳細パネルの確認用（D-138）: 今日の会議にリンク、参加者のいない予定（場所とリンク付き。編集できる）を足す */
 const EVENT_DETAIL = args.includes("--event-detail");
 const SCRATCH_DIR = join(home, "scratch");
+/** --reports: 外の作業の報告（ADR 0021）のダミー */
+const REPORTS = args.includes("--reports");
 const dataDir = join(home, "data");
 mkdirSync(join(dataDir, "spool"), { recursive: true });
 
@@ -944,6 +949,38 @@ if (SCRATCH) {
     c.aiTitle(at("12:10"), L("価格の考え方を整理する", "Think through pricing"));
   });
   step(at("12:40"), () => c.assistantEnd(at("12:40"), "Done.", { durationMs: 30 * MIN }));
+}
+// --reports: 外の作業の報告（ADR 0021）。`turnlane ai report` が書くのと同じ spool の 1 行。名前・題名は架空の値
+if (REPORTS) {
+  let n = 0;
+  const report = (t: number, r: Record<string, unknown>) =>
+    appendFileSync(
+      join(dataDir, "spool", `report-${TODAY.replaceAll("-", "")}.jsonl`),
+      `${JSON.stringify({ v: 1, kind: "report", received_at: t, client_id: `devboard-report-${++n}`, ...r })}\n`,
+    );
+  step(at("11:40"), () =>
+    report(at("11:40"), {
+      source: "myscript",
+      id: "nightly-export",
+      state: "started",
+      title: L("夜間の書き出し", "Nightly export"),
+      project: "Reports",
+    }),
+  );
+  step(at("11:52"), () =>
+    report(at("11:52"), {
+      source: "myscript",
+      id: "nightly-export",
+      state: "waiting",
+      wait_kind: "question",
+      wait_text: L("昨夜のファイルを上書きしますか？", "Overwrite last night's file?"),
+      wait_options: [L("上書きする", "Overwrite"), L("両方残す", "Keep both")],
+      url: "https://example.com/runs/42",
+    }),
+  );
+  step(at("12:30"), () =>
+    report(at("12:30"), { source: "nightly", id: "backup", state: "started", title: "Backup" }),
+  );
 }
 // 待っている件の見え方（--design glance / glance-edge。D-207、spec-glance §9）。本文・コマンドはすべてダミー。今は 17:10
 if (GLANCE) {
@@ -2191,6 +2228,8 @@ launchOpen.files.add("/Applications/Ghostty.app");
 // --orca: 端末の選択肢に Orca が入っている扱い（D-122。偽の端末なので Orca は起動しない）
 if (args.includes("--orca")) launchOpen.files.add("/Applications/Orca.app");
 
+// --reports: 報告の開く先（URL）は偽の OS（何も起動しない。開こうとした URL を記録するだけ）
+const reportOpen = new FakeOpenSystem();
 // --scratch: 開く先は偽の OS（Ghostty と Codex のアプリが入っている扱い。実際には何も起動しない）
 const scratchOpen = new FakeOpenSystem();
 scratchOpen.files.add("/Applications/Ghostty.app");
@@ -2221,11 +2260,13 @@ const d = await startDaemon({
     git,
     gh,
     noWatch: true,
-    ...(SCRATCH
-      ? { openSystem: scratchOpen }
-      : DESIGN === "answer" || DESIGN === "instruct"
-        ? { openSystem: answerOpen }
-        : {}),
+    ...(REPORTS
+      ? { openSystem: reportOpen }
+      : SCRATCH
+        ? { openSystem: scratchOpen }
+        : DESIGN === "answer" || DESIGN === "instruct"
+          ? { openSystem: answerOpen }
+          : {}),
   },
   calendar: { provider: calendarProvider },
   // 実際の claude / codex を探さない（ログインシェルを使わず、偽の claude の場所だけを見る）

@@ -53,6 +53,7 @@ export const en = {
     "Calendar not connected. Events are hidden; everything else works. Run `turnlane calendar status`.",
   "sources.tool.claude_code": "Claude Code",
   "sources.tool.codex": "Codex",
+  "sources.tool.report": "Reports",
   "sources.tool.claude_desktop": "Claude Desktop",
   "banner.daemonDown": "Background recording has stopped.",
   "banner.unauthorized": "Lost connection to Turnlane. Reopen it with `turnlane open`.",
@@ -448,6 +449,7 @@ export const en = {
   "open.action.session": "Resume in {app}",
   "open.action.sessionLive": "Go to the running session",
   "open.action.codex_app": "Open in Codex",
+  "open.action.report_url": "Open the reported link",
   "open.action.copy_resume": "Copy resume command",
   "open.menu": "Open with",
   "ai.markDone": "Mark as done",
@@ -577,6 +579,10 @@ export const en = {
   "settings.unit.hours": "h",
   "settings.unit.sec": "s",
   "settings.sources": "AI sources",
+  "settings.sources.report.hint":
+    "What your own scripts and agents wrote with turnlane ai report (see “Report from your own scripts and agents” in the README).",
+  "settings.sources.report.none": "No reports yet.",
+  "settings.sources.report.item": "{source} ({count})",
   "settings.sources.hint":
     "Found from your Claude Code and Codex folders, one row per profile. Nothing leaves this Mac.",
   "settings.sources.rescan": "Rescan",
@@ -720,6 +726,7 @@ export const en = {
   "answer.cantSend.unsupported":
     "{app} has no way for Turnlane to type into it. Sessions inside tmux can be answered.",
   "answer.cantSend.off": "Answering from Turnlane is off in Settings.",
+  "answer.cantSend.report": "Answer it in {app} (Open).",
   "answer.open": "Open",
   "answer.allow": "Allow",
   "answer.openToDecide": "Open to decide",

@@ -12,6 +12,7 @@ import type {
   BoardResponse,
   InboxResponse,
   QueueResponse,
+  ReportResponse,
   TaskDetailResponse,
   TaskView,
   TaskWriteResponse,
@@ -58,7 +59,8 @@ async function api<T>(
   } catch {}
   if (!res.ok) {
     const code = (data as { error?: string } | null)?.error ?? `http_${res.status}`;
-    throw new McpToolError(code);
+    const field = (data as { field?: string } | null)?.field;
+    throw new McpToolError(field ? `${code}: ${field}` : code);
   }
   return { status: res.status, data: data as T };
 }
@@ -360,6 +362,54 @@ export const TOOLS: Tool[] = [
           ai_min: Math.round(x.aiMs / 60_000),
         })),
       };
+    },
+  },
+  {
+    name: "report_ai_work",
+    description:
+      "Report the state of work done by your own script or agent so it shows in Turnlane next to Claude Code and Codex. " +
+      "Send started when you begin, waiting when you need the user (it shows on their Your turn right away), and done or error at the end. " +
+      "Same fields as `turnlane ai report`. Text is cut to short limits; do not send secrets or whole conversations.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          description: "your lowercase id (2-32 of a-z, 0-9, _), e.g. myscript",
+        },
+        id: { type: "string", description: "id of this piece of work, unique within source" },
+        state: { type: "string", enum: ["started", "running", "waiting", "done", "error"] },
+        title: { type: "string", description: "short title (needed on the first report)" },
+        project: { type: "string", description: "project name (created if missing)" },
+        wait: {
+          type: "object",
+          description: "required when state is waiting",
+          properties: {
+            kind: { type: "string", enum: ["question", "permission"] },
+            text: { type: "string" },
+            options: { type: "array", items: { type: "string" } },
+            label: { type: "string" },
+          },
+          required: ["kind", "text"],
+        },
+        error: {
+          type: "object",
+          properties: { kind: { type: "string" } },
+          required: ["kind"],
+        },
+        url: { type: "string", description: "where the user answers (http(s) or an app URL)" },
+        at: { type: "number", description: "epoch ms of the event (default now)" },
+        client_id: {
+          type: "string",
+          description: "idempotency key (UUIDv7); one is added if missing",
+        },
+      },
+      required: ["source", "id", "state"],
+    },
+    run: async (a, ctx) => {
+      const body = { ...a, client_id: str(a.client_id) ?? Bun.randomUUIDv7() };
+      const r = await api<ReportResponse>(ctx, "POST", "/api/ai/reports", body);
+      return { accepted: true, work_item_id: r.data.workItemId, queued: r.data.queued };
     },
   },
   {

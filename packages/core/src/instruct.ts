@@ -29,7 +29,9 @@ export function instructBlock(f: InstructFacts): InstructBlocked | null {
 
 /** 届け先が決まらない理由（答えると同じ）→ 送らない理由。動いていない（not_live）は終わったものとして扱う */
 export function instructUndeliverable(
-  reason: "not_live" | "unsupported" | "not_found" | "off",
+  reason: "not_live" | "unsupported" | "not_found" | "off" | "report",
 ): InstructBlocked {
+  // 報告の項目（ADR 0021）には端末に送る口が無い
+  if (reason === "report") return "unsupported";
   return reason === "not_live" ? "session_ended" : reason;
 }

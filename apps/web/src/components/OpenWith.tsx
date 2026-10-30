@@ -40,6 +40,7 @@ const ICONS = {
   session: SquareTerminal,
   codex_app: SquareArrowOutUpRight,
   copy_resume: Copy,
+  report_url: ExternalLink,
 } as const;
 
 /** 開き方のアイコン（AI の詳細パネルの「他の開き方」） */

@@ -56,7 +56,7 @@ import {
   type WorkItemRow,
 } from "./load.ts";
 import { mergeCardInto } from "./merge.ts";
-import { projectIdForRepo } from "./projects.ts";
+import { projectIdByName, projectIdForRepo } from "./projects.ts";
 import { cardTitle } from "./titles.ts";
 import { presenceFrom, presentAt } from "./views.ts";
 
@@ -811,9 +811,12 @@ export class DeriveRunner {
           repo_root: string | null;
           branch: string | null;
           scratch: number;
+          project_id: string | null;
         },
         [string]
-      >("SELECT title_user, title_auto, repo_root, branch, scratch FROM work_item WHERE id = ?")
+      >(
+        "SELECT title_user, title_auto, repo_root, branch, scratch, project_id FROM work_item WHERE id = ?",
+      )
       .get(wiId);
     for (const a of actions) {
       if (a.type === "create") {
@@ -863,8 +866,8 @@ export class DeriveRunner {
           laneOrder: this.#laneOrder(today, head),
           source: "ai",
           sourceRef: `follow_up:${fuId}`,
-          // プロジェクトとリポジトリの対応（m2-api.md 19章）
-          projectId: projectIdForRepo(o.sqlite, w?.repo_root),
+          // プロジェクトとリポジトリの対応（m2-api.md 19章）。報告の項目はその報告のプロジェクト（ADR 0021）
+          projectId: w?.project_id ?? projectIdForRepo(o.sqlite, w?.repo_root),
         });
         insertRow(o.mutate, schema.followUp, {
           id: fuId,
@@ -1039,6 +1042,10 @@ export class DeriveRunner {
     if (f.kind === "session") set("repoRoot", w.repo_root, repoRoot);
     set("scratch", w.scratch, this.#isScratchCard(f, repoRoot) ? 1 : 0);
     set("toolsJson", w.tools_json, JSON.stringify(tools));
+    // 報告の項目（ADR 0021）: 最後に報告されたプロジェクトの名前のプロジェクト（無ければ作る。turnlane add の #project と同じ）
+    const projectName = sess.find((s) => s.project_name)?.project_name;
+    if (projectName)
+      set("projectId", w.project_id ?? null, projectIdByName(o.sqlite, o.mutate, projectName));
     set("firstActivityAt", w.first_activity_at, first);
     set("lastActivityAt", w.last_activity_at, last);
     const changed = w.status !== st.status;

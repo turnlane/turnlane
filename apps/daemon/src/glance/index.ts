@@ -648,8 +648,10 @@ export function snapshotWaitDetails(
   o: { now: number; home?: string; tried: Set<string> },
 ): number {
   const rows = db
-    .query<{ id: string; work_item_id: string }, []>(
-      `SELECT f.id, f.work_item_id FROM follow_up f
+    .query<{ id: string; work_item_id: string; wait_json: string | null }, []>(
+      `SELECT f.id, f.work_item_id,
+              (SELECT t.wait_json FROM ai_turn t WHERE t.id = f.trigger_turn_id) AS wait_json
+       FROM follow_up f
        WHERE f.deleted_at IS NULL AND f.status IN ('open', 'snoozed')
          AND f.kind IN ('approve', 'reply', 'resume_error')
          AND NOT EXISTS (SELECT 1 FROM wait_detail w WHERE w.follow_up_id = f.id)`,
@@ -659,6 +661,13 @@ export function snapshotWaitDetails(
   let n = 0;
   for (const r of rows) {
     o.tried.add(r.id);
+    // 報告の待ち（ADR 0021）: 記録は無いので、取り込みのときに持った中身（伏せ字の後）を写す
+    const reported = r.wait_json ? reportWaitDetail(r.wait_json) : null;
+    if (reported) {
+      insertWaitDetail(db, r.id, reported, o.now);
+      n++;
+      continue;
+    }
     const g = readGlance(db, r.work_item_id, {
       now: o.now,
       showDetail: true,
@@ -667,7 +676,7 @@ export function snapshotWaitDetails(
       followUpId: r.id,
     });
     if (!g) continue;
-    let v: (Omit<WaitDetailRow, "masked"> & { masked: boolean }) | null = null;
+    let v: WaitDetailValue | null = null;
     if (g.kind === "permission" && g.permission) {
       const p = g.permission;
       v = {
@@ -729,23 +738,72 @@ export function snapshotWaitDetails(
       };
     }
     if (!v) continue;
-    db.run(
-      `INSERT INTO wait_detail (follow_up_id, kind, text, options_json, tool, label, command, error_kind, masked, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (follow_up_id) DO NOTHING`,
-      [
-        r.id,
-        v.kind,
-        v.text,
-        v.options_json,
-        v.tool,
-        v.label,
-        v.command,
-        v.error_kind,
-        v.masked ? 1 : 0,
-        o.now,
-      ],
-    );
+    insertWaitDetail(db, r.id, v, o.now);
     n++;
   }
   return n;
+}
+
+type WaitDetailValue = Omit<WaitDetailRow, "masked"> & { masked: boolean };
+
+function insertWaitDetail(db: Database, id: string, v: WaitDetailValue, now: number): void {
+  db.run(
+    `INSERT INTO wait_detail (follow_up_id, kind, text, options_json, tool, label, command, error_kind, masked, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (follow_up_id) DO NOTHING`,
+    [
+      id,
+      v.kind,
+      v.text,
+      v.options_json,
+      v.tool,
+      v.label,
+      v.command,
+      v.error_kind,
+      v.masked ? 1 : 0,
+      now,
+    ],
+  );
+}
+
+/**
+ * 報告の待ちの中身（ai_turn.wait_json。ADR 0021）→ wait_detail の形。問いは AskUserQuestion と同じ ask（問いと選択肢）、
+ * 許可は permission（何をするか = tool、説明 = label）
+ */
+export function reportWaitDetail(json: string): WaitDetailValue | null {
+  let w: { kind?: unknown; text?: unknown; options?: unknown; label?: unknown; masked?: unknown };
+  try {
+    w = JSON.parse(json) as typeof w;
+  } catch {
+    return null;
+  }
+  const text = typeof w.text === "string" ? w.text : null;
+  if (!text) return null;
+  const options = Array.isArray(w.options)
+    ? w.options.filter((x): x is string => typeof x === "string")
+    : [];
+  const label = typeof w.label === "string" ? w.label : null;
+  const base = { command: null, error_kind: null, masked: w.masked === true };
+  // 問いと選択肢の JSON は 2000 文字まで（AskUserQuestion と同じ上限。後ろの選択肢から落とす）
+  const opts = [...options];
+  while (opts.length > 0 && JSON.stringify([{ question: text, options: opts }]).length > 2000)
+    opts.pop();
+  if (w.kind === "question")
+    return {
+      ...base,
+      kind: "ask",
+      text,
+      options_json: JSON.stringify([{ question: text, options: opts }]),
+      tool: null,
+      label: null,
+    };
+  if (w.kind === "permission")
+    return {
+      ...base,
+      kind: "permission",
+      text: null,
+      options_json: JSON.stringify({}),
+      tool: label ?? "permission",
+      label: text,
+    };
+  return null;
 }

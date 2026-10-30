@@ -186,6 +186,9 @@ function applyEvent(
           has_human_input: b(e.hasHumanInput),
           is_noise: b(e.noise),
           file_path: e.filePath,
+          // 報告（ADR 0021）: プロジェクトの名前と開く先。来たときだけ代入する（省略は前の値のまま）
+          project_name: e.project,
+          open_url: e.openUrl,
         }),
         updated_at: now,
       });
@@ -243,6 +246,51 @@ function applyEvent(
             [turnId, sid, e.startedAt, r.text, r.masked ? 1 : 0],
           );
         }
+      }
+      // 報告で新しいターンを始めた（ADR 0021）: 同じセッションの、このターンより前に始まった開いたターンを閉じる
+      // （別の日の spool に続きが来たとき。代入だけなので読み直しても同じ）
+      if (e.closeOpen) {
+        exec(
+          ctx.db,
+          `UPDATE ai_turn SET status = 'completed', ended_at = ?, ended_with = COALESCE(ended_with, 'end_turn'),
+             pending_question = 0, updated_at = ?
+           WHERE session_id = ? AND turn_key <> ? AND ended_at IS NULL AND started_at <= ?`,
+          [e.startedAt, now, sid, e.turnKey, e.startedAt],
+        );
+      }
+      // 報告のターンが、同じセッションの後のターンより前に開いたまま書かれた（古い spool を後から読み直した）: 後のターンの
+      // 始まりで閉じる（読む順によらず同じ結果）
+      if (e.initiator === "system" && e.endedAt === undefined) {
+        exec(
+          ctx.db,
+          `UPDATE ai_turn SET status = 'completed', ended_with = COALESCE(ended_with, 'end_turn'), pending_question = 0,
+             ended_at = (SELECT MIN(n.started_at) FROM ai_turn n WHERE n.session_id = ai_turn.session_id AND n.started_at > ai_turn.started_at)
+           WHERE session_id = ? AND turn_key = ? AND ended_at IS NULL
+             AND EXISTS (SELECT 1 FROM ai_turn n WHERE n.session_id = ai_turn.session_id AND n.started_at > ai_turn.started_at)
+             AND EXISTS (SELECT 1 FROM ai_session x WHERE x.id = ai_turn.session_id AND x.entrypoint = 'report')`,
+          [sid, e.turnKey],
+        );
+      }
+      // 報告の待ちの中身（ADR 0021。ADR 0018 の上限は collectors の report.ts で切ってある）: 伏せ字を通して持つ
+      if (e.reportWait && ctx.storeDetail) {
+        let masked = false;
+        const m = (x: string) => {
+          const r = redact(x);
+          if (r.masked) masked = true;
+          return r.text;
+        };
+        const w = e.reportWait;
+        const json = {
+          kind: w.kind,
+          text: m(w.text),
+          ...(w.options ? { options: w.options.map(m) } : {}),
+          ...(w.label ? { label: m(w.label) } : {}),
+        };
+        exec(ctx.db, "UPDATE ai_turn SET wait_json = ? WHERE session_id = ? AND turn_key = ?", [
+          JSON.stringify({ ...json, masked }),
+          sid,
+          e.turnKey,
+        ]);
       }
       // ターン内の最後の活動を session の last_activity_at に反映する（running の鮮度に使う）
       const last = e.lastActivityAt ?? e.endedAt ?? e.startedAt;

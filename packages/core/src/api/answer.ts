@@ -23,8 +23,9 @@ export type AnswerVia = "tmux" | "iterm" | "terminal" | "ghostty" | "orca";
  * - not_found: 端末のタブ（ペイン）が見つからない（Orca で同じフォルダの端末が複数ある、Ghostty の目印の端末が 1 つに
  *   決まらない等）
  * - off: 設定「Turnlane から答える」がオフ
+ * - report: 報告の項目（ADR 0021）。答えは報告した側（terminal に出どころの名前）で。v1 は中身を読めるだけで、開く先で答える
  */
-export type AnswerUndeliverable = "not_live" | "unsupported" | "not_found" | "off";
+export type AnswerUndeliverable = "not_live" | "unsupported" | "not_found" | "off" | "report";
 
 export interface AnswerDelivery {
   deliverable: boolean;

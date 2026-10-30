@@ -149,7 +149,10 @@ function AnswerBody({
       ) : (
         <>
           <Question w={w} workItemId={workItemId} />
-          {w.options && w.options.length > 0 && w.delivery.deliverable ? (
+          {/* 報告の項目（ADR 0021）の選択肢は読めるだけ（答えは報告した側で。v1） */}
+          {w.options &&
+          w.options.length > 0 &&
+          (w.delivery.deliverable || w.delivery.reason === "report") ? (
             <fieldset
               className="m-0 flex min-w-0 flex-wrap gap-1.5 border-0 p-0"
               data-testid="answer-options"
@@ -162,6 +165,7 @@ function AnswerBody({
                   className="max-w-full"
                   title={t("answer.option", { n: o.n })}
                   data-testid="answer-option"
+                  disabled={!w.delivery.deliverable}
                   onClick={() => {
                     setText(String(o.n));
                     area.current?.focus();
@@ -331,8 +335,9 @@ function CantSend({ w, onOpen }: { w: WaitResponse; onOpen: () => void }) {
   const { t } = useI18n();
   const reason = w.delivery.reason ?? "unsupported";
   return (
-    <div className="flex flex-col gap-2" data-testid="answer-cant">
-      <p className="text-body text-fg">{t("answer.cantSend")}</p>
+    <div className="flex flex-col gap-2" data-testid="answer-cant" data-reason={reason}>
+      {/* 報告の項目は「送れない」ではなく、答える場所を言う */}
+      {reason === "report" ? null : <p className="text-body text-fg">{t("answer.cantSend")}</p>}
       <p className="text-fg2 text-meta">
         {t(`answer.cantSend.${reason}`, { app: w.delivery.terminal ?? t("answer.cantSend") })}
       </p>

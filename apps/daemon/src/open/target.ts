@@ -3,8 +3,10 @@
  * 再開するセッションを DB から引く。クライアントから受け取るのは ID だけで、パス・URL・コマンドは受け取らない。
  * 引いた値も検証する（絶対パスの実在するディレクトリ、github.com の PR の URL、英数字のセッション ID）。
  */
+
 import type { Database } from "bun:sqlite";
 import { isAbsolute, join, normalize } from "node:path";
+import { isOpenableReportUrl, REPORT_ENTRYPOINT } from "@turnlane/collectors";
 import type { FollowUpKind } from "@turnlane/core/api";
 import { OpError } from "../derive/ops.ts";
 import type { OpenSystem } from "./system.ts";
@@ -51,6 +53,8 @@ export interface OpenTargetInfo {
   worktree: string | null;
   prUrl: string | null;
   session: SessionRef | null;
+  /** 報告の項目（ADR 0021）の開く先（最後に報告された URL。http(s) かアプリの URL スキームだけ） */
+  reportUrl?: string | null;
 }
 
 /** live とみなす live_checked_at の新しさ（PID の再利用に備える。探索は5秒ごと） */
@@ -143,11 +147,12 @@ export function loadTarget(
         live_status: string | null;
         live_pid: number | null;
         live_checked_at: number | null;
+        open_url: string | null;
       },
       [string]
     >(
       `SELECT s.external_id, s.tool, COALESCE(t.cwd, s.cwd) AS cwd, src.root_path, s.entrypoint,
-              s.live_status, s.live_pid, s.live_checked_at
+              s.live_status, s.live_pid, s.live_checked_at, s.open_url
        FROM ai_turn t JOIN ai_session s ON s.id = t.session_id JOIN ai_source src ON src.id = s.source_id
        WHERE t.work_item_id = ? AND s.is_subagent = 0 ORDER BY t.started_at DESC LIMIT 1`,
     )
@@ -199,5 +204,10 @@ export function loadTarget(
   const m = pr ? /^([^#]+)#(\d+)$/.exec(pr.ref) : null;
   const prUrl =
     safePrUrl(pr?.url) ?? safePrUrl(m ? `https://github.com/${m[1]}/pull/${m[2]}` : null);
-  return { workItemId, followUp, openKind, folder, worktree, prUrl, session };
+  // 報告の項目の開く先（受けるときにも確かめているが、開く前にもう一度確かめる）
+  const reportUrl =
+    last?.entrypoint === REPORT_ENTRYPOINT && last.open_url && isOpenableReportUrl(last.open_url)
+      ? last.open_url
+      : null;
+  return { workItemId, followUp, openKind, folder, worktree, prUrl, session, reportUrl };
 }

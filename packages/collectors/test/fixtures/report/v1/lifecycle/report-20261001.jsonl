@@ -1,0 +1,13 @@
+{"v": 1, "kind": "report", "received_at": 1790812800000, "client_id": "c-01", "source": "myscript", "id": "export-1", "state": "started", "title": "Nightly export", "project": "Reports"}
+{"v": 1, "kind": "report", "received_at": 1790813100000, "client_id": "c-02", "source": "myscript", "id": "export-1", "state": "waiting", "wait_kind": "question", "wait_text": "Overwrite last night's file?", "wait_options": ["Overwrite", "Keep both"], "url": "https://example.com/runs/1"}
+{"v": 1, "kind": "report", "received_at": 1790813100000, "client_id": "c-02", "source": "myscript", "id": "export-1", "state": "waiting", "wait_kind": "question", "wait_text": "Overwrite last night's file?"}
+{"v": 1, "kind": "report", "received_at": 1790813340000, "client_id": "c-03", "source": "myscript", "id": "export-1", "state": "running"}
+{"v": 1, "kind": "report", "received_at": 1790813520000, "client_id": "c-04", "source": "myscript", "id": "export-1", "state": "done"}
+{"v": 1, "kind": "report", "received_at": 1790814000000, "client_id": "c-05", "source": "nightly", "id": "backup", "state": "started", "title": "Backup"}
+{"v": 1, "kind": "report", "received_at": 1790814060000, "client_id": "c-06", "source": "nightly", "id": "backup", "state": "waiting", "wait_kind": "permission", "wait_text": "Delete 3 old snapshots", "wait_label": "Delete snapshots"}
+{"v": 1, "kind": "report", "received_at": 1790814300000, "client_id": "c-07", "source": "nightly", "id": "backup", "state": "error", "error_kind": "timeout"}
+{"v": 1, "kind": "report", "received_at": 1790814600000, "client_id": "c-08", "source": "nightly", "id": "sync", "state": "done", "title": "Sync"}
+{"v": 1, "kind": "report", "received_at": 1790814660000, "client_id": "c-09", "source": "claude_code", "id": "x", "state": "started"}
+{"v": 1, "kind": "report", "received_at": 1790814720000, "client_id": "c-10", "source": "nightly", "id": "backup", "state": "started", "at": 1790872740000}
+{"v": 1, "kind": "report", "received_at": 1790815200000, "client_id": "c-11", "source": "nightly", "id": "sync", "state": "running", "message": "a stray body", "text": "another stray body"}
+{"broken":

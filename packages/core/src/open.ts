@@ -16,6 +16,7 @@ export const OPEN_ACTIONS: readonly OpenAction[] = [
   "session",
   "codex_app",
   "copy_resume",
+  "report_url",
 ];
 
 /** 種類ごとの開き方（先頭が既定の ⏎） */
@@ -39,6 +40,7 @@ const ALL: readonly OpenAction[] = [
   "finder",
   "terminal",
   "copy_resume",
+  "report_url",
 ];
 
 export function openMenu(kind: FollowUpKind | null): readonly OpenAction[] {

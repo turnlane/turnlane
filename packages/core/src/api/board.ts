@@ -134,6 +134,10 @@ export interface SourceBadge {
   profile: string | null;
   /** このツールのセッションにプログラム経由（entrypoint が `sdk-*`）のものがある。UI は「SDK 経由」の札を出す */
   sdk?: true;
+  /** 報告（ADR 0021）の出どころ。tool はその識別子（UI は汎用のバッジ） */
+  report?: true;
+  /** 報告の最後のプロジェクトの名前（リポジトリの欄の代わりに `出どころ · プロジェクト`） */
+  project?: string;
 }
 
 export interface AiItemSummary {

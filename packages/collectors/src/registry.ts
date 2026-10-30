@@ -6,9 +6,10 @@
 import claudeCode from "./adapters/claude-code/index.ts";
 import codex from "./adapters/codex/index.ts";
 import hookSpool from "./adapters/hook-spool/index.ts";
+import report from "./adapters/report/index.ts";
 import type { SourceAdapter } from "./types.ts";
 
-export const builtinAdapters: readonly SourceAdapter[] = [claudeCode, codex, hookSpool];
+export const builtinAdapters: readonly SourceAdapter[] = [claudeCode, codex, hookSpool, report];
 
 export function adapterFor(tool: string): SourceAdapter | undefined {
   return builtinAdapters.find((a) => a.tool === tool);

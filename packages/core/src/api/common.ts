@@ -20,7 +20,20 @@ export type FollowUpKind =
   | "resume_error"
   | "check_changes"
   | "merge_pr";
-export type SourceTool = "claude_code" | "codex" | "claude_desktop";
+/** Turnlane が自分で読む取り込み元のツール */
+export type KnownSourceTool = "claude_code" | "codex" | "claude_desktop";
+/**
+ * セッションの取り込み元のツール。報告（ADR 0021）の出どころは利用者が決める小文字の識別子（`^[a-z0-9_]{2,32}$`）なので、
+ * 知っている 3 つのほかの文字列も入る。UI は知らないものを汎用のバッジ（識別子の先頭 2 文字）で出す
+ */
+export type SourceTool = KnownSourceTool | (string & {});
+
+/**
+ * Turnlane 自身の spool を読む取り込み元（hooks・報告）。オンボーディングの検出と「取り込み元がある」の判定には数えない
+ */
+export function isInternalSource(tool: string): boolean {
+  return tool === "hook_spool" || tool === "report";
+}
 
 /** すべての読み取り応答に付ける */
 export interface ReadMeta {

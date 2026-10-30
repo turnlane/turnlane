@@ -53,6 +53,7 @@ describe("取り込みパイプライン（phase0-plan 3.2、M1-2）", () => {
       { tool: "claude_code", profile_label: "default" },
       { tool: "codex", profile_label: "default" },
       { tool: "hook_spool", profile_label: "spool" },
+      { tool: "report", profile_label: "spool" },
     ]);
     await env.supervisor.reingest();
     await env.supervisor.whenIdle();

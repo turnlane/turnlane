@@ -475,6 +475,22 @@ export function isProgramSession(s: { entrypoint?: string | null }): boolean {
   return (s.entrypoint ?? "").startsWith("sdk-");
 }
 
+/** 報告（ADR 0021。adapters/report）のセッション。entrypoint が `report` */
+export function isReportSession(s: { entrypoint?: string | null }): boolean {
+  return s.entrypoint === "report";
+}
+
+/** 報告のセッションの「実行中」の鮮度の既定（最後の報告から 1 日。アダプタの timing が無いとき） */
+const REPORT_STALE_MS = 24 * 3_600_000;
+
+/**
+ * 終わっていないターンを実行中とみなす長さ（ツールごと。報告のセッションは出どころが tool なので、report のアダプタの値）
+ */
+export function runningStaleOf(timing: DeriveTiming, s: Pick<SessionFact, "tool" | "entrypoint">) {
+  if (isReportSession(s)) return timing.runningStaleMs.report ?? REPORT_STALE_MS;
+  return timing.runningStaleMs[s.tool] ?? 5 * 60_000;
+}
+
 /** ターンの「終わった時刻」。終わっていない古いターンは最後の活動の時刻で終わったとみなす */
 function endOf(t: TurnFact, s: SessionFact): number {
   return t.endedAt ?? Math.max(t.startedAt, s.lastActivityAt);
@@ -503,7 +519,7 @@ export function yourTurnCandidates(
     // トランスクリプトに終わりがまだ無いが Stop の hook で終わった（取り込みの遅れ）。その時刻で終わったとみなす
     const stopAt = turnHookStopOf(f, s, last);
     if (last.status !== "completed" && !manual && stopAt === null) {
-      const stale = (timing.runningStaleMs[s.tool] ?? 5 * 60_000) < now - s.lastActivityAt;
+      const stale = runningStaleOf(timing, s) < now - s.lastActivityAt;
       if (last.status !== "running" || !stale) continue;
     }
     const end = stopAt ?? endOf(last, s);
@@ -603,7 +619,7 @@ export function sessionStatus(
       if (liveFresh && s.liveStatus === "idle") {
         return { status: "needs_input", reason: "live:idle", estimated: true };
       }
-      const stale = (timing.runningStaleMs[s.tool] ?? 5 * 60_000) < now - s.lastActivityAt;
+      const stale = runningStaleOf(timing, s) < now - s.lastActivityAt;
       if (!stale) return { status: "running", reason: "turn:open", estimated: true };
     }
   }

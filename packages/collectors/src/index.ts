@@ -2,6 +2,7 @@
 // ここから export したものだけが公開 IF。それ以外のファイルは内部扱い。
 // このパッケージは他の @turnlane/* / Drizzle / Hono / zod / DB を import しない（biome.json で検査）。
 
+export { REPORT_RATE_PER_MIN, REPORT_TOOL } from "./adapters/report/index.ts";
 export { pickAllowed } from "./allowlist.ts";
 export { asksBack } from "./asks-back.ts";
 export {
@@ -54,6 +55,24 @@ export { PROMPT_SUBJECT_MAX, promptSubject, promptText, promptTraits } from "./p
 export { type JsonlChunk, type JsonlLine, readJsonlIncremental } from "./readers/jsonl.ts";
 export { type ReducedState, reduceEvents } from "./reduce.ts";
 export { adapterFor, builtinAdapters } from "./registry.ts";
+export {
+  fromReportSpoolLine,
+  isOpenableReportUrl,
+  parseReport,
+  REPORT_ENTRYPOINT,
+  REPORT_LIMITS,
+  REPORT_SOURCE_RE,
+  REPORT_STATES,
+  RESERVED_REPORT_SOURCES,
+  type ReportInput,
+  type ReportParse,
+  type ReportSpoolLine,
+  type ReportState,
+  reportSpoolName,
+  reportSpoolText,
+  reportText,
+  toReportSpoolLine,
+} from "./report.ts";
 export { cleanSubjectLine, cleanTitle, stripPastedBlocks, TITLE_ACKS, TITLE_MAX } from "./title.ts";
 export {
   ADAPTER_API_VERSION,
@@ -75,6 +94,7 @@ export {
   type ReadContext,
   type ReadResult,
   type ReadStats,
+  type ReportWait,
   type SessionRef,
   type SessionSeenEvent,
   type SourceAdapter,

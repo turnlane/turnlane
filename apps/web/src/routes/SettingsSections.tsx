@@ -17,6 +17,7 @@ import {
   groupHolidaySources,
   type ProjectReposResponse,
   type ProjectView,
+  type ReportSourcesResponse,
   type SummaryToolsResponse,
 } from "@turnlane/core/web";
 import type {
@@ -218,7 +219,9 @@ function SourceItem({
       <p className="truncate font-mono text-fg3 text-meta" title={s.rootPath}>
         {s.rootPath}
       </p>
-      {s.enabled ? (
+      {s.tool === "report" ? (
+        <ReportSources />
+      ) : s.enabled ? (
         <p className="text-fg2 text-meta">
           {t(health)}
           {s.healthReason ? ` — ${s.healthReason}` : ""} ·{" "}
@@ -235,17 +238,47 @@ function SourceItem({
       ) : (
         <p className="text-fg3 text-meta">{t("settings.sources.skipped")}</p>
       )}
-      <label className="flex flex-col gap-1 text-meta text-fg2">
-        {t("settings.sources.exclude")}
-        <textarea
-          value={ex}
-          onChange={(e) => setEx(e.target.value)}
-          onBlur={commit}
-          rows={Math.max(1, Math.min(4, ex.split("\n").length))}
-          placeholder={t("settings.sources.excludePlaceholder")}
-          className="resize-none rounded-card border border-line bg-bg px-2 py-1 font-mono text-body outline-none placeholder:text-fg3 focus:border-accent"
-        />
-      </label>
+      {s.tool === "report" ? null : (
+        <label className="flex flex-col gap-1 text-meta text-fg2">
+          {t("settings.sources.exclude")}
+          <textarea
+            value={ex}
+            onChange={(e) => setEx(e.target.value)}
+            onBlur={commit}
+            rows={Math.max(1, Math.min(4, ex.split("\n").length))}
+            placeholder={t("settings.sources.excludePlaceholder")}
+            className="resize-none rounded-card border border-line bg-bg px-2 py-1 font-mono text-body outline-none placeholder:text-fg3 focus:border-accent"
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 報告の取り込み元（ADR 0021）の説明と、報告してきた出どころ（GET /api/ai/reports/sources）。オン/オフは取り込み元の行の
+ * 切り替え（全部の出どころをまとめて）
+ */
+function ReportSources() {
+  const t = useT();
+  const q = useQuery({
+    queryKey: ["reportSources"],
+    queryFn: () => unwrap<ReportSourcesResponse>(api.api.ai.reports.sources.$get()),
+    retry: false,
+  });
+  const xs = q.data?.sources ?? [];
+  return (
+    <div className="flex flex-col gap-0.5 text-meta" data-testid="report-sources">
+      <p className="text-fg2">{t("settings.sources.report.hint")}</p>
+      {xs.length === 0 ? (
+        <p className="text-fg3">{t("settings.sources.report.none")}</p>
+      ) : (
+        <p className="text-fg2">
+          {xs
+            .map((x) => t("settings.sources.report.item", { source: x.source, count: x.items }))
+            .join(" · ")}
+        </p>
+      )}
     </div>
   );
 }

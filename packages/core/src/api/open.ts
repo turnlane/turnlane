@@ -11,7 +11,9 @@ export type OpenAction =
   | "session"
   /** Codex のアプリでスレッドを開く（codex://threads/<id>。Codex のセッションで、アプリが入っているときだけ。D-135） */
   | "codex_app"
-  | "copy_resume";
+  | "copy_resume"
+  /** 報告にあった開く先（http(s) かアプリの URL スキーム。報告の項目だけ。ADR 0021） */
+  | "report_url";
 
 export type OpenAppKind = "editor" | "terminal" | "diff";
 

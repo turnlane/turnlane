@@ -55,7 +55,7 @@ describe("collectors のパッケージ境界（phase0-plan 3.1.1）", () => {
   test("同梱アダプタの ToolId は一意で、apiVersion が揃っている", () => {
     const ids: string[] = builtinAdapters.map((a) => a.tool);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(["claude_code", "codex", "hook_spool"]);
+    expect(ids).toEqual(["claude_code", "codex", "hook_spool", "report"]);
     for (const a of builtinAdapters) expect(a.apiVersion).toBe(ADAPTER_API_VERSION);
     expect(template.tool as string).toBe("template_tool");
   });

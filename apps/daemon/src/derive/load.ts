@@ -34,6 +34,8 @@ export interface SessionRow {
   cwd: string | null;
   /** 起動の種類（cli / claude-desktop / sdk-cli など） */
   entrypoint?: string | null;
+  /** 報告のセッションのプロジェクトの名前（ADR 0021） */
+  project_name?: string | null;
 }
 
 export interface TurnRow {
@@ -114,6 +116,8 @@ export interface WorkItemRow {
   /** 壁打ちのカード（D-135） */
   scratch: number;
   tools_json: string;
+  /** プロジェクト（報告のセッションのプロジェクトの名前から。ADR 0021。ほかは null のまま） */
+  project_id?: string | null;
   first_activity_at: number;
   last_activity_at: number;
   deleted_at: number | null;

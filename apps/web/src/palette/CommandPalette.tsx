@@ -10,6 +10,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   fmtClock,
   fmtDuration,
+  isInternalSource,
   matchRanges,
   PLACE_MAX,
   parseDateInput,
@@ -149,7 +150,7 @@ function Palette({ mode }: { mode: PaletteMode }) {
   }, []);
 
   const hooksText = useMemo(() => {
-    const xs = (sources.data?.sources ?? []).filter((x) => x.enabled && x.tool !== "hook_spool");
+    const xs = (sources.data?.sources ?? []).filter((x) => x.enabled && !isInternalSource(x.tool));
     if (xs.length === 0) return sources.data ? t("palette.hooks.noSources") : null;
     const byTool = new Map<string, string>();
     for (const x of xs) {

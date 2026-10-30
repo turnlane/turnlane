@@ -18,6 +18,7 @@ import {
   claudeToolUse,
   claudeUserText,
   findClaudeTranscript,
+  REPORT_ENTRYPOINT,
   readTailRecords,
 } from "@turnlane/collectors";
 import { derive, numberedOptions, WAIT_QUESTION_MAX } from "@turnlane/core";
@@ -34,6 +35,7 @@ import {
   permissionOf,
   permissionToolOf,
   readAt,
+  reportWaitDetail,
   type SessionRow,
   sessionOf,
   type Target,
@@ -136,6 +138,21 @@ export function readWait(
     if ("fail" in r) return { ...out, unavailable: r.fail };
     if (!r.text) return { ...out, unavailable: "unreadable" };
     return withQuestion(out, r.text);
+  }
+  // 報告の項目（ADR 0021）: 記録は無いので、取り込みのときに持った中身（自分の番の wait_detail か、ターンの wait_json）
+  const reported = reportWaitOf(db, wait.followUpId, wait.turnId);
+  if (reported !== undefined) {
+    if (!reported) return { ...out, unavailable: "unsupported" };
+    if (reported.kind === "permission") {
+      out.permission = { tool: reported.tool ?? "permission", masked: reported.masked };
+      if (reported.label) out.permission.label = reported.label;
+      return out;
+    }
+    const text = reported.text ?? "";
+    out.question = { ...cutText(text), masked: reported.masked };
+    const opts = reported.options_json ? optionsOf(reported.options_json) : [];
+    if (opts.length > 0) out.options = opts.map((label, i) => ({ n: i + 1, label }));
+    return out;
   }
   if (s.tool !== "claude_code") return { ...out, unavailable: "unsupported" };
   if (kind === "error") return out;
@@ -241,4 +258,57 @@ export function waitStateInTail(records: unknown[], kind: WaitKind): "open" | "c
     if ((rec as Rec | null)?.type === "assistant") return "open";
   }
   return "open";
+}
+
+/**
+ * 報告の項目の待ちの中身（ADR 0021）。報告のセッションでなければ undefined、報告だが中身が無い（保存しない設定）なら null
+ */
+function reportWaitOf(
+  db: Database,
+  followUpId: string | null,
+  turnId: string | null,
+): (ReturnType<typeof reportWaitDetail> & object) | null | undefined {
+  if (!turnId) return undefined;
+  const t = db
+    .query<{ wait_json: string | null; entrypoint: string | null }, [string]>(
+      "SELECT t.wait_json, s.entrypoint FROM ai_turn t JOIN ai_session s ON s.id = t.session_id WHERE t.id = ?",
+    )
+    .get(turnId);
+  if (t?.entrypoint !== REPORT_ENTRYPOINT) return undefined;
+  const stored = followUpId
+    ? db
+        .query<
+          {
+            kind: "permission" | "question" | "ask" | "error";
+            text: string | null;
+            options_json: string | null;
+            tool: string | null;
+            label: string | null;
+            masked: number;
+          },
+          [string]
+        >(
+          "SELECT kind, text, options_json, tool, label, masked FROM wait_detail WHERE follow_up_id = ?",
+        )
+        .get(followUpId)
+    : null;
+  if (stored)
+    return {
+      ...stored,
+      command: null,
+      error_kind: null,
+      masked: stored.masked === 1,
+    };
+  return t.wait_json ? reportWaitDetail(t.wait_json) : null;
+}
+
+/** 報告の問いの選択肢（wait_detail の options_json は AskUserQuestion と同じ問いの配列） */
+function optionsOf(json: string): string[] {
+  try {
+    const v = JSON.parse(json) as { options?: unknown }[];
+    const o = Array.isArray(v) ? v[0]?.options : undefined;
+    return Array.isArray(o) ? o.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }

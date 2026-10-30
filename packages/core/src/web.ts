@@ -12,6 +12,7 @@ export {
   prepareAnswer,
   WAIT_QUESTION_MAX,
 } from "./answer.ts";
+export { isInternalSource } from "./api/common.ts";
 export type * from "./api/index.ts";
 export {
   addTaskToBoard,

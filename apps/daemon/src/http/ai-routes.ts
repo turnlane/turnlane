@@ -25,6 +25,7 @@ import { OpError, type UserOps } from "../derive/ops.ts";
 import type { AiDaysView, QueueItem, queueExtras } from "../derive/views.ts";
 import type { FocusService } from "../focus/service.ts";
 import type { Opener } from "../open/index.ts";
+import type { ReportReceiver } from "../report/index.ts";
 
 export interface SourceView {
   id: string;
@@ -98,6 +99,8 @@ export interface AiDeps {
   reingest(sourceId?: string): Promise<void>;
   rederive(opts: { waitSince?: string }): unknown;
   ingestStatus(): { backfillDone: boolean };
+  /** 外の作業の報告（ADR 0021。m2-api 37 章） */
+  reports: ReportReceiver;
 }
 
 /** API に返すフォローアップ（DB の行から必要な列だけ） */
@@ -218,6 +221,15 @@ export function createAiRoutes(
         if (e instanceof OpError) return c.json({ error: e.message }, e.status);
         throw e;
       })
+      // 外の作業の報告（ADR 0021。m2-api 37 章）: 検証して spool に 1 行追記し、すぐ取り込む。だめなら項目の名前だけ
+      .post("/ai/reports", async (c) => {
+        const body = await c.req.json().catch(() => undefined);
+        const r = await deps().reports.receive(body);
+        if (r.ok) return c.json(r.body, 202);
+        if (r.status === 400) return c.json({ error: "invalid_input", field: r.field }, 400);
+        return c.json({ error: r.error }, 500);
+      })
+      .get("/ai/reports/sources", (c) => c.json(deps().reports.sources()))
       .get("/work-items", (c) => {
         const date = c.req.query("date");
         if (date !== undefined && !isLocalDate(date)) bad("date must be YYYY-MM-DD");

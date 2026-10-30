@@ -163,6 +163,21 @@ Codex のピン留めスレッド（`threads.is_pinned`）とゴール（`goals_
 - 元ファイルに `immutable=1` を確認なしで使わない。書き込み中に壊れた内容を読むことがある（S2 の模擬で 1.3%）。WAL に未反映の内容も見えない。
 - スキーマ判定は `PRAGMA user_version`（常に 0）ではなく `_sqlx_migrations` を見る。
 
+### 1.5 報告（Turnlane 自身の spool: `report-YYYYMMDD.jsonl`。ADR 0021）
+
+記録を残さない作業（自前のスクリプト・cron・SDK 経由のプログラム・サンドボックスの中のエージェント）が、自分で「始めた・待っている・終わった」を書く口。`turnlane ai report`・MCP `report_ai_work`・`POST /api/ai/reports`（m2-api 37 章）が同じ型を受け、Turnlane のデータディレクトリの `spool/report-YYYYMMDD.jsonl` に 1 行ずつ追記する。アダプタ `report`（`packages/collectors/src/adapters/report/`）が読む。
+
+| 項目 | 内容 |
+|---|---|
+| 1 行 | `{v: 1, kind: "report", received_at, client_id, source, id, state, title?, project?, wait_kind?, wait_text?, wait_options?, wait_label?, error_kind?, url?, at?}`。4 KB 未満。キーは平たく持つ（本文系のキー名 `text`・`message` を使わない）。許可リストはこのキーだけ（`REPORT_LINE_KEYS`） |
+| セッション | `tool = source`（利用者が決める `^[a-z0-9_]{2,32}$`。Turnlane の取り込み元の名前は使えない）、`external_id = id`、`entrypoint = "report"`、`cwd`・`repo_root` は無し。`title` は `title_source: session_name`、`project` は `ai_session.project_name`、`url` は `ai_session.open_url` |
+| ターン | `started`: 新しいターン（`turn_key = r:<spool のファイル>:<行の位置>`、`initiator: system`）。`running`: 開いたターンの最後の活動。`waiting(question)`: 開いたまま `pending_question = 1`。`waiting(permission)`: 開いたまま、許可待ちの hook（`hook_event_name: PermissionRequest`、`tool_name` = 許可の説明、`source: report`）。`done`: `completed`・`end_turn`。`error`: `error`・`error`。同じ spool の中の開いたターンは carry に覚え、別の日の spool に続きが来たらその報告で新しいターンを始め、シンクが同じセッションの前の開いたターンを閉じる（`TurnEvent.closeOpen`）。古い spool を後から読み直して後のターンより前の開いたターンができたら、後のターンの始まりで閉じる |
+| 待ちの中身 | `turn.store_detail` がオンのときだけ、伏せ字を通して `ai_turn.wait_json` に持ち、自分の番ができたら `wait_detail` に写す（問いは `ask`、許可は `permission`）。上限は ADR 0018 と同じ（m2-api 37 章） |
+| 実行中の鮮度 | 最後の報告から 1 日（アダプタの `runningStaleMs`。セッションの tool は出どころなので、判定は entrypoint で報告のセッションを見分ける `derive.runningStaleOf`） |
+| 冪等・上限 | 同じ `client_id` は 1 回だけ（carry に最近 500 件）。出どころ 1 つにつき受けた時刻の 1 分で 60 件まで（超えた行は捨て、ログに `report.rate_limited`）。未来の `at` は受けた時刻に丸める |
+| 取り込み元 | `ai_source` の `report` の 1 行（spool のディレクトリ）。オンボーディングの検出・「取り込み元がある」の判定には数えない（hooks の spool と同じ内部の取り込み元。`isInternalSource`）。spool は 7 日より古く取り込み済みなら消す |
+| PARSER_VERSION | 1 |
+
 ---
 
 ## 2. 公式手段で取れる情報

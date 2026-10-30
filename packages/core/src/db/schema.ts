@@ -490,6 +490,9 @@ export const aiSession = sqliteTable(
     isNoise: integer("is_noise").notNull().default(0),
     filePath: text("file_path"),
     transcriptMissingAt: integer("transcript_missing_at"),
+    // 0022（ADR 0021）: 報告のセッションのプロジェクトの名前と開く先（http(s) かアプリの URL スキーム）
+    projectName: text("project_name"),
+    openUrl: text("open_url"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -535,6 +538,9 @@ export const aiTurn = sqliteTable(
     pendingQuestion: integer("pending_question").notNull().default(0),
     // 0002（M1-9）: 締めの決まり文句の質問で終わった（3.3.1）
     closingQuestion: integer("closing_question").notNull().default(0),
+    // 0022（ADR 0021）: 報告の待ちの中身（伏せ字の後。ADR 0018 の上限。turn.store_detail のときだけ）。自分の番を作ったら
+    // wait_detail に写す
+    waitJson: text("wait_json"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
