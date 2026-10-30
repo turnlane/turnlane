@@ -167,7 +167,12 @@ export function makeAiEnv(
     // テストは実際に open を実行しない
     openSystem: open,
     ...(opts.excludeDirs ? { excludeDirs: opts.excludeDirs } : {}),
-    codexProcess: opts.codexProcess ?? { alive: () => false, name: () => null },
+    codexProcess: opts.codexProcess ?? {
+      alive: () => false,
+      info: () => null,
+      terminals: () => [],
+      cwd: () => null,
+    },
   });
   return {
     open,

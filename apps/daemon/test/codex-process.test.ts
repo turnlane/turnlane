@@ -10,6 +10,12 @@ import { join } from "node:path";
 import { itemProcess } from "@turnlane/core";
 import type { AnswerResult, WaitResponse } from "@turnlane/core/api";
 import { createApp } from "../src/http/app.ts";
+import {
+  isCodexComm,
+  isCodexDaemon,
+  parseCodexPsLine,
+  pickCodexTui,
+} from "../src/ingest/supervisor.ts";
 import { LIST_CLIENTS_FORMAT, LIST_PANES_FORMAT } from "../src/open/locate.ts";
 import { type AiEnv, makeAiEnv } from "./helpers/env.ts";
 import { codexRollout } from "./helpers/transcript.ts";
@@ -29,16 +35,34 @@ afterEach(async () => {
 
 const ps = (pid: number) => `/bin/ps -o ppid=,tty=,comm= -p ${pid}`;
 
-async function setup(
-  o: { hooks?: boolean; alive?: () => boolean; name?: () => string | null } = {},
-) {
-  const proc: { alive: (pid: number) => boolean; name: (pid: number) => string | null } = {
+/** 偽の OS のプロセス（hook の親・端末のある codex の一覧・作業フォルダ） */
+interface Proc {
+  alive: (pid: number) => boolean;
+  info: (pid: number) => { comm: string; tty: string | null } | null;
+  terminals: () => { pid: number; tty: string; startedAt: number | null }[];
+  cwd: (pid: number) => string | null;
+}
+
+/** 古い版の codex: TUI が直接 hooks を出す（hook の親 = TUI。端末あり） */
+const DIRECT: Partial<Proc> = { info: () => ({ comm: "/opt/homebrew/bin/codex", tty: "ttys009" }) };
+const DAEMON_COMM =
+  "/Users/me/.codex/packages/app-server-daemon/releases/0.166.0-aarch64-apple-darwin/bin/codex";
+
+async function setup(o: { hooks?: boolean } & Partial<Proc> = {}) {
+  const proc: Proc = {
     alive: o.alive ?? ((pid: number) => pid === PID),
-    name: o.name ?? (() => "/opt/homebrew/bin/codex"),
+    info: o.info ?? (DIRECT.info as Proc["info"]),
+    terminals: o.terminals ?? (() => []),
+    cwd: o.cwd ?? (() => null),
   };
   env = makeAiEnv({
     now: T0,
-    codexProcess: { alive: (p) => proc.alive(p), name: (p) => proc.name(p) },
+    codexProcess: {
+      alive: (p) => proc.alive(p),
+      info: (p) => proc.info(p),
+      terminals: () => proc.terminals(),
+      cwd: (p) => proc.cwd(p),
+    },
   });
   env.git.repos.set("/w/app", "/w/app");
   env.git.defaults.set("/w/app", "main");
@@ -147,7 +171,7 @@ describe("Codex のプロセス（hooks の親の pid）", () => {
     ).toBe("unknown");
   });
 
-  test("プロセスが終わった・SessionEnd が来た・pid が別のプロセスに使い回された → gone", async () => {
+  test("TUI のプロセスが終わった → gone（同じ hook のままなら戻らない）", async () => {
     const s = await setup();
     s.proc.alive = () => false;
     await env.ai.supervisor.probeLive();
@@ -158,9 +182,78 @@ describe("Codex のプロセス（hooks の親の pid）", () => {
     expect(s.live()?.live_status).toBe("gone");
   });
 
-  test("pid が codex でないプロセス（使い回し）なら gone", async () => {
-    const s = await setup({ name: () => "/usr/bin/vim" });
-    expect(s.live()?.live_status).toBe("gone");
+  test("hook の親が codex でないプロセス（使い回し）で、TUI も見つからなければ分からない", async () => {
+    const s = await setup({ info: () => ({ comm: "/usr/bin/vim", tty: "ttys001" }) });
+    expect(s.live()).toEqual({ live_status: null, live_pid: null });
+  });
+});
+
+describe("hook の親が常駐のデーモン（app-server のデーモン。端末が無い）", () => {
+  const TUI = 7800;
+  const daemon = (more: Partial<Proc> = {}) =>
+    setup({
+      alive: (p) => p === PID || p === TUI,
+      info: (p) => (p === PID ? { comm: DAEMON_COMM, tty: null } : null),
+      terminals: () => [{ pid: TUI, tty: "ttys013", startedAt: T0 - 10 * MIN }],
+      cwd: (p) => (p === TUI ? "/w/app" : null),
+      ...more,
+    });
+
+  test("(a) デーモンを live_pid にせず、端末のある codex を作業フォルダで引く", async () => {
+    const s = await daemon();
+    expect(s.live()).toEqual({ live_status: "busy", live_pid: TUI });
+  });
+
+  test("(b) 同じフォルダの候補が複数なら、セッションの始まりの直前に起きたもの", async () => {
+    const s = await daemon({
+      alive: (p) => p === PID || p === TUI || p === 7700 || p === 7900,
+      terminals: () => [
+        { pid: 7700, tty: "ttys010", startedAt: T0 - 3 * 60 * MIN },
+        { pid: TUI, tty: "ttys013", startedAt: T0 - 10 * MIN },
+        { pid: 7900, tty: "ttys014", startedAt: T0 + 30 * MIN },
+      ],
+      cwd: () => "/w/app",
+    });
+    expect(s.live()).toEqual({ live_status: "busy", live_pid: TUI });
+  });
+
+  test("(c) 作業フォルダの合う TUI が無ければ分からない（アプリを前に出すだけ）", async () => {
+    const s = await daemon({ cwd: () => "/w/other" });
+    expect(s.live()).toEqual({ live_status: null, live_pid: null });
+  });
+
+  test("(d) SessionEnd が来ても、TUI が生きていれば終わりにしない", async () => {
+    const s = await daemon();
+    s.hook("SessionEnd", T0 + 21 * MIN);
+    env.clock.set(T0 + 22 * MIN);
+    await env.sync();
+    expect(s.live()).toEqual({ live_status: "busy", live_pid: TUI });
+    const r = await s.call<{ instruct?: { ok: boolean; reason?: string } }>(
+      "GET",
+      `/api/work-items/${s.wi}/last-reply`,
+    );
+    expect(r.body.instruct?.reason).not.toBe("session_ended");
+  });
+
+  test("(e) TUI が消えたら終わり。TUI が分からないセッションは SessionEnd で終わり", async () => {
+    const s = await daemon();
+    s.proc.alive = (p) => p === PID;
+    await env.ai.supervisor.probeLive();
+    expect(s.live()).toEqual({ live_status: "gone", live_pid: TUI });
+    await env.cleanup();
+    const n = await daemon({ cwd: () => null });
+    expect(n.live()?.live_status).toBeNull();
+    n.hook("SessionEnd", T0 + 21 * MIN);
+    env.clock.set(T0 + 22 * MIN);
+    await env.sync();
+    expect(n.live()?.live_status).toBe("gone");
+  });
+
+  test("答える: 見つけた TUI の端末（tmux のペイン）に送れる", async () => {
+    const s = await daemon();
+    env.open.outputs.set(ps(TUI), "4000 ttys009 codex");
+    const w = await s.call<WaitResponse>("GET", `/api/work-items/${s.wi}/wait`);
+    expect(w.body.delivery).toMatchObject({ deliverable: true, via: "tmux" });
   });
 });
 
@@ -209,5 +302,55 @@ describe("Codex の開く・答える（既存の経路）", () => {
       `/api/work-items/${n.wi}/last-reply`,
     );
     expect(r2.body.instruct).toMatchObject({ ok: false, reason: "process_unknown" });
+  });
+});
+
+describe("ps の行と TUI の選び方（純粋関数）", () => {
+  test("ps -axo pid=,tty=,lstart=,comm= の行（LC_ALL=C）", () => {
+    expect(
+      parseCodexPsLine(
+        "83144 ??       Fri Oct 30 15:11:21 2026     /Users/me/.codex/packages/app-server-daemon/releases/0.166.0-aarch64-apple-darwin/bin/codex",
+      ),
+    ).toMatchObject({ pid: 83144, tty: null, comm: expect.stringContaining("app-server-daemon") });
+    const tui = parseCodexPsLine("78065 ttys013  Fri Oct 30 14:02:03 2026     codex");
+    expect(tui).toMatchObject({ pid: 78065, tty: "ttys013", comm: "codex" });
+    expect(tui?.startedAt).toBe(new Date(2026, 9, 30, 14, 2, 3).getTime());
+    expect(isCodexComm("codex")).toBe(true);
+    expect(
+      isCodexComm(
+        "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+      ),
+    ).toBe(true);
+    expect(isCodexComm("/bin/zsh")).toBe(false);
+    expect(isCodexDaemon({ comm: "codex", tty: null })).toBe(true);
+    expect(isCodexDaemon({ comm: DAEMON_COMM, tty: "ttys001" })).toBe(true);
+    expect(isCodexDaemon({ comm: "codex", tty: "ttys013" })).toBe(false);
+  });
+  test("pickCodexTui: 作業フォルダが同じ 1 つ / 始まりの直前 / 決まらなければ null", () => {
+    const s = { cwd: "/w/app/", startedAt: 1000 * MIN };
+    expect(pickCodexTui([{ pid: 1, startedAt: 0, cwd: "/w/app" }], s)).toBe(1);
+    expect(
+      pickCodexTui(
+        [
+          { pid: 1, startedAt: 100 * MIN, cwd: "/w/app" },
+          { pid: 2, startedAt: 900 * MIN, cwd: "/w/app" },
+          { pid: 3, startedAt: 1200 * MIN, cwd: "/w/app" },
+        ],
+        s,
+      ),
+    ).toBe(2);
+    expect(pickCodexTui([{ pid: 1, startedAt: 0, cwd: "/w/other" }], s)).toBeNull();
+    expect(
+      pickCodexTui(
+        [
+          { pid: 1, startedAt: 1100 * MIN, cwd: "/w/app" },
+          { pid: 2, startedAt: 1200 * MIN, cwd: "/w/app" },
+        ],
+        s,
+      ),
+    ).toBeNull();
+    expect(
+      pickCodexTui([{ pid: 1, startedAt: 0, cwd: "/w/app" }], { cwd: null, startedAt: 0 }),
+    ).toBeNull();
   });
 });

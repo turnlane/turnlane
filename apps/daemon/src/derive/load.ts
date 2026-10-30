@@ -158,7 +158,15 @@ export function loadHooks(db: Database, since: number): HookFact[] {
       },
       [number]
     >(
-      "SELECT id, session_external_id, tool, hook_event_name, notification_type, error_type, config_root, agent_id, permission_mode, quota_horizon, occurred_at FROM hook_event WHERE occurred_at >= ? ORDER BY occurred_at, id",
+      // Codex の SessionEnd は app-server のデーモンの入れ替えでも来る（Issue #10）。そのセッションの TUI が生きている間は
+      // 終わりの印にしない（待ちを閉じない）
+      `SELECT id, session_external_id, tool, hook_event_name, notification_type, error_type, config_root, agent_id, permission_mode, quota_horizon, occurred_at
+       FROM hook_event
+       WHERE occurred_at >= ?
+         AND NOT (tool = 'codex' AND hook_event_name = 'SessionEnd' AND EXISTS (
+           SELECT 1 FROM ai_session s WHERE s.tool = 'codex' AND s.external_id = hook_event.session_external_id
+             AND s.live_status = 'busy'))
+       ORDER BY occurred_at, id`,
     )
     .all(since)
     .filter((r) => r.session_external_id !== null)

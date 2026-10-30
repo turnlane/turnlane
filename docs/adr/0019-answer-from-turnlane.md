@@ -60,6 +60,11 @@
    - Codex の `busy` は「プロセスがある」だけの意味で、状態の判定（running / needs_input）には使わない（Claude Code の `sessions/<pid>.json` の busy / idle とは違う）
    - 送る文: Codex はいつも 1 行に畳む（Codex の TUI の改行の入れ方が端末と設定で違い、tmux から確かに改行にする送り方が分からないため。仮置き）。選択肢の番号は文字のまま送る。許可待ちの「許可する」は今までどおり出さない
    - Codex のアプリ（Desktop）のセッションは端末が無いので、pid が分かっても送れない（届け先が見つからない）
+   - **追記（2026-10-30。オーナーの実機の事実）**: 新しい版の Codex（0.163 以降の TUI と、`~/.codex/packages/app-server-daemon/…/bin/codex` の常駐のデーモン）では、hooks を出すのは TUI ではなくデーモンで、hook の親はデーモン（端末が無く、1 つで複数の TUI のスレッドを持つ）だった。`ps -o comm=` は両方とも codex なので、前の確かめは通ってしまい、tty が取れず「答える」が送れなかった。また SessionEnd はデーモンの入れ替えでも全スレッドに来て、TUI が開いたままでも「終わった」になった。そこで:
+     - hook の親が端末のある codex なら、それを TUI とする（TUI が直接 hooks を出す版）。親がデーモン（端末が無い・実行ファイルのパスに `app-server-daemon`）なら live_pid にしない。代わりに `ps -axo pid,tty,lstart,comm`（`LC_ALL=C`）で端末のある codex を候補にし、`lsof -a -p <pid> -d cwd` の作業フォルダがセッションの cwd と同じものに絞る。1 つならそれ、複数なら開始時刻がセッションの始まりの直前のもの、決まらなければ null（今までどおりアプリを前に出す）。探すのはセッションごとに最初と、見つけた pid が消えたとき、見つからないまま新しい hook が来たとき。hook 自体は変えない
+     - pid → セッションは 1 対 1 にしない（デーモンの pid は複数のセッションで同じ）
+     - Codex の SessionEnd は、TUI が生きている間は終わりにしない（live・状態の判定・「このセッションは終わっています」のどれにも効かせない。判定の事実から外す）。TUI が消えたら終わり。TUI が分からないセッションは今までどおり SessionEnd で終わり
+     - 実機の読み取りは `ps` と `lsof -p` だけ。codex には入力もシグナルも送らない
 （外側の端末に関係なく）・iTerm2・Terminal（ターミナル.app。Decision 8）・Ghostty（1.3 以降。Decision 9）・Orca。送れない端末（Warp・Kitty、AppleScript を切っている・古い Ghostty など）は「この端末には送れません」と「開く」だけ。Turnlane が起動するセッション（AI に頼む・時刻起動）は、送れない端末では tmux の新しいセッションの中で起動する（設定 `launch.tmux_wrap`、既定オン。tmux があるときだけ）。
 - 複数行の答え: tmux の Claude Code は改行を LF（Ctrl+J。Claude Code の文書にある改行の入れ方）のまま送る。ほかは 1 行に畳む（改行を空白に）。改行を Enter にしない。
 - Claude Code・Codex の TUI の細部（許可のダイアログの番号キー、AskUserQuestion の番号、Codex の承認の画面）は公式の文書に書かれていない部分があり、実機で確かめる。Codex の許可待ちには「許可する」を出さない。

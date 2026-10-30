@@ -127,7 +127,7 @@ Phase0 では対象外（v1 で扱う）。仕様だけ記録しておく。
 | `hooks.json` / `config.toml` | JSON / TOML | hooks 定義、`notify`、`[features] hooks=true`、`[hooks.state]`（信頼済みハッシュ） |
 | `auth.json` | — | **開かない** |
 
-**プロセス**（Issue #10。ADR 0019 の Decision 12）: rollout には pid が無い。Codex は hook のハンドラを自分の子として直接起こすので、`turnlane hook --tool codex` が親の pid（`process.ppid`）を spool の `ppid` に残し（`hook_event.pid`）、デーモンがそのセッションの `live_pid`・`live_status`（生きていて `codex` のプロセスなら `busy`、終わった・SessionEnd の後・別のプロセスなら `gone`）に写す。`busy` は状態の判定には使わない。hooks が来ていないセッションは今までどおり分からない（AI の画面では最後の動きから 6 時間の推定）。
+**プロセス**（Issue #10。ADR 0019 の Decision 12）: rollout には pid が無い。Codex は hook のハンドラを自分の子として直接起こすので、`turnlane hook --tool codex` が親の pid（`process.ppid`）を spool の `ppid` に残し（`hook_event.pid`）、デーモンがそのセッションの `live_pid`・`live_status` に写す。新しい版では hook の親は TUI ではなく常駐の app-server のデーモン（端末が無い）なので、そのときは端末のある codex のプロセスのうち作業フォルダがセッションの cwd と同じもの（複数なら始まりの直前に起きたもの）を TUI とする（`ps` と `lsof -p` で読むだけ）。TUI が生きていれば `busy`（SessionEnd はデーモンの入れ替えでも来るので、TUI が生きている間は終わりにしない）、TUI が消えたら `gone`、TUI が分からなければ SessionEnd の後は `gone`・それ以外は分からない。`busy` は状態の判定には使わない。hooks が来ていないセッションは今までどおり分からない（AI の画面では最後の動きから 6 時間の推定）。
 
 **rollout JSONL**（各行 `{timestamp, ordinal, type, payload}`）
 - `session_meta`: `id/session_id, timestamp, cwd, originator("Codex Desktop"|"codex-tui"), source("vscode"|"cli"|{subagent:...}), thread_source, cli_version, model_provider, git{branch, commit_hash, repository_url}?`

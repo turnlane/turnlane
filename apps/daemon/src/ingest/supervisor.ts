@@ -151,18 +151,58 @@ export interface SupervisorOptions {
    */
   builtinExclude?: readonly string[];
   /**
-   * Codex のプロセスの確かめ（Issue #10。hooks が残した親の pid）。alive は kill(pid, 0)、name は `ps -o comm=`（pid の
-   * 使い回しに備えて、1 分ごとに codex のプロセスかを確かめる）。テストは偽物を渡す
+   * Codex のプロセスの確かめ（Issue #10。hooks が残した親の pid と、端末のある codex のプロセスの一覧と作業フォルダ）。
+   * 読むだけ（kill(pid, 0)・ps・lsof）。テストは偽物を渡す
    */
   codexProcess?: CodexProcessProbe;
 }
 
 export interface CodexProcessProbe {
   alive(pid: number): boolean;
-  name(pid: number): string | null;
+  /** pid の実行ファイル（`ps -o comm=`。macOS は絶対パス）と tty（無ければ null） */
+  info(pid: number): { comm: string; tty: string | null } | null;
+  /** 端末（tty）のある codex のプロセスの一覧（TUI の候補）。startedAt は開始時刻（`ps -o lstart=`） */
+  terminals(): { pid: number; tty: string; startedAt: number | null }[];
+  /** プロセスの作業フォルダ（`lsof -a -p <pid> -d cwd`） */
+  cwd(pid: number): string | null;
 }
 
-/** 実際の OS で確かめる（kill(pid, 0) と ps の comm） */
+const run = (argv: string[]): string | null => {
+  try {
+    // 開始時刻（lstart）を英語の書式で読む
+    const r = Bun.spawnSync(argv, {
+      stdout: "pipe",
+      stderr: "ignore",
+      env: { ...process.env, LC_ALL: "C" },
+    });
+    return r.exitCode === 0 ? r.stdout.toString() : null;
+  } catch {
+    return null;
+  }
+};
+
+/** codex の実行ファイルか（`codex` / `.../bin/codex` / `.../MacOS/codex`） */
+export const isCodexComm = (comm: string): boolean => /(^|\/)codex$/i.test(comm.trim());
+
+/**
+ * hooks を出す常駐のプロセス（Codex の app-server のデーモン。`~/.codex/packages/app-server-daemon/…/bin/codex`）か。
+ * 端末が無いか、実行ファイルのパスにデーモンの印がある。利用者の TUI ではないので live_pid にしない
+ */
+export const isCodexDaemon = (i: { comm: string; tty: string | null }): boolean =>
+  i.tty === null || i.comm.includes("app-server-daemon");
+
+/** `ps -axo pid=,tty=,lstart=,comm=` の 1 行（lstart は `Fri Oct 30 15:11:21 2026` の 5 語） */
+export function parseCodexPsLine(
+  line: string,
+): { pid: number; tty: string | null; startedAt: number | null; comm: string } | null {
+  const m = /^\s*(\d+)\s+(\S+)\s+(\S+\s+\S+\s+\d+\s+[\d:]+\s+\d{4})\s+(.+?)\s*$/.exec(line);
+  if (!m) return null;
+  const tty = m[2] === "??" || m[2] === "-" ? null : (m[2] as string);
+  const t = Date.parse(m[3] as string);
+  return { pid: Number(m[1]), tty, startedAt: Number.isFinite(t) ? t : null, comm: m[4] as string };
+}
+
+/** 実際の OS で確かめる（kill(pid, 0)・ps・lsof。読むだけで、codex には何も送らない） */
 export const systemCodexProcess: CodexProcessProbe = {
   alive(pid) {
     try {
@@ -172,21 +212,50 @@ export const systemCodexProcess: CodexProcessProbe = {
       return (e as NodeJS.ErrnoException).code === "EPERM";
     }
   },
-  name(pid) {
-    try {
-      const r = Bun.spawnSync(["/bin/ps", "-o", "comm=", "-p", String(pid)], {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-      const s = r.stdout.toString().trim();
-      return r.exitCode === 0 && s ? s : null;
-    } catch {
-      return null;
-    }
+  info(pid) {
+    const out = run(["/bin/ps", "-o", "tty=,comm=", "-p", String(pid)]);
+    const m = out ? /^\s*(\S+)\s+(.+?)\s*$/.exec(out.split("\n")[0] ?? "") : null;
+    if (!m) return null;
+    return { comm: m[2] as string, tty: m[1] === "??" || m[1] === "-" ? null : (m[1] as string) };
+  },
+  terminals() {
+    const out = run(["/bin/ps", "-axo", "pid=,tty=,lstart=,comm="]) ?? "";
+    return out
+      .split("\n")
+      .map(parseCodexPsLine)
+      .filter(
+        (x): x is { pid: number; tty: string; startedAt: number | null; comm: string } =>
+          x !== null && x.tty !== null && isCodexComm(x.comm),
+      )
+      .map(({ pid, tty, startedAt }) => ({ pid, tty, startedAt }));
+  },
+  cwd(pid) {
+    const out = run(["/usr/sbin/lsof", "-a", "-p", String(pid), "-d", "cwd", "-Fn"]);
+    const line = out?.split("\n").find((l) => l.startsWith("n"));
+    return line ? line.slice(1) : null;
   },
 };
 
-/** Codex のプロセスの名前を確かめ直す間隔 */
+/**
+ * TUI を選ぶ（純粋関数）: 作業フォルダがセッションの cwd と同じ候補のうち、1 つならそれ、複数なら開始時刻がセッションの
+ * 始まりの直前（始まりより後に起きたものは除く。1 分の余裕）のもの。決まらなければ null
+ */
+export function pickCodexTui(
+  cands: readonly { pid: number; startedAt: number | null; cwd: string | null }[],
+  session: { cwd: string | null; startedAt: number },
+): number | null {
+  const norm = (p: string | null) => (p ? p.replace(/\/+$/, "") || "/" : null);
+  const want = norm(session.cwd);
+  if (!want) return null;
+  const same = cands.filter((c) => norm(c.cwd) === want);
+  if (same.length === 1) return same[0]?.pid ?? null;
+  const before = same
+    .filter((c) => c.startedAt !== null && c.startedAt <= session.startedAt + 60_000)
+    .sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+  return before[0]?.pid ?? null;
+}
+
+/** Codex のプロセスの情報を確かめ直す間隔 */
 const CODEX_NAME_TTL_MS = 60_000;
 /** hooks の pid から Codex のプロセスを探すセッション（これより前に動いたものは、生きていると分かっているものだけ） */
 const CODEX_PROBE_WINDOW_MS = 24 * 3_600_000;
@@ -230,8 +299,13 @@ export class Supervisor {
   #hadBulk = false;
   /** 最後の検出で見つかった (tool, root_path) */
   #detected = new Set<string>();
-  /** Codex の pid → 名前を確かめた時刻と結果（Issue #10） */
-  readonly #codexNames = new Map<number, { at: number; ok: boolean }>();
+  /** Codex の pid → 情報を確かめた時刻と結果（Issue #10） */
+  readonly #codexNames = new Map<
+    number,
+    { at: number; info: { comm: string; tty: string | null } | null }
+  >();
+  /** Codex のセッション → 見つけた TUI の pid（見つからなければ null）と、探したときの最後の hook の時刻 */
+  readonly #codexTui = new Map<string, { pid: number | null; hookAt: number; lost?: boolean }>();
   /** 初回のバックフィルが終わったか（turnlane ai の確認・テスト用） */
   backfillDone = false;
 
@@ -763,10 +837,15 @@ export class Supervisor {
   }
 
   /**
-   * Codex のセッションのプロセス（Issue #10）: hooks が残した親の pid（hook_event.pid の最後のもの）が生きていて codex の
-   * プロセスなら busy、そうでなければ gone を ai_session.live_* に写す。SessionEnd の hook が pid の後に来ていれば gone。
-   * hooks の来ていないセッションは触らない（live_status は null のまま。最後の動きから 6 時間の推定）。
-   * busy は「プロセスがある」だけの意味で、状態の判定（running / needs_input）には使わない（core の sessionStatus）
+   * Codex のセッションのプロセス（Issue #10）。hooks のハンドラの親の pid（hook_event.pid の最後のもの）を見る:
+   * - 親が端末のある codex（TUI が直接 hooks を出す版）なら、それが TUI
+   * - 親が常駐のデーモン（app-server のデーモン。端末が無い）なら TUI ではない。端末のある codex のプロセスのうち、作業
+   *   フォルダがセッションの cwd と同じものを探す（pickCodexTui）。探すのはセッションごとに最初と、見つけた pid が消えた
+   *   とき、見つからないまま新しい hook が来たとき。デーモンは 1 つで複数の TUI のスレッドを持つので、pid → セッションは
+   *   1 対 1 にしない
+   * TUI が生きていれば busy（SessionEnd はデーモンの入れ替えでも来るので、TUI が生きている間は終わりにしない）、TUI が
+   * 消えたら gone。TUI が分からなければ、SessionEnd の後は gone、それ以外は分からない（live_status は null。最後の動きから
+   * 6 時間の推定）。busy は「プロセスがある」だけの意味で、状態の判定（running / needs_input）には使わない（core の sessionStatus）
    */
   #probeCodex(): void {
     const probe = this.#o.codexProcess ?? systemCodexProcess;
@@ -775,6 +854,8 @@ export class Supervisor {
       .query<
         {
           id: string;
+          cwd: string | null;
+          started_at: number;
           live_status: string | null;
           live_pid: number | null;
           pid: number | null;
@@ -783,7 +864,7 @@ export class Supervisor {
         },
         [number]
       >(
-        `SELECT s.id, s.live_status, s.live_pid,
+        `SELECT s.id, s.cwd, s.started_at, s.live_status, s.live_pid,
                 (SELECT h.pid FROM hook_event h WHERE h.tool = 'codex' AND h.session_external_id = s.external_id
                    AND h.pid IS NOT NULL ORDER BY h.occurred_at DESC LIMIT 1) AS pid,
                 (SELECT max(h.occurred_at) FROM hook_event h WHERE h.tool = 'codex' AND h.session_external_id = s.external_id
@@ -796,29 +877,58 @@ export class Supervisor {
       )
       .all(now - CODEX_PROBE_WINDOW_MS);
     const changed = new Set<string>();
+    let terminals: ReturnType<CodexProcessProbe["terminals"]> | null = null;
+    const findTui = (r: (typeof rows)[number]): number | null => {
+      terminals ??= probe.terminals();
+      return pickCodexTui(
+        terminals.map((t) => ({ ...t, cwd: probe.cwd(t.pid) })),
+        { cwd: r.cwd, startedAt: r.started_at },
+      );
+    };
     for (const r of rows) {
       if (r.pid === null || r.pid_at === null) continue;
+      const parent = this.#codexInfo(probe, r.pid, now);
+      const c = this.#codexTui.get(r.id);
+      // 前に見つけた TUI が消えた（同じ hook のまま）: 終わり。新しい hook が来たら探し直す
+      const lost =
+        c !== undefined &&
+        c.hookAt === r.pid_at &&
+        (c.lost || (c.pid !== null && !probe.alive(c.pid)));
+      let tui: number | null = null;
+      if (lost) tui = null;
+      else if (parent && isCodexComm(parent.comm) && !isCodexDaemon(parent)) tui = r.pid;
+      else if (c && c.hookAt === r.pid_at && (c.pid === null || probe.alive(c.pid))) tui = c.pid;
+      else tui = findTui(r);
+      const alive = tui !== null && probe.alive(tui);
       const ended = r.ended_at !== null && r.ended_at >= r.pid_at;
-      const alive = !ended && probe.alive(r.pid) && this.#isCodex(probe, r.pid, now);
-      const status = alive ? "busy" : "gone";
-      if (r.live_status !== status || r.live_pid !== r.pid) changed.add(r.id);
+      const gone = lost || (tui !== null && !alive) || (tui === null && ended);
+      this.#codexTui.set(r.id, {
+        pid: lost ? (c?.pid ?? null) : tui,
+        hookAt: r.pid_at,
+        lost: gone && !ended ? true : lost,
+      });
+      const status = alive ? "busy" : gone ? "gone" : null;
+      const pid = alive ? tui : gone ? (c?.pid ?? tui ?? r.live_pid) : null;
+      if (r.live_status !== status || r.live_pid !== pid) changed.add(r.id);
       this.#o.sqlite.run(
         "UPDATE ai_session SET live_status = ?, live_pid = ?, live_checked_at = ? WHERE id = ?",
-        [status, r.pid, now, r.id],
+        [status, pid, status === null ? null : now, r.id],
       );
     }
     if (changed.size > 0) this.#o.onChanged(changed);
   }
 
-  /** pid が codex のプロセスか（pid の使い回しに備える。1 分覚える） */
-  #isCodex(probe: CodexProcessProbe, pid: number, now: number): boolean {
+  /** hook の親のプロセスの情報（1 分覚える。pid の使い回しに備えて確かめ直す） */
+  #codexInfo(
+    probe: CodexProcessProbe,
+    pid: number,
+    now: number,
+  ): { comm: string; tty: string | null } | null {
     const c = this.#codexNames.get(pid);
-    if (c && now - c.at < CODEX_NAME_TTL_MS) return c.ok;
-    const name = probe.name(pid);
-    // 名前が取れなければ（ps が使えない）、生きていることだけで判断する
-    const ok = name === null ? true : /(^|\/)codex([^/]*)$/i.test(name);
-    this.#codexNames.set(pid, { at: now, ok });
-    return ok;
+    if (c && now - c.at < CODEX_NAME_TTL_MS) return c.info;
+    const info = probe.alive(pid) ? probe.info(pid) : null;
+    this.#codexNames.set(pid, { at: now, info });
+    return info;
   }
 
   async probeLive(): Promise<void> {
