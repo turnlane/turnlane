@@ -677,6 +677,8 @@ export const followUp = sqliteTable(
     engagedAt: integer("engaged_at"),
     closedAt: integer("closed_at"),
     closeReason: text("close_reason"),
+    // 閉じた行を利用者が手で自分の番に戻した時刻（Issue #3）。手で閉じるか、この後に新しいターンが始まるまで自動では閉じない
+    returnedAt: integer("returned_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     hlc: text("hlc").notNull(),

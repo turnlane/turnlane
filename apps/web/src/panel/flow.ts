@@ -28,6 +28,8 @@ export interface FlowRow {
    * 保存しているときだけ（ADR 0018）
    */
   asked?: string;
+  /** 稼働の最初の入力が AI の問いへの問い返しだった（Issue #3。asked は「問い返し: …」と出す） */
+  askedBack?: true;
   stopped?: StoredWait;
 }
 
@@ -73,11 +75,20 @@ export function itemFlow(d: Source, now: number): Flow {
     if (end <= t.start) continue;
     const prev = runs.at(-1);
     const asked = (t as { instruction?: string }).instruction;
+    const back = asked && (t as { askedBack?: true }).askedBack ? { askedBack: true as const } : {};
     if (prev && t.start - prev.end < RUN_JOIN_MS) {
       prev.end = Math.max(prev.end, end);
       prev.now = prev.now || live;
-      if (!prev.asked && asked) prev.asked = asked;
-    } else runs.push({ kind: "run", start: t.start, end, now: live, ...(asked ? { asked } : {}) });
+      if (!prev.asked && asked) Object.assign(prev, { asked }, back);
+    } else
+      runs.push({
+        kind: "run",
+        start: t.start,
+        end,
+        now: live,
+        ...(asked ? { asked } : {}),
+        ...back,
+      });
   }
   // 開いている待ちは、その待ちの最後の区間だけ今まで伸ばす
   const lastOpen = new Map<string, number>();
@@ -113,7 +124,8 @@ export function itemFlow(d: Source, now: number): Flow {
     if (prev && prev.kind === r.kind && r.start - prev.end < 1000) {
       prev.end = Math.max(prev.end, r.end);
       prev.now = prev.now || r.now;
-      if (!prev.asked && r.asked) prev.asked = r.asked;
+      if (!prev.asked && r.asked)
+        Object.assign(prev, { asked: r.asked }, r.askedBack ? { askedBack: true } : {});
       if (!prev.stopped && r.stopped) prev.stopped = r.stopped;
     } else rows.push({ ...r });
   }
@@ -143,6 +155,15 @@ export function foldFlow(rows: readonly FlowRow[]): {
       aiMs: old.filter((r) => r.kind === "run").reduce((a, r) => a + (r.end - r.start), 0),
     },
   };
+}
+
+/**
+ * 自分の番に戻す（Issue #3）を置く行: 閉じた行（自分の番が閉じた後の区間・期限切れ・問い返した稼働）。開いている自分の番が
+ * あれば置かない（もう自分の番にある）。完了の印の行は Flow.tsx が同じ条件で置く
+ */
+export function canBackToTurn(r: Pick<FlowRow, "kind" | "askedBack">, inTurn: boolean): boolean {
+  if (inTurn) return false;
+  return r.kind === "closed" || r.kind === "expired" || (r.kind === "run" && r.askedBack === true);
 }
 
 /** 数えない区間（会議中・離席など。長さは「—」、線は灰の点線） */

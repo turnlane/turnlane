@@ -41,7 +41,7 @@ const at = (date: string, hhmm: string) => Date.parse(`${date}T${hhmm}:00+09:00`
  * ページの中で止めて記録する書き込み（自分の番・AI の操作と外部の開き先、AI に頼む（端末・claude を起動しうる。D-107））
  */
 const MOCK =
-  /^\/api\/(follow-ups\/.+|open|work-items\/[^/]+(\/reply-task)?|calendar-events\/[^/]+\/open|ai\/launches(\/.*)?)$/;
+  /^\/api\/(follow-ups\/.+|open|work-items\/[^/]+(\/reply-task|\/back-to-turn)?|calendar-events\/[^/]+\/open|ai\/launches(\/.*)?)$/;
 
 interface Sent {
   method: string;
@@ -494,6 +494,8 @@ async function writeOutcome(
     case "replyTask":
     case "makeTask":
       return expect(new RegExp(`^POST /api/work-items/${wid}/reply-task$`), "reply task");
+    case "backToTurn":
+      return expect(new RegExp(`^POST /api/work-items/${wid}/back-to-turn$`), "back to turn");
     case "aiDone":
       return expect(new RegExp(`^PATCH /api/work-items/${wid}$`), "done", /manualDone":true/);
     case "done":

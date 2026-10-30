@@ -16,7 +16,7 @@ import type {
   QueueSummaryResponse,
   ReadMeta,
 } from "@turnlane/core/api";
-import { mergeWorkItemInput, snoozeInput } from "@turnlane/core/api";
+import { backToTurnInput, mergeWorkItemInput, snoozeInput } from "@turnlane/core/api";
 import { queueSummary, type UpdateMenuItem } from "@turnlane/core/web";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -284,6 +284,13 @@ export function createAiRoutes(
           followUp: fuView(d.ops.dismissLimit(c.req.param("id"))),
         });
       })
+      // 自分の番に戻す（u・ホバー・右クリック。m2-api 2.3）: 閉じた行・問い返し中の行を open に。手で閉じるか新しい記録が
+      // 来るまで残る。followUpId を省けばカードの問い返し中の行 → 最後に閉じた行 → 無ければ返答タスクを作る
+      .post("/work-items/:id/back-to-turn", zValidator("json", backToTurnInput, invalid), (c) => {
+        const d = deps();
+        const r = d.ops.backToTurnItem(c.req.param("id"), c.req.valid("json").followUpId);
+        return c.json({ rev: d.meta().rev, followUp: fuView(r.row), changed: r.changed });
+      })
       // AI カードの y: 返答タスクを手で作る（D-066 (2)。phase0-plan 3.3）
       .post("/work-items/:id/reply-task", (c) => {
         const d = deps();
@@ -366,6 +373,7 @@ export function createAiRoutes(
       )
       // 手での完了の取り消し（⌘Z。D-139 (3)）
       .post("/follow-ups/:id/reopen", (c) => c.json(fuView(deps().ops.reopen(c.req.param("id")))))
+
       .get("/sources", (c) => c.json({ sources: deps().sources(), ...deps().ingestStatus() }))
       .patch("/sources/:id", async (c) => {
         const b = await body(c);

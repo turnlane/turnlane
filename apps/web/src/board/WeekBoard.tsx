@@ -48,6 +48,7 @@ import {
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
 import { useClosedSubjects } from "../data/glance.ts";
 import {
+  backToTurn,
   carryDay,
   completeItems,
   createEvent,
@@ -489,6 +490,12 @@ export function WeekBoard() {
       // AI カードだけ（D-066 (2)）
       if (!sel.key?.startsWith("ai:")) return false;
       void createReplyTask(sel.key.slice(3));
+      return true;
+    },
+    // u: 自分の番に戻す（Issue #3。AI カード）
+    backToTurn: () => {
+      if (!sel.key?.startsWith("ai:")) return false;
+      void backToTurn(sel.key.slice(3));
       return true;
     },
     // a: 自分の番の「答える」の節を詳細パネルに開く（D-238）

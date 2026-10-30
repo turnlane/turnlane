@@ -31,6 +31,7 @@ import {
   Palette,
   Pencil,
   Reply,
+  RotateCcw,
   SquareArrowOutUpRight,
   SquareTerminal,
   Sun,
@@ -255,6 +256,7 @@ export function menuSpec(
     key("detail", "menu.detail"),
     key("openWith", "menu.openWith"),
     key("replyTask", "menu.reply", { sep: true }),
+    key("backToTurn", "menu.backToTurn"),
     { id: "aiDone", label: "menu.aiDone", action: { t: "aiPatch", json: { manualDone: true } } },
     {
       id: "aiHide",
@@ -282,6 +284,7 @@ export const MENU_ICON: Record<string, LucideIcon> = {
   snooze: Timer,
   dismiss: Ban,
   replyTask: MessageSquareReply,
+  backToTurn: RotateCcw,
   answer: Reply,
   aiDone: CircleCheck,
   aiHide: EyeOff,

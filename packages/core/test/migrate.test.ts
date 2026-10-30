@@ -259,6 +259,7 @@ describe("0005（M3-3・D-070）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(db.query("SELECT own_timeblock_id FROM calendar_event").all()).toEqual([
       { own_timeblock_id: null },
@@ -290,6 +291,7 @@ describe("0006（M4-6）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(
       db
@@ -327,6 +329,7 @@ describe("0007（D-093）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(
       db.query("SELECT event_id, has_attendees, recurring, is_own_event FROM calendar_event").all(),
@@ -363,6 +366,7 @@ describe("0008（D-097）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(db.query("SELECT has_meeting_link FROM calendar_event").all()).toEqual([
       { has_meeting_link: null },
@@ -404,6 +408,7 @@ describe("0009（D-105）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(tables(db)).toContain("presence_span");
     expect(tables(db)).not.toContain("work_day_auto");
@@ -571,6 +576,7 @@ describe("0013（D-136）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(db.query("SELECT id, file_path FROM ai_session ORDER BY id").all()).toEqual([
       { id: "s1", file_path: `${R}/projects/${enc}/s1.jsonl` },
@@ -655,6 +661,7 @@ describe("0014（D-139）", () => {
       "0018_d238_term_handle",
       "0019_subagent_hook",
       "0020_quota_horizon",
+      "0021_returned_follow_up",
     ]);
     expect(spans(db)).toEqual([
       { id: "p1", start: at("09:00"), end: at("10:07"), seenUntil: null },

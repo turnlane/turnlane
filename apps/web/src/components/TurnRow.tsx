@@ -12,12 +12,14 @@ import {
   primaryFollowUp,
   type QueueItem,
 } from "@turnlane/core/web";
-import { ArrowRightToLine, Ban, ChevronRight, Reply, Timer } from "lucide-react";
+import { ArrowRightToLine, Ban, ChevronRight, Reply, RotateCcw, Timer } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { type ItemActionsApi, useItemActions } from "../actions/item-actions.tsx";
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
 import { useClosedSubject, useGlance, useSeen, useShowDetail } from "../data/glance.ts";
+import { backToTurn } from "../data/mutations.ts";
 import { useI18n } from "../i18n/index.tsx";
+import { keyHint } from "../keys/keymap.ts";
 import { whereName } from "../lib/where.ts";
 import { changeText } from "./AwayLine.tsx";
 import { EngagedLabel } from "./EngagedLabel.tsx";
@@ -620,20 +622,48 @@ export function closedFallback(row: Pick<ClosedTodayRow, "title">, locale: "en" 
  */
 export function ClosedTurnRow({ row, tz }: { row: ClosedTodayRow; tz?: string }) {
   const { t, locale } = useI18n();
+  const actions = useItemActions();
   const ref = useRef<HTMLDivElement>(null);
   const subject = useClosedSubject(row, ref, closedFallback(row, locale));
   const resolved = row.kind === "resolved";
+  // 自分の番に戻す（Issue #3）: ホバーのボタンと右クリック。手で閉じるか新しい記録が来るまで自分の番に残る
+  const back = () => void backToTurn(row.workItemId, row.followUpId);
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 右クリックのメニュー（同じ操作はホバーのボタンにもある）
     <div
       ref={ref}
-      className="flex h-8 min-w-0 items-center gap-2 rounded-card px-2 text-fg3"
+      className="group relative flex h-8 min-w-0 items-center gap-2 rounded-card px-2 text-fg3 hover:bg-sunken"
       data-kind="turn-closed"
       data-closed={row.kind}
+      onContextMenu={(e) => {
+        if (!actions) return;
+        e.preventDefault();
+        actions.openMenu(e.clientX, e.clientY, [
+          {
+            id: "backToTurn",
+            label: t("menu.backToTurn"),
+            icon: RotateCcw,
+            keys: keyHint("backToTurn"),
+            run: back,
+          },
+        ]);
+      }}
     >
       <Check checked dashed={resolved} label={t("action.complete")} />
       <span className="min-w-0 flex-1 truncate text-body">{subject}</span>
       <span className="shrink-0 truncate text-meta">{whereName(row, t("ai.scratch"))}</span>
       <span className="shrink-0 font-mono text-meta">{closedLabel(row, t, tz)}</span>
+      <HoverToolbar
+        buttons={[
+          {
+            id: "backToTurn",
+            icon: RotateCcw,
+            label: t("menu.backToTurn"),
+            keyId: "backToTurn",
+            onClick: back,
+          },
+        ]}
+      />
     </div>
   );
 }

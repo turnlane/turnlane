@@ -22,6 +22,7 @@ import m0017 from "./0017_d218_stored_detail.sql" with { type: "text" };
 import m0018 from "./0018_d238_term_handle.sql" with { type: "text" };
 import m0019 from "./0019_subagent_hook.sql" with { type: "text" };
 import m0020 from "./0020_quota_horizon.sql" with { type: "text" };
+import m0021 from "./0021_returned_follow_up.sql" with { type: "text" };
 
 export const migrations: readonly Migration[] = [
   { id: "0000_init", sql: m0000 },
@@ -45,6 +46,7 @@ export const migrations: readonly Migration[] = [
   { id: "0018_d238_term_handle", sql: m0018 },
   { id: "0019_subagent_hook", sql: m0019 },
   { id: "0020_quota_horizon", sql: m0020 },
+  { id: "0021_returned_follow_up", sql: m0021 },
 ];
 
 /** 現在のビルドのスキーマ番号（PRAGMA user_version に入る値）。エクスポートのヘッダにも使う */

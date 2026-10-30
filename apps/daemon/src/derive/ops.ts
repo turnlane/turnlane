@@ -26,6 +26,7 @@ import type { FollowUpRow } from "./load.ts";
 import { mergeCardInto } from "./merge.ts";
 import { projectIdForRepo } from "./projects.ts";
 import { capSnoozes } from "./runner.ts";
+import { askedBackPending } from "./views.ts";
 
 export class OpError extends Error {
   constructor(
@@ -262,26 +263,95 @@ export class UserOps {
       closeReason: null,
       ...(snoozed ? { snoozesJson: snoozes } : {}),
     });
-    if (row.task_id && !isLaunchTask(this.sqlite, row.task_id)) {
-      const task = this.sqlite
-        .query<{ status: string }, [string]>(
-          "SELECT status FROM task WHERE id = ? AND deleted_at IS NULL",
+    this.#reopenTask(row);
+    this.onChanged();
+    return this.#followUp(id);
+  }
+
+  /** 閉じた自分の番のタスクを未完了に戻し、閉じたときに足した応答の実績（followup_estimate）を消す */
+  #reopenTask(row: FollowUpRow): void {
+    if (!row.task_id || isLaunchTask(this.sqlite, row.task_id)) return;
+    const task = this.sqlite
+      .query<{ status: string }, [string]>(
+        "SELECT status FROM task WHERE id = ? AND deleted_at IS NULL",
+      )
+      .get(row.task_id);
+    if (task?.status === "done")
+      updateRow(this.mutate, schema.task, row.task_id, {
+        status: "todo",
+        completedAt: null,
+        autoCompleted: 0,
+      });
+    if (row.closed_at === null) return;
+    const est = derive.estimateResponse(row.engaged_at, row.closed_at);
+    for (const e of this.sqlite
+      .query<{ id: string }, [string, number, number]>(
+        "SELECT id FROM task_time_entry WHERE task_id = ? AND source = 'followup_estimate' AND start_at = ? AND end_at = ? AND deleted_at IS NULL",
+      )
+      .all(row.task_id, est.start, est.end))
+      softDelete(this.mutate, schema.taskTimeEntry, e.id);
+  }
+
+  /**
+   * 自分の番に戻す（Issue #3。`u`・ホバー・右クリック）。対象は followUpId があればその行、無ければカードの
+   * 問い返し中の行 → 最後に閉じた行 → どちらも無ければ返答タスクを作る（`y` と同じ）。開いている行（問い返し中を除く）と
+   * スヌーズ中の行はそのまま返す（changed: false）。返答タスクも作れない（頼んだタスクに結び付いている）なら 409
+   */
+  backToTurnItem(workItemId: string, followUpId?: string): { row: FollowUpRow; changed: boolean } {
+    const w = this.sqlite
+      .query<{ id: string }, [string]>(
+        "SELECT id FROM work_item WHERE id = ? AND deleted_at IS NULL",
+      )
+      .get(workItemId);
+    if (!w) throw new OpError(404, "work_item not found");
+    const asked = (r: FollowUpRow) =>
+      r.status === "open" &&
+      askedBackPending(this.sqlite, { ...r, returned_at: r.returned_at ?? null });
+    let target: FollowUpRow | null = null;
+    if (followUpId) {
+      target = this.#followUp(followUpId);
+      if (target.work_item_id !== workItemId) throw new OpError(404, "follow_up not found");
+    } else {
+      const live = this.sqlite
+        .query<FollowUpRow, [string]>(
+          "SELECT * FROM follow_up WHERE work_item_id = ? AND status IN ('open', 'snoozed') AND deleted_at IS NULL ORDER BY trigger_at DESC",
         )
-        .get(row.task_id);
-      if (task?.status === "done")
-        updateRow(this.mutate, schema.task, row.task_id, {
-          status: "todo",
-          completedAt: null,
-          autoCompleted: 0,
-        });
-      const est = derive.estimateResponse(row.engaged_at, row.closed_at);
-      for (const e of this.sqlite
-        .query<{ id: string }, [string, number, number]>(
-          "SELECT id FROM task_time_entry WHERE task_id = ? AND source = 'followup_estimate' AND start_at = ? AND end_at = ? AND deleted_at IS NULL",
-        )
-        .all(row.task_id, est.start, est.end))
-        softDelete(this.mutate, schema.taskTimeEntry, e.id);
+        .all(workItemId);
+      target =
+        live.find(asked) ??
+        live[0] ??
+        this.sqlite
+          .query<FollowUpRow, [string]>(
+            "SELECT * FROM follow_up WHERE work_item_id = ? AND deleted_at IS NULL ORDER BY COALESCE(closed_at, trigger_at) DESC, trigger_at DESC LIMIT 1",
+          )
+          .get(workItemId);
     }
+    if (target && (target.status === "snoozed" || (target.status === "open" && !asked(target))))
+      return { row: target, changed: false };
+    if (!target) {
+      const r = this.createReplyTask(workItemId);
+      if (!r.row) throw new OpError(409, "work_item is linked to a task");
+      target = r.row;
+    }
+    return { row: this.backToTurn(target.id), changed: true };
+  }
+
+  /**
+   * 自分の番に戻す（Issue #3）: 閉じた行（完了・対応不要・期限切れ・置き換え。自動でも手でも）と問い返し中の行を open に戻し、
+   * returned_at を今にする。戻した行は手で閉じるか、この後にそのカードで新しいターン（新しい記録）が始まるまで自動では
+   * 閉じない（core の reconcileFollowUps）。題名・トリガはそのまま。スヌーズは外す
+   */
+  backToTurn(id: string): FollowUpRow {
+    const row = this.#followUp(id);
+    const now = this.clock.now();
+    updateRow(this.mutate, schema.followUp, id, {
+      status: "open",
+      closedAt: null,
+      closeReason: null,
+      snoozeUntil: null,
+      returnedAt: now,
+    });
+    if (row.status !== "open" && row.status !== "snoozed") this.#reopenTask(row);
     this.onChanged();
     return this.#followUp(id);
   }

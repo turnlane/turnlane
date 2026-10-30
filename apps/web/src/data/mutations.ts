@@ -933,6 +933,33 @@ export async function createReplyTask(workItemId: string): Promise<void> {
   });
 }
 
+/**
+ * 自分の番に戻す（Issue #3。`u`・ホバー・右クリック）: followUpId を省けば、カードの問い返し中の行 → 最後に閉じた行 →
+ * 無ければ返答タスクを作る（サーバーが決める）。戻した行は手で閉じるか、新しい記録が来て閉じるまで自分の番に残る
+ */
+export async function backToTurn(workItemId: string, followUpId?: string): Promise<void> {
+  const loc = getLocale();
+  try {
+    const r = await unwrap<{ changed: boolean }>(
+      api.api["work-items"][":id"]["back-to-turn"].$post({
+        param: { id: workItemId },
+        json: followUpId ? { followUpId } : {},
+      }),
+    );
+    toast(translate(loc, r.changed ? "toast.backToTurn.done" : "toast.backToTurn.already"));
+  } catch {
+    toast(translate(loc, "toast.backToTurn.failed"));
+  }
+  void queryClient.invalidateQueries({
+    predicate: (x) =>
+      x.queryKey[0] === "board" ||
+      x.queryKey[0] === "queue" ||
+      x.queryKey[0] === "day" ||
+      x.queryKey[0] === "workItem" ||
+      x.queryKey[0] === "task",
+  });
+}
+
 /** AI の作業を手で完了にする・非表示にする（AI 詳細パネルと右クリックメニュー） */
 export async function patchWorkItem(
   id: string,

@@ -4,10 +4,14 @@
  */
 import type { StoredWait, WorkItemDetail, WorkItemStatus } from "@turnlane/core/web";
 import { fmtClock, fmtDuration } from "@turnlane/core/web";
-import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { ChevronRight, RotateCcw } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { useItemActions } from "../actions/item-actions.tsx";
+import { backToTurn } from "../data/mutations.ts";
 import { type MessageKey, useI18n } from "../i18n/index.tsx";
+import { keyHint } from "../keys/keymap.ts";
 import {
+  canBackToTurn,
   type FlowKind,
   type FlowRow,
   flowTotals,
@@ -15,6 +19,7 @@ import {
   isExcluded,
   itemFlow,
 } from "../panel/flow.ts";
+import { HoverToolbar } from "./HoverToolbar.tsx";
 import { Nums } from "./Nums.tsx";
 
 /** 線（確定デザイン Q1 の FLOW_LINE と同じ。稼働中は青、待ちの色は状態で変える、数えない区間は灰の点線） */
@@ -38,7 +43,8 @@ export function FlowSection({
 }: {
   detail: Pick<WorkItemDetail, "turns" | "waits" | "artifacts" | "breakdown"> &
     Partial<Pick<WorkItemDetail, "followUps">> & {
-      workItem: Pick<WorkItemDetail["workItem"], "status">;
+      workItem: Pick<WorkItemDetail["workItem"], "status"> &
+        Partial<Pick<WorkItemDetail["workItem"], "id">>;
     };
   now: number;
   tz: string;
@@ -51,6 +57,11 @@ export function FlowSection({
   const rows = all ? flow.rows : shown;
   const total = flowTotals(detail, now);
   const status = detail.workItem.status;
+  // 自分の番に戻す（Issue #3）: 開いている自分の番が無いときだけ、閉じた行に置く
+  const id = detail.workItem.id;
+  const inTurn = (detail.followUps ?? []).some((f) => f.status === "open");
+  const back = (r: Pick<FlowRow, "kind" | "askedBack"> | "done") =>
+    id !== undefined && (r === "done" ? !inTurn : canBackToTurn(r, inTurn)) ? id : undefined;
   return (
     <section className="flex flex-col gap-2 border-line border-t pt-4" data-testid="flow">
       <h3 className="font-semibold text-fg2 text-meta">{t("queue.flow")}</h3>
@@ -71,14 +82,16 @@ export function FlowSection({
         </button>
       ) : null}
       {rows.map((r) => (
-        <FlowLine key={`${r.kind}-${r.start}`} row={r} status={status} tz={tz} />
+        <FlowLine key={`${r.kind}-${r.start}`} row={r} status={status} tz={tz} backId={back(r)} />
       ))}
       {flow.doneAt !== null ? (
-        <div className="flex items-center gap-3 text-body" data-flow="done">
-          <span className="block w-8 shrink-0" aria-hidden="true" />
-          <span className="w-14 shrink-0 text-fg2">{t("flow.done")}</span>
-          <span className="flex-1 font-mono text-fg2 text-meta">{fmtClock(flow.doneAt, tz)}</span>
-        </div>
+        <BackRow id={back("done")}>
+          <div className="flex items-center gap-3 text-body" data-flow="done">
+            <span className="block w-8 shrink-0" aria-hidden="true" />
+            <span className="w-14 shrink-0 text-fg2">{t("flow.done")}</span>
+            <span className="flex-1 font-mono text-fg2 text-meta">{fmtClock(flow.doneAt, tz)}</span>
+          </div>
+        </BackRow>
       ) : null}
       <div className="mt-1 flex items-center gap-1 border-line border-t pt-3 text-fg2 text-meta">
         <span className="text-fg">
@@ -112,27 +125,83 @@ export function stoppedText(
   return w.text ? `${q(w.text)}${opts}` : "";
 }
 
-function FlowLine({ row, status, tz }: { row: FlowRow; status: WorkItemStatus; tz: string }) {
+/**
+ * 自分の番に戻す（Issue #3）の行の入れ物: id があれば、ホバーのボタン（`u` と同じ）と右クリックのメニューを付ける
+ */
+function BackRow({ id, children }: { id: string | undefined; children: ReactNode }) {
+  const { t } = useI18n();
+  const actions = useItemActions();
+  if (!id) return <>{children}</>;
+  const run = () => void backToTurn(id);
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 右クリックのメニュー（同じ操作はホバーのボタンと u にもある）
+    <div
+      className="group relative"
+      data-back-to-turn=""
+      onContextMenu={(e) => {
+        if (!actions) return;
+        e.preventDefault();
+        actions.openMenu(e.clientX, e.clientY, [
+          {
+            id: "backToTurn",
+            label: t("menu.backToTurn"),
+            icon: RotateCcw,
+            keys: keyHint("backToTurn"),
+            run,
+          },
+        ]);
+      }}
+    >
+      {children}
+      <HoverToolbar
+        buttons={[
+          {
+            id: "backToTurn",
+            icon: RotateCcw,
+            label: t("menu.backToTurn"),
+            keyId: "backToTurn",
+            onClick: run,
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+function FlowLine({
+  row,
+  status,
+  tz,
+  backId,
+}: {
+  row: FlowRow;
+  status: WorkItemStatus;
+  tz: string;
+  backId?: string | undefined;
+}) {
   const { t, locale } = useI18n();
-  // 何を頼んだか / 何で止まったか（保存しているときだけ。1 日の流れとして読めるように。D-218）
+  // 何を頼んだか / 何で止まったか（保存しているときだけ。1 日の流れとして読めるように。D-218）。
+  // 問い返した稼働は「問い返し: …」（Issue #3）
   const note = row.asked
-    ? t("flow.asked", { text: row.asked })
+    ? t(row.askedBack ? "flow.askedBack" : "flow.asked", { text: row.asked })
     : row.stopped
       ? t("flow.stopped", { text: stoppedText(row.stopped, t, locale) })
       : "";
   return (
-    <div className="flex flex-col">
-      <FlowMain row={row} status={status} tz={tz} />
-      {note ? (
-        <span
-          className="truncate pl-11 text-fg2 text-meta"
-          data-flow-note={row.asked ? "asked" : "stopped"}
-          title={note}
-        >
-          {note}
-        </span>
-      ) : null}
-    </div>
+    <BackRow id={backId}>
+      <div className="flex flex-col">
+        <FlowMain row={row} status={status} tz={tz} />
+        {note ? (
+          <span
+            className="truncate pl-11 text-fg2 text-meta"
+            data-flow-note={row.asked ? (row.askedBack ? "asked-back" : "asked") : "stopped"}
+            title={note}
+          >
+            {note}
+          </span>
+        ) : null}
+      </div>
+    </BackRow>
   );
 }
 

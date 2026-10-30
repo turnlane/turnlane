@@ -6,6 +6,8 @@ import type { EpochMs, FollowUpKind, ReadMeta } from "./common.ts";
 export interface AiRunDetail extends AiRun {
   /** このターンを始めた自分の指示の 1 行目（保存しているときだけ。伏せ字の後。ADR 0018） */
   instruction?: string;
+  /** このターンの入力が、前のターンの AI の問いへの問い返しだった（Issue #3。保存した 1 行目で判定） */
+  askedBack?: true;
   toolCalls: number;
   editedFiles: number;
   inputTokens: number | null;
@@ -79,6 +81,7 @@ export interface WorkItemDetail extends ReadMeta {
   followUps: {
     id: string;
     kind: FollowUpKind;
+    /** DB の状態。問い返し中の返答タスクは読み取りの時刻で asked_back（Issue #3） */
     status: string;
     triggerAt: EpochMs;
     closedAt: EpochMs | null;

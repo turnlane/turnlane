@@ -2,7 +2,9 @@
  * runner が DB から事実を読む（phase0-plan 3.2 の「事実の読み込み」）。行 → core/derive の型。
  * 読むだけで書かない。
  */
+
 import type { Database } from "bun:sqlite";
+import { asksBack } from "@turnlane/collectors";
 import type { derive } from "@turnlane/core";
 
 type TurnFact = derive.TurnFact;
@@ -51,6 +53,8 @@ export interface TurnRow {
   edited_files_count: number;
   pending_question: number;
   closing_question: number;
+  /** 保存した自分の指示の 1 行目（ADR 0018。保存していなければ null。loadTurns だけが付ける） */
+  instruction?: string | null;
 }
 
 export interface PrRow {
@@ -85,6 +89,8 @@ export interface FollowUpRow {
   closed_at: number | null;
   close_reason: string | null;
   created_at: number;
+  /** 手で自分の番に戻した時刻（Issue #3。0021。古い行・テストの行には無い） */
+  returned_at?: number | null;
   /** loadFollowUps だけが付ける: タスクの時間ブロックの [作った時刻, 開始] の JSON 配列（D-051） */
   scheduled_json?: string | null;
 }
@@ -120,7 +126,9 @@ export function loadSessions(db: Database): SessionRow[] {
 export function loadTurns(db: Database): TurnRow[] {
   return db
     .query<TurnRow, []>(
-      "SELECT id, session_id, turn_key, work_item_id, started_at, ended_at, duration_ms, local_date, status, ended_with, initiator, git_branch, cwd, edited_files_count, pending_question, closing_question FROM ai_turn ORDER BY started_at, id",
+      `SELECT id, session_id, turn_key, work_item_id, started_at, ended_at, duration_ms, local_date, status, ended_with, initiator, git_branch, cwd, edited_files_count, pending_question, closing_question,
+              (SELECT i.text FROM ai_instruction i WHERE i.turn_id = ai_turn.id) AS instruction
+       FROM ai_turn ORDER BY started_at, id`,
     )
     .all();
 }
@@ -230,6 +238,8 @@ export function toTurnFact(r: TurnRow): TurnFact {
     pendingQuestion: r.pending_question === 1,
     closingQuestion: r.closing_question === 1,
     localDate: r.local_date,
+    // 問い返し（Issue #3）: 保存した指示の 1 行目が問いの形か。保存していなければ判定しない
+    ...(typeof r.instruction === "string" ? { instructionAsks: asksBack(r.instruction) } : {}),
   };
 }
 
@@ -311,5 +321,6 @@ export function toFollowUpFact(r: FollowUpRow): FollowUpFact {
     engagedAt: r.engaged_at,
     closedAt: r.closed_at,
     closeReason: r.close_reason,
+    returnedAt: r.returned_at ?? null,
   };
 }

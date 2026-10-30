@@ -1,5 +1,6 @@
 // 判定ロジック（phase0-plan 3.3）の入口
 export * from "./ai-time.ts";
+export * from "./asked-back.ts";
 export * from "./away.ts";
 export * from "./followups.ts";
 export * from "./grouping.ts";

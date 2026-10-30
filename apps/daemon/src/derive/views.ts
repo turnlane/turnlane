@@ -2,7 +2,9 @@
  * 読み取り用の集計（GET /api/work-items、/api/work-items/:id、/api/queue）。turnlane ai / turnlane queue が使う。
  * 本文は持っていないので、タイトル・状態・時刻・件数だけを返す。
  */
+
 import type { Database } from "bun:sqlite";
+import { asksBack } from "@turnlane/collectors";
 import {
   addDays,
   dayStartMs,
@@ -414,10 +416,13 @@ export function queue(db: Database, settings: TurnlaneSettings, now: number): Qu
         title_params: string | null;
         artifact_ref: string;
         scheduled_json: string | null;
+        trigger_turn_id: string | null;
+        returned_at: number | null;
       },
       []
     >(
       `SELECT f.id, f.work_item_id, f.kind, f.status, f.trigger_at, f.snooze_until, f.engaged_at, f.task_id, f.artifact_ref,
+              f.trigger_turn_id, f.returned_at,
               t.title AS task_title, t.scheduled_date AS task_date, t.title_key, t.title_params,
               (SELECT json_group_array(json_array(b.created_at, b.start_at)) FROM time_block b
                 WHERE f.task_id IS NOT NULL AND b.task_id = f.task_id AND b.deleted_at IS NULL) AS scheduled_json
@@ -471,7 +476,9 @@ export function queue(db: Database, settings: TurnlaneSettings, now: number): Qu
       followUps: mine.map((f) => ({
         id: f.id,
         kind: f.kind as QueueItem["followUps"][number]["kind"],
-        ...scheduledStatus(f.status, f.scheduled_json, now),
+        ...(askedBackPending(db, f)
+          ? { status: "asked_back" as const }
+          : scheduledStatus(f.status, f.scheduled_json, now)),
         ...(f.kind === "reply" && f.artifact_ref.endsWith(derive.ASK_REF_SUFFIX)
           ? { ask: true }
           : {}),
@@ -503,6 +510,56 @@ export function queue(db: Database, settings: TurnlaneSettings, now: number): Qu
   // needs_input → error → your_turn。カードの状態がそれ以外（running など）でもタスクがあれば your_turn の扱い
   const r = (s: string) => rank[s] ?? 2;
   return out.sort((a, b) => r(a.status) - r(b.status) || a.waitingSince - b.waitingSince);
+}
+
+/**
+ * 問い返し中（Issue #3。ADR 0020）: 返答タスクの問いに利用者が問いで返し、AI がそれに答えている間は status を asked_back に
+ * する（DB は open のまま、読み取りの時刻で決める）。帯・件数・通知・後でには出さない。手で戻した行は対象外
+ */
+export function askedBackPending(
+  db: Database,
+  f: {
+    kind: string;
+    artifact_ref: string;
+    trigger_turn_id: string | null;
+    returned_at: number | null;
+  },
+): boolean {
+  if (f.kind !== "reply" || f.returned_at !== null || !f.trigger_turn_id) return false;
+  if (f.artifact_ref.endsWith(derive.ASK_REF_SUFFIX)) return false;
+  return askedBackOfTurn(db, f.trigger_turn_id) === "pending";
+}
+
+/** 問いを出したターンの後の人の入力から、問い返しの段階（core の askedBackOf） */
+export function askedBackOfTurn(db: Database, triggerTurnId: string): derive.AskedBack | null {
+  const rows = db
+    .query<
+      {
+        id: string;
+        status: string;
+        ended_at: number | null;
+        ended_with: string | null;
+        closing_question: number;
+        text: string | null;
+      },
+      [string]
+    >(
+      `SELECT t.id, t.status, t.ended_at, t.ended_with, t.closing_question, i.text
+       FROM ai_turn tr JOIN ai_turn t ON t.session_id = tr.session_id AND t.started_at > tr.started_at
+       LEFT JOIN ai_instruction i ON i.turn_id = t.id
+       WHERE tr.id = ? AND t.initiator IN ('human', 'queued') ORDER BY t.started_at`,
+    )
+    .all(triggerTurnId);
+  // Stop の hook などで終わったとみなせるターン（記録に終わりが無い）は、返答なしで終わったものとして戻す
+  const ends = hookEndsOf(db, rows);
+  return derive.askedBackOf(
+    rows.map((r) => ({
+      status: (ends.has(r.id) ? "completed" : r.status) as derive.TurnFact["status"],
+      endedWith: r.ended_with as derive.TurnFact["endedWith"],
+      closingQuestion: r.closing_question === 1,
+      ...(r.text !== null ? { instructionAsks: asksBack(r.text) } : {}),
+    })),
+  );
 }
 
 /**
@@ -964,7 +1021,7 @@ export function workItemDetail(
   const turns = withHookEnds(db, turnRows);
   // 保存した中身（ADR 0018）は設定がオンのときだけ出す
   const stored = settings.storeDetail;
-  const runs: AiRunDetail[] = turns.map((t) => {
+  const runs: AiRunDetail[] = turns.map((t, i) => {
     const open = t.status === "running" && t.ended_at === null;
     let calls = 0;
     try {
@@ -986,6 +1043,13 @@ export function workItemDetail(
       tool: t.tool,
       ...(stored && cleanSubject(t.instruction)
         ? { instruction: cleanSubject(t.instruction) as string }
+        : {}),
+      // 問い返し（Issue #3）: 前のターンが AI の問いで終わり、この入力の 1 行目が問いの形
+      ...(stored &&
+      t.instruction &&
+      turns[i - 1]?.ended_with === "question" &&
+      asksBack(t.instruction)
+        ? { askedBack: true as const }
         : {}),
     };
   });
@@ -1019,15 +1083,23 @@ export function workItemDetail(
         triggerAt: number;
         closedAt: number | null;
         closeReason: string | null;
+        artifact_ref: string;
+        trigger_turn_id: string | null;
+        returned_at: number | null;
       },
       [string]
     >(
-      "SELECT id, kind, status, trigger_at AS triggerAt, closed_at AS closedAt, close_reason AS closeReason FROM follow_up WHERE work_item_id = ? AND deleted_at IS NULL ORDER BY trigger_at",
+      "SELECT id, kind, status, trigger_at AS triggerAt, closed_at AS closedAt, close_reason AS closeReason, artifact_ref, trigger_turn_id, returned_at FROM follow_up WHERE work_item_id = ? AND deleted_at IS NULL ORDER BY trigger_at",
     )
     .all(id)
-    .map((f) => {
+    .map(({ artifact_ref, trigger_turn_id, returned_at, ...f }) => {
       const w = stored ? storedWaitOf(db, f.id) : null;
-      return w ? { ...f, wait: w } : f;
+      // 問い返し中（Issue #3）は読み取りの時刻で asked_back
+      const asked =
+        f.status === "open" &&
+        askedBackPending(db, { kind: f.kind, artifact_ref, trigger_turn_id, returned_at });
+      const g = asked ? { ...f, status: "asked_back" } : f;
+      return w ? { ...g, wait: w } : g;
     });
   const segs = db
     .query<

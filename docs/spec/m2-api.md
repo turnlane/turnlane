@@ -91,6 +91,7 @@ M2（ボード UI）で画面が読む API、更新の配信（SSE）、タス�
 | `e` 対応不要 | `POST /api/follow-ups/:id/dismiss`、複数は `POST /api/follow-ups/bulk-dismiss {ids}` | する |
 | `Space` 完了 | `POST /api/follow-ups/:id/complete` | する（取り消し線で残す） |
 | 完了の取り消し（知らせの「元に戻す」・⌘Z。D-139 (3)） | `POST /api/follow-ups/:id/reopen`（手での完了だけを open に戻す。スヌーズ中に完了したもので、その時刻がまだ来ていなければ同じ時刻までのスヌーズに戻す。一緒に閉じたタスク（頼んだタスク以外）は未完了に戻し、完了で足した応答の実績 `followup_estimate` を消す。open / snoozed ならそのまま、それ以外は 409） | しない（応答の後に再取得） |
+| `u` 自分の番に戻す（AI カード・流れの閉じた行・今日閉じた行。Issue #3） | `POST /api/work-items/:id/back-to-turn { followUpId? }`（応答 `{rev, followUp, changed}`。36章） | しない（応答の後に再取得） |
 | `y` 返答タスクを作る（AI カード。D-066 (2)） | `POST /api/work-items/:id/reply-task`（応答 `{rev, followUp, created, taskId}`。open / snoozed の reply か、開いているタスクが結び付いていれば作らずそのタスクを返す。phase0-plan 3.3） | しない（応答の後に再取得） |
 | `m` 明日（シャットダウン・朝、YOUR TURN 帯・キュー） | `POST /api/follow-ups/:id/defer`（タスクを次の稼働日へ移し、その日の計画上の勤務開始までスヌーズ。D-052 (1)・D-064。11章） | する（帯・キューから消す） |
 | 今やる（自分の番の画面の「後で」の行。スヌーズ解除） | `POST /api/follow-ups/:id/wake`（スヌーズを外して open に戻す。`m` で次の稼働日へ移したタスクは今日へ戻す。時間に置いた開始の前なら、開始の来ていない時間ブロックを消し、置いてから今までをスヌーズの区間として `snoozes_json` に残す（放置に数え直さない）。応答は defer と同じ形で `snoozeUntil: null`。32章） | する（後でから帯へ戻す） |
@@ -1406,3 +1407,11 @@ AI の詳細パネルの「最後の返答」の下の入力欄から、待ち�
 - 送る前の条件（順に見て、最初に当たった理由で `409 { error }`。送らない）: 設定 `turn.answer` がオフ → `off`、最後のセッションのプロセスが終わっている → `session_ended`（端末を探しに行かない）、確かめられない（Codex・Claude Desktop）→ `process_unknown`、開いている待ちがある → `wait_open`、記録の末尾がターンの終わりでない → `turn_in_progress`、記録が無い・読めない → `unreadable`、届け先が決まらない → 答えると同じ `unsupported` / `not_found`（`not_live` は `session_ended`）
 - 文は答えると同じく制御文字を除き、改行を送れない届け先では 1 行に畳む。文は保存しない。ログは `instruction.sent`（`chars`・`via`・`confirmed`・`folded`）だけ
 - web: 入力欄 1 つ（⌘⏎ で送る）と「送る · <届け先>」。送れない理由は 1 行（終わった: 「端末で開く」、待ちがある: 「答える」）。送った後はその項目の次の取り込み（状態・最後の活動が変わる）まで「12:34 に送りました · 確認済み」（web の状態だけ）
+
+## 36. 問い返しと自分の番に戻す（Issue #3。2026-10-30。ADR 0020、[ux-mvp.md](ux-mvp.md) 4.6）
+
+- **`asked_back`**: `GET /api/queue` の item の `followUps[].status` と `GET /api/work-items/:id` の `followUps[].status` に、読み取りの時刻で決める `asked_back`（問い返し中）を足した。返答タスク（`reply`。AskUserQuestion の `<turn>:ask` は除く）で、問いのターンの後の同じセッションの人の入力がすべて問いの形（collectors の `asksBack`。保存した `ai_instruction.text` で判定）で、最後のその入力のターンがまだ終わっていない（記録の終わりも、Stop などの hook で終わったとみなせる時刻も無い）とき。DB は `open` のまま。手で戻した行（`returned_at` あり）は対象外。`visibleQueue` は `open` だけなので、帯・件数・通知・MCP・拡張には入らず、「後で」（`snoozed` / `scheduled`）にも入らない。判定は daemon の `askedBackPending`・core の `derive.askedBackOf`
+- `WorkItemDetail.turns[].askedBack?: true`: そのターンの入力が、前のターンの AI の問いへの問い返しだった（指示の 1 行目を保存しているときだけ）。web の流れはこの稼働の補足を「問い返し: …」にする
+- 自動で閉じる規則（phase0-plan 3.3）: 問い返しの入力は返答に数えない（`auto:human_input` の時刻は、問いの形でない最初の人の入力）。問い返しのターンが新しい問い（締めの問いを除く）で終わったら `superseded`・`auto:asked_back_replaced`
+- **`POST /api/work-items/:id/back-to-turn`** `{ followUpId? }` → `{ rev, followUp: FollowUpView, changed: boolean }`。対象は `followUpId`（そのカードの行でなければ 404）、省けばカードの問い返し中の行 → 開いている行・スヌーズ中の行があればそれ（`changed: false`。何もしない）→ 最後に閉じた行（`closed_at` の新しい順）→ どれも無ければ返答タスクを作る（`reply-task` と同じ。頼んだタスクに結び付いていて作れなければ 409）。対象を `open` にし、`closed_at`・`close_reason`・`snooze_until` を外して `returned_at = now`（マイグレーション 0021 の列）。閉じたときに一緒に完了にしたタスクは未完了に戻し、完了で足した応答の実績（`followup_estimate`）を消す（`reopen` と同じ）。カードが無ければ 404
+- 戻した行（`returned_at` あり）は、手で閉じる（完了・対応不要）か、`returned_at` より後にそのカードで新しいターンが始まって `done`・`auto:new_record`（時刻はそのターンの始まり）で閉じるまで残る。人の入力・シグナル（PR・コミット）・状態の変化（`status_left`）・期限（72 時間）では閉じない

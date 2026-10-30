@@ -159,6 +159,9 @@ export type CheckTaskInput = z.infer<typeof checkTaskInput>;
 /** POST /api/work-items/:id/merge（統合。phase0-plan 3.4、m2-api 19章） */
 export const mergeWorkItemInput = z.object({ intoId: id });
 
+/** POST /api/work-items/:id/back-to-turn（自分の番に戻す。followUpId を省けばカードの問い返し中の行 → 最後に閉じた行） */
+export const backToTurnInput = z.object({ followUpId: id.optional() });
+
 /** POST /api/follow-ups/:id/defer（`m` 明日。date を渡せばその日。m2-api 19章） */
 export const deferFollowUpInput = z.object({ date: localDate.optional() });
 

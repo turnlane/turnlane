@@ -3,6 +3,7 @@
 // このパッケージは他の @turnlane/* / Drizzle / Hono / zod / DB を import しない（biome.json で検査）。
 
 export { pickAllowed } from "./allowlist.ts";
+export { asksBack } from "./asks-back.ts";
 export {
   endsWithQuestion,
   isClosingQuestion,

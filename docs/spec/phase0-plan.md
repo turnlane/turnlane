@@ -651,14 +651,15 @@ CREATE TABLE follow_up (
   task_id          TEXT REFERENCES task(id),
   engaged_at       INTEGER,                            -- キューで ⏎（外部を開いた）
   closed_at        INTEGER,
-  close_reason     TEXT,                               -- 'auto:human_input' / 'auto:pr_merged' / 'auto:pr_reviewed' / 'auto:next_turn_ok' / 'manual' / 'dismissed' / 'superseded'
+  close_reason     TEXT,                               -- 'auto:human_input' / 'auto:pr_merged' / 'auto:pr_reviewed' / 'auto:next_turn_ok' / 'auto:new_record' / 'auto:asked_back_replaced' / 'manual' / 'dismissed' / 'superseded'
                                                        -- / 'auto:resolved:commit' / 'auto:resolved:new_session' / 'auto:resolved:pr_merged'（解決済み（推定））/ 'auto:expired'（3.3.1）
   created_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL,
   hlc              TEXT NOT NULL,
   device_id        TEXT NOT NULL,
   deleted_at       INTEGER,
-  sync_scope       TEXT NOT NULL DEFAULT 'local_only' CHECK (sync_scope IN ('synced', 'local_only'))
+  sync_scope       TEXT NOT NULL DEFAULT 'local_only' CHECK (sync_scope IN ('synced', 'local_only')),
+  returned_at      INTEGER                             -- 閉じた行を利用者が手で自分の番に戻した時刻（Issue #3。0021）。手で閉じるか、この後に新しいターンが始まるまで自動では閉じない
 );
 CREATE UNIQUE INDEX follow_up_dedupe_uq ON follow_up(dedupe_key);   -- dismissed も残すので再生成されない
 CREATE INDEX        follow_up_task_idx  ON follow_up(task_id) WHERE task_id IS NOT NULL;   -- AI に頼んだタスクには自分の番が何度も付くので一意にしない（D-107。0010）

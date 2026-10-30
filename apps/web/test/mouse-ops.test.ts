@@ -113,12 +113,13 @@ describe("右クリックメニュー（UX 監査 A1。5.P3）", () => {
     expect(ids(m)).toEqual(["open", "openWith", "detail", "complete", "move", "snooze", "dismiss"]);
     expect(m.at(-1)).toMatchObject({ danger: true, sep: true });
   });
-  test("AI の作業: 開く・詳細・他の開き方・返答タスク・完了にする・非表示", () => {
+  test("AI の作業: 開く・詳細・他の開き方・返答タスク・自分の番に戻す・完了にする・非表示", () => {
     expect(ids(menuSpec([ai]))).toEqual([
       "open",
       "detail",
       "openWith",
       "replyTask",
+      "backToTurn",
       "aiDone",
       "aiHide",
     ]);

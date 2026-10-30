@@ -212,6 +212,14 @@ describe("キーと操作", () => {
 
   test("下の節の行の右クリックは AI の作業のメニュー（開く・詳細・他の開き方・完了にする・非表示）", () => {
     const ids = menuSpec([{ kind: "ai", id: "w1", title: "x" }]).map((m) => m.id);
-    expect(ids).toEqual(["open", "detail", "openWith", "replyTask", "aiDone", "aiHide"]);
+    expect(ids).toEqual([
+      "open",
+      "detail",
+      "openWith",
+      "replyTask",
+      "backToTurn",
+      "aiDone",
+      "aiHide",
+    ]);
   });
 });

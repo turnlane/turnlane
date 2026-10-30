@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Your turn: when you answer an AI's question with a question of your own ("how do I see that?"), the question stays open instead of closing. It leaves Your turn while the AI answers you and comes back under its own title when the AI is done, unless the AI asks something new, which then takes its place. The item's flow shows such a run as "Asked back: …". This uses the saved first line of your input, so it needs the setting "Keep what the AI waited on" (on by default).
+- "Back to Your turn" (`u`, or the hover button and right-click on closed rows, the item's flow and the AI item menu) puts a closed item back on Your turn. It stays there until you close it or a new turn starts in that session.
+
 ## [0.7.4] - 2026-10-29
 
 ### Fixed

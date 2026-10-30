@@ -312,6 +312,9 @@ export const en = {
   "toast.replyTask.exists": "A reply task is already open.",
   "toast.replyTask.linked": "This is already a task.",
   "toast.replyTask.failed": "Couldn't create a reply task.",
+  "toast.backToTurn.done": "Put back on Your turn.",
+  "toast.backToTurn.already": "It's already on Your turn.",
+  "toast.backToTurn.failed": "Couldn't put it back on Your turn.",
 
   // 入力
   "task.newPlaceholder": "New task — e.g. Write outline tomorrow 30m #blog",
@@ -352,6 +355,7 @@ export const en = {
   "flow.closed": "Day closed",
   "flow.no_task": "No task",
   "flow.asked": "Asked: {text}",
+  "flow.askedBack": "Asked back: {text}",
   "flow.stopped": "Stopped on: {text}",
   "flow.scheduled": "Before start",
   "flow.expired": "Expired",
@@ -487,6 +491,7 @@ export const en = {
   "keys.dismiss": "Not needed",
   "keys.openWith": "Open with…",
   "keys.replyTask": "Create a reply task (AI item)",
+  "keys.backToTurn": "Back to Your turn (AI item, closed row)",
   "keys.select": "Add to selection",
   "keys.delete": "Delete",
   "keys.undo": "Undo",
@@ -1123,6 +1128,7 @@ export const en = {
   "menu.openWith": "Open with…",
   "menu.openAi": "Open",
   "menu.reply": "Create a reply task",
+  "menu.backToTurn": "Back to Your turn",
   "menu.aiDone": "Mark as done",
   "menu.aiHide": "Hide",
   "menu.eventOpen": "Open in Calendar",

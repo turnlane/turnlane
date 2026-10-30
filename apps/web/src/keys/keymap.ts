@@ -92,6 +92,8 @@ export const ALL_KEYS: readonly KeyDef[] = [
   { id: "openWith", keys: ["o"], scope: "list", label: "keys.openWith" },
   // AI カード: 返答タスクを手で作る（D-066 (2)）。他の開き方のメニューの中でも同じキー
   { id: "replyTask", keys: ["y"], scope: "list", label: "keys.replyTask" },
+  // 自分の番に戻す（Issue #3）: 閉じた行・問い返し中の行（AI カード・詳細パネル）を自分の番へ。手で閉じるか新しい記録まで残る
+  { id: "backToTurn", keys: ["u"], scope: "list", label: "keys.backToTurn" },
   // Turnlane から答える（D-238）: 自分の番の待ち（問い・許可）の「答える」の節を開く
   { id: "answer", keys: ["a"], scope: "list", label: "keys.answer" },
   { id: "select", keys: ["x"], scope: "list", label: "keys.select" },

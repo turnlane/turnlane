@@ -647,7 +647,7 @@ exports[`スキーマ スナップショット（sqlite_master） 1`] = `
 	\`hlc\` text NOT NULL,
 	\`device_id\` text NOT NULL,
 	\`deleted_at\` integer,
-	\`sync_scope\` text DEFAULT 'local_only' NOT NULL,
+	\`sync_scope\` text DEFAULT 'local_only' NOT NULL, \`returned_at\` integer,
 	FOREIGN KEY (\`work_item_id\`) REFERENCES \`work_item\`(\`id\`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (\`trigger_turn_id\`) REFERENCES \`ai_turn\`(\`id\`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (\`task_id\`) REFERENCES \`task\`(\`id\`) ON UPDATE no action ON DELETE no action,

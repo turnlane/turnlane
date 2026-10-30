@@ -21,5 +21,6 @@
 | [0017](./0017-extension-api-version-rule.md) | 拡張点の版（EXT_API_VERSION）は、足すときは上げず、変える・消すときに上げる | Accepted（Amends 0015） |
 | [0018](./0018-bounded-local-storage-of-wait-details.md) | 会話の文は Mac の外に出さない。手元には限定した待ちの中身（指示の 1 行目・問い・許可のコマンド・エラーの種類）だけを保存する | Accepted（Amends 0005。D-218） |
 | [0019](./0019-answer-from-turnlane.md) | Turnlane から答える: 答えは端末のタブに文字として届ける。自動では送らない（問いの全文は表示の瞬間に読み、答えは保存しない） | Accepted（D-238） |
+| [0020](./0020-asked-back-and-back-to-turn.md) | 問い返しは閉じずに待つ（保存した指示の 1 行目で判定。パーサの版は上げない）。閉じた行は手で自分の番に戻せる | Accepted（Issue #3） |
 
 形式: Context / Decision / Consequences。決定を変えるときは既存の ADR を書き換えず、新しい ADR を追加して旧 ADR のステータスを `Superseded by NNNN` にする。決定の一部だけを補正する場合は、新しい ADR に `Amends NNNN`、旧 ADR に `Amended by NNNN` と書いて相互にリンクし、旧 ADR の残りの決定は有効のままとする。

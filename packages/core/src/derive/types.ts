@@ -22,6 +22,11 @@ export interface TurnFact {
   pendingQuestion: boolean;
   closingQuestion: boolean;
   localDate: string;
+  /**
+   * 人の入力のターンで、その入力の 1 行目（保存した指示の 1 行目。ADR 0018）が問いの形（問い返し。Issue #3）。
+   * 保存していなければ省略（問い返しとみなさない）
+   */
+  instructionAsks?: boolean | undefined;
 }
 
 export interface SessionFact {
@@ -140,6 +145,10 @@ export interface FollowUpFact {
   closeReason: string | null;
   /** 行を作った時刻（YOUR TURN に出た時刻。D-045 (1)。初回の取り込みで作ったタスクを過去に遡って数えないため） */
   createdAt?: number | null;
+  /**
+   * 閉じた行を利用者が手で自分の番に戻した時刻（Issue #3）。手で閉じるか、この後に新しいターンが始まるまで自動では閉じない
+   */
+  returnedAt?: number | null;
 }
 
 /** 1枚のカード（WorkItem）の判定に要る事実 */

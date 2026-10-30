@@ -20,8 +20,10 @@ export interface QueueFollowUp {
   /**
    * scheduled = 時間に置いた自分の番の開始の前（タスクの時間ブロックを作ってから開始まで。DB の状態は open のまま、
    * 読み取りの時刻で決める）。帯・件数・通知には入れず「後で」に出す。開始の時刻は scheduledAt
+   * asked_back = 問い返し中（Issue #3）: 返答タスクの問いに問いで返し、AI がそれに答えている間（DB は open のまま、読み取りの
+   * 時刻で決める）。帯・件数・通知・後でに出さない。AI の答えが問いでなければ open に戻る
    */
-  status: "open" | "snoozed" | "scheduled";
+  status: "open" | "snoozed" | "scheduled" | "asked_back";
   /** status が scheduled のとき、帯に戻る時刻（時間ブロックの開始） */
   scheduledAt?: EpochMs;
   /** タスクの題名（読み取り時に解決。6.1） */

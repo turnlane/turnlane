@@ -18,6 +18,7 @@
  * needs_input は hooks の有無によらず必ずタスクにする（D-049 (1)。AI が自分を待っている瞬間を YOUR TURN と通知に出す）。
  */
 import type { FollowUpKindSetting, TurnlaneSettings } from "../settings.ts";
+import { answeringInputAfter, askedBackOfFollowUp, turnAfterReturn } from "./asked-back.ts";
 import {
   askRef,
   humanInputAfter,
@@ -242,7 +243,8 @@ export function replyClosure(
   const trigger = f.turns.find((t) => t.id === fu.triggerTurnId);
   const candidates: { reason: string; at: number }[] = [];
   if (trigger) {
-    const human = humanInputAfter(f, trigger.sessionId, trigger.startedAt);
+    // 問いで返した入力（問い返し。Issue #3）は返答に数えない
+    const human = answeringInputAfter(f, trigger.sessionId, trigger.startedAt);
     if (human !== null) candidates.push({ reason: "auto:human_input", at: human });
   }
   // 問いを出したセッションのプロセスが生きている（busy / idle）間は、コミットと別セッションを兆候にしない（同じ
@@ -297,9 +299,35 @@ export function reconcileFollowUps(
   const live = f.followUps.filter((x) => LIVE.includes(x.status));
   const closed = new Set<string>();
 
+  // 手で自分の番に戻した行（Issue #3）: 手で閉じるか、戻した後に新しいターン（新しい記録）が始まるまで自動では閉じない
+  for (const fu of live) {
+    if (fu.returnedAt === null || fu.returnedAt === undefined) continue;
+    const t = turnAfterReturn(f, fu);
+    if (t)
+      actions.push({
+        type: "close",
+        id: fu.id,
+        status: "done",
+        reason: "auto:new_record",
+        at: t.startedAt,
+      });
+    closed.add(fu.id);
+  }
+  // 問い返し（Issue #3）: AI の答えが新しい問いで終わったら、その問いが置き換える（新しい返答タスクは猶予の後にできる）
+  for (const fu of live) {
+    if (closed.has(fu.id) || askedBackOfFollowUp(f, fu) !== "replaced") continue;
+    actions.push({
+      type: "close",
+      id: fu.id,
+      status: "superseded",
+      reason: "auto:asked_back_replaced",
+      at: now,
+    });
+    closed.add(fu.id);
+  }
   // 返答タスクは「あるべき」かどうかに関係なく、返答済み・解決の兆候・期限切れで閉じる
   for (const fu of live) {
-    if (fu.kind !== "reply") continue;
+    if (fu.kind !== "reply" || closed.has(fu.id)) continue;
     const c = replyClosure(fu, f, now, settings, signals);
     if (c) {
       actions.push({ type: "close", id: fu.id, ...c });
@@ -309,7 +337,13 @@ export function reconcileFollowUps(
   // 再開タスクは、まだエラーのまま（あるべき集合にある）で72時間たったら期限切れ（D-045 (3)）。上限待ちが明けた後の
   // 再開（`:limit`）は期限なし（ほかの待ちと同じく、再開するか対応不要にするまで残す。日をまたいでも残る）
   for (const fu of live) {
-    if (fu.kind !== "resume_error" || !want.has(fu.dedupeKey) || isLimitResume(fu)) continue;
+    if (
+      fu.kind !== "resume_error" ||
+      !want.has(fu.dedupeKey) ||
+      isLimitResume(fu) ||
+      closed.has(fu.id)
+    )
+      continue;
     const expireAt = fu.triggerAt + settings.replyExpireMs;
     if (now >= expireAt) {
       actions.push({
@@ -359,6 +393,8 @@ export function reconcileFollowUps(
     if (closed.has(fu.id) || want.has(fu.dedupeKey)) continue;
     // 手で作った返答タスクは「あるべき集合」に入らないが、上の返答の閉じ方（返答済み・解決・期限切れ）でだけ閉じる
     if (isManualReply(fu)) continue;
+    // 問い返し中・問い返しから戻った返答タスクは、状態を外れても閉じない（AI の答えの後に自分の番に戻す。Issue #3）
+    if (askedBackOfFollowUp(f, fu) !== null) continue;
     const close = (status: "done" | "expired" | "superseded", reason: string, at = now) => {
       actions.push({ type: "close", id: fu.id, status, reason, at });
       closed.add(fu.id);

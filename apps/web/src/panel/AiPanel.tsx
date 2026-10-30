@@ -22,6 +22,7 @@ import {
   GitBranch,
   GitPullRequest,
   MessagesSquare,
+  RotateCcw,
   Undo2,
 } from "lucide-react";
 import { useState } from "react";
@@ -37,6 +38,7 @@ import { SdkChip, viaSdk } from "../components/ui.tsx";
 import { useAnswerEnabled } from "../data/answer.ts";
 import { useGlance, useItemGlance } from "../data/glance.ts";
 import {
+  backToTurn,
   completeFollowUp,
   createReplyTask,
   deferFollowUp,
@@ -67,6 +69,12 @@ export function AiPanel() {
     replyTask: () => {
       if (!id) return false;
       void createReplyTask(id);
+      return true;
+    },
+    // u: 自分の番に戻す（Issue #3）。閉じた行・問い返し中の行を戻す（どれを戻すかはサーバーが決める）
+    backToTurn: () => {
+      if (!id) return false;
+      void backToTurn(id);
       return true;
     },
   });
@@ -315,6 +323,18 @@ function Actions({
       keys: keyHint("replyTask"),
       run: () => void createReplyTask(id),
     };
+    // 自分の番に戻す（Issue #3）: 開いている自分の番が無いとき（閉じた・問い返し中・完了したカード）
+    const back: MenuEntry[] = fu
+      ? []
+      : [
+          {
+            id: "backToTurn",
+            label: t("menu.backToTurn"),
+            icon: RotateCcw,
+            keys: keyHint("backToTurn"),
+            run: () => void backToTurn(id),
+          },
+        ];
     const hide: MenuEntry = {
       id: "hide",
       label: t("ai.hide"),
@@ -330,10 +350,11 @@ function Actions({
           icon: Undo2,
           run: () => void patchWorkItem(id, { manualDone: false }),
         });
+      out.push(...back);
       out.push({ ...hide, sep: out.length > 0 });
       return out;
     }
-    if (st === "running") return [done(), makeTask, { ...hide, sep: true }];
+    if (st === "running") return [done(), makeTask, ...back, { ...hide, sep: true }];
     // 自分の番・ブロック中・エラー・PR の確認待ち
     if (head.primaryPr || d.workItem.reason === "edits") out.push(done());
     if (fu) out.push(snooze(fu.id));
@@ -345,7 +366,7 @@ function Actions({
         keys: keyHint("move"),
         run: () => void deferFollowUp(fu.id, nextWeekday(d.today)),
       });
-    out.push(makeTask);
+    out.push(makeTask, ...back);
     if (!(head.primaryPr || d.workItem.reason === "edits")) out.push(done());
     if (fu)
       out.push({
