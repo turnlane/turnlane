@@ -460,29 +460,41 @@ try {
     red.exitCode === 0 && redText.startsWith("Turnlane diagnostics") && !redText.includes(home),
   );
 
-  // M6-12: 更新確認（偽の確認先）。オフなら接続しない。オンなら GET だけ（User-Agent turnlane/<版>、Cookie なし）
+  // M6-12: 更新確認（偽の確認先）。update.check=false なら自動の確認はしない。今すぐ確認（POST /api/update/check）は
+  // オフでも押したときだけ 1 回 GET する（User-Agent turnlane/<版>、Cookie なし）。オンに戻しても同じく 1 回ずつ
+  // 設定はデーモン経由なので起動してから切る（自動の初回確認は起動の 60 秒後なので、ここまでに要求は無い）
   const c = await startDaemon();
   check("turnlaned restarts for the update check", c.healthy);
+  const cfgOff = Bun.spawnSync([CLI, "config", "set", "update.check", "false"], { env });
+  check(
+    "M6-12: update.check=false → no request before Check now",
+    cfgOff.exitCode === 0 && feedSeen.length === 0,
+  );
   const tok = readToken() ?? "";
   const upd = (method: string) =>
     fetch(`${base}/api/update${method === "POST" ? "/check" : ""}`, {
       method,
       headers: { authorization: `Bearer ${tok}` },
     });
-  Bun.spawnSync([CLI, "config", "set", "update.check", "false"], { env });
   const off = await upd("POST");
-  check("M6-12: update.check=false → no request", off.status === 409 && feedSeen.length === 0);
-  Bun.spawnSync([CLI, "config", "set", "update.check", "true"], { env });
-  const on = await upd("POST");
-  const onBody = (await on.json()) as { available?: boolean };
+  const offBody = (await off.json()) as { available?: boolean };
   const h0 = feedSeen[0] ?? {};
   check(
-    "M6-12: update check sends one GET with only a turnlane User-Agent",
-    on.ok &&
-      onBody.available === true &&
+    "M6-12: update.check=false → no automatic request, Check now does one GET with only a turnlane User-Agent",
+    off.status === 200 &&
+      offBody.available === true &&
       feedSeen.length === 1 &&
       /^turnlane\/\S+$/.test(h0["user-agent"] ?? "") &&
       h0.cookie === undefined,
+    `${off.status} ${feedSeen.length}`,
+  );
+  Bun.spawnSync([CLI, "config", "set", "update.check", "true"], { env });
+  const on = await upd("POST");
+  const onBody = (await on.json()) as { available?: boolean };
+  check(
+    "M6-12: update.check=true → Check now does a second GET",
+    on.ok && onBody.available === true && feedSeen.length === 2,
+    `${on.status} ${feedSeen.length}`,
   );
   const docU = Bun.spawnSync([CLI, "doctor"], { env }).stdout.toString();
   check("M6-12: turnlane doctor shows the available version", docU.includes("999.0.0"));
