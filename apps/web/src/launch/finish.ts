@@ -39,6 +39,11 @@ export interface FinishSheetState {
   defaults: FinishChoice;
   /** complete = 完了のシート（完了 / 片付けずに完了）、cleanup = 片付けだけ（片付ける / やめる）。省略は complete */
   mode?: "complete" | "cleanup";
+  /**
+   * 片付けの途中（「完了」「片付ける」を押した後、終わるまで）。チェックとボタンを止め、主ボタンを `片付けています…` に
+   * する。waitingAi は AI の終了を待つ（タブを閉じるを選んだ。最長 20 秒）
+   */
+  busy?: { waitingAi: boolean };
 }
 
 /** 完了にするタスクのうち、頼んだ AI があるもの（起動できなかった依頼は除く）。無ければ finish-plan を呼ばない */
@@ -131,20 +136,55 @@ export function getFinishSheet():
   return sheet;
 }
 
-/** シートを出して、選ばれるまで待つ（もう出ていれば前のものを取り消す） */
+/**
+ * シートを出して、選ばれるまで待つ（もう出ていれば前のものを取り消す）。「完了」「片付ける」を選んだら、シートは閉じずに
+ * 片付けの途中の見え方にする（closeFinishSheet で閉じる）
+ */
 export function openFinishSheet(s: FinishSheetState): Promise<FinishDecision> {
   sheet?.resolve({ kind: "cancel" });
   return new Promise((resolve) => {
+    let done = false;
     sheet = {
       ...s,
       resolve: (d) => {
-        sheet = null;
+        if (done) return;
+        done = true;
+        if (d.kind === "finish" && sheet)
+          sheet = { ...sheet, busy: { waitingAi: d.choice.closeTerminal } };
+        else sheet = null;
         emit();
         resolve(d);
       },
     };
     emit();
   });
+}
+
+/** 片付けが終わったらシートを閉じる */
+export function closeFinishSheet(): void {
+  if (!sheet) return;
+  sheet = null;
+  emit();
+}
+
+// ---------- 片付け中のタスク（行の札を `片付け中` にする） ----------
+
+let cleaning: ReadonlySet<string> = new Set();
+const cleaningListeners = new Set<() => void>();
+
+export function subscribeCleaning(l: () => void): () => void {
+  cleaningListeners.add(l);
+  return () => cleaningListeners.delete(l);
+}
+
+/** 片付けの途中のタスクの ID */
+export function getCleaning(): ReadonlySet<string> {
+  return cleaning;
+}
+
+function setCleaning(ids: readonly string[]): void {
+  cleaning = new Set(ids);
+  for (const l of cleaningListeners) l();
 }
 
 async function configValues(): Promise<Record<string, unknown> | undefined> {
@@ -208,8 +248,21 @@ export async function prepareCleanup(taskId: string): Promise<boolean> {
   return true;
 }
 
-/** シートで選んだ片付けを依頼ごとに送り、結果をトーストで知らせる */
+/**
+ * シートで選んだ片付けを依頼ごとに送り、結果をトーストで知らせる。その間シートは片付けの途中の見え方で、タスクの行の札は
+ * `片付け中`。終わったらシートを閉じる
+ */
 async function runFinish(plan: LaunchFinishPlan, choice: FinishChoice): Promise<void> {
+  setCleaning(plan.launches.map((l) => l.taskId));
+  try {
+    await sendFinish(plan, choice);
+  } finally {
+    setCleaning([]);
+    closeFinishSheet();
+  }
+}
+
+async function sendFinish(plan: LaunchFinishPlan, choice: FinishChoice): Promise<void> {
   const locale = getLocale();
   const t: T = (k, p) => translate(locale, k, p);
   if (!choice.closeTerminal && !choice.removeWorktree) return;

@@ -337,7 +337,7 @@ export function TaskCard({
       </div>
       {task.ai && !done && !compact ? (
         // 頼んだ AI の状態（D-107。AI 実行中・自分の番 · 返答・AI 完了 · 確認）
-        <TaskAiLine ai={task.ai} className={indent} />
+        <TaskAiLine ai={task.ai} taskId={task.id} className={indent} />
       ) : null}
       {meta.length > 0 && variant !== "done" && !compact ? (
         <div className={`truncate ${indent} text-fg2 text-meta`}>{meta.join(" · ")}</div>

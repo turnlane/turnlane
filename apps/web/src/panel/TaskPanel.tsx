@@ -1098,7 +1098,7 @@ function TaskAiSection({
   ].filter(Boolean);
   return (
     <PanelSection title={t("taskPanel.aiSection")} testId="task-ai-section">
-      <TaskAiLine ai={ai} />
+      <TaskAiLine ai={ai} taskId={task.id} />
       {where ? <div className="truncate text-fg2 text-meta">{where}</div> : null}
       {ai.state === "failed" && ai.failReason ? (
         <p className="text-fg2 text-meta" data-testid="task-ai-fail">

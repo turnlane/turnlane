@@ -25,7 +25,7 @@ import { imeSuite } from "./ime.e2e.ts";
 import { instructSuite } from "./instruct.e2e.ts";
 import { keymapSuite } from "./keymap.e2e.ts";
 import { laterSuite } from "./later.e2e.ts";
-import { launchSuite } from "./launch.e2e.ts";
+import { finishProgressSuite, launchSuite } from "./launch.e2e.ts";
 import { mouseSuite } from "./mouse.e2e.ts";
 import {
   onboardingAppSuite,
@@ -46,6 +46,7 @@ const SUITES: Suite[] = [
   keymapSuite,
   mouseSuite,
   launchSuite,
+  finishProgressSuite,
   actionsSuite,
   actionsScratchSuite,
   extSuite,

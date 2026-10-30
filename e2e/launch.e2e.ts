@@ -412,6 +412,59 @@ async function instructionGrow(c: Ctx): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/** 完了のシートの片付けの途中（worktree の削除に 2 秒かかる偽の遅延）: 押した瞬間に途中の見え方、終わったら閉じる */
+async function finishProgress(c: Ctx): Promise<void> {
+  const { page, check, board } = c;
+  await page.goto(board.url);
+  await page.waitForSelector('[data-kind="task"]');
+  await page.waitForTimeout(500);
+  const more = page.locator(`[data-testid="unscheduled-more"][data-date="${TODAY}"]`);
+  if ((await more.count()) > 0) {
+    await more.click();
+    await page.waitForTimeout(300);
+  }
+  const title = "README の手順を更新";
+  const card = page.locator('[data-kind="task"]', { hasText: title }).first();
+  await card.scrollIntoViewIfNeeded();
+  await card.hover();
+  await card.locator('[role="checkbox"]').first().click();
+  const sheet = page.getByTestId("finish-sheet");
+  await sheet.waitFor({ timeout: 5000 });
+  await page.getByTestId("finish-confirm").click();
+  await page.waitForTimeout(250);
+  const busy = page.getByTestId("finish-busy");
+  check(
+    "押した瞬間に途中の見え方（スピナーと「片付けています…」、AI の終了を待つ 1 行、チェックとボタンは止まる）",
+    (await busy.count()) === 1 &&
+      (await busy.innerText()).includes("片付けています") &&
+      (await page.getByTestId("finish-busy-note").innerText()).includes("最長 20 秒") &&
+      (await page.getByTestId("finish-close-terminal").isDisabled()) &&
+      (await page.getByTestId("finish-skip").isDisabled()),
+  );
+  const line = card.locator('[data-testid="task-ai"]');
+  check(
+    "途中はタスクの AI の札が「片付け中」",
+    (await line.count()) > 0 && (await line.getAttribute("data-state")) === "cleaning",
+    (await line.count()) > 0 ? ((await line.getAttribute("data-state")) ?? "") : "no line",
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  check("途中は Esc で閉じない", (await sheet.count()) === 1);
+  await sheet.waitFor({ state: "detached", timeout: 15000 });
+  const toasts = await page.locator('[role="status"]').allInnerTexts();
+  check(
+    "終わったらシートを閉じてトースト",
+    (await sheet.count()) === 0 && toasts.some((x) => x.includes("worktree を消しました")),
+    toasts.join(" | "),
+  );
+}
+
+export const finishProgressSuite: Suite = {
+  name: "finish-progress",
+  args: ["--launch", "--lang", "ja", "--finish-delay", "2000"],
+  run: finishProgress,
+};
+
 export const launchSuite: Suite = {
   name: "launch",
   args: ["--launch", "--lang", "ja"],

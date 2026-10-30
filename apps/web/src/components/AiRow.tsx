@@ -5,6 +5,7 @@
  * 詳細パネルで読む）。行は 1 行のまま、幅が足りないときは件名から縮め、右から ソースバッジ → PR → サブ → ブランチ の
  * 順に省く（省いたものは title に）。右端の時間は縮めず、ほかの要素と重ならない
  */
+
 import {
   aiItemSubject,
   cleanupKind,
@@ -27,6 +28,7 @@ import { useItemActions } from "../actions/item-actions.tsx";
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
 import { useGlance, useItemGlance, useSeen } from "../data/glance.ts";
 import { type MessageKey, useI18n } from "../i18n/index.tsx";
+import { useCleaningTasks } from "../launch/TaskAiLine.tsx";
 import { whereName } from "../lib/where.ts";
 import { HoverToolbar, type ToolbarButton } from "./HoverToolbar.tsx";
 import { titleText } from "./items.tsx";
@@ -132,6 +134,7 @@ export function AiRow({
   );
   const answerOn = useAnswerEnabled();
   const actions = useItemActions();
+  const cleaning = useCleaningTasks();
   const x = queueItem ?? liveRow;
   if (!x) return null;
   const fu = rowFollowUp(row);
@@ -176,7 +179,11 @@ export function AiRow({
   } else {
     const l = liveRow as LiveItem;
     title = aiItemSubject(l, itemGlance) ?? whereName(l, t("ai.scratch")) ?? "";
-    label = liveLabel(row.section, l, t, tz);
+    // 完了のときの片付けの途中は `片付け中`（片付けの節の行）
+    label =
+      row.section === "cleanup" && l.launch && cleaning.has(l.launch.taskId)
+        ? t("launch.state.cleaning")
+        : liveLabel(row.section, l, t, tz);
     time = liveTime(row.section, l, now);
     status = l.status;
     estimated = l.estimated || l.process === "unknown";

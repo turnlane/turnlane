@@ -111,7 +111,7 @@ export function InboxRow({
             ) : null}
           </span>
         ) : null}
-        {task.ai && !done ? <TaskAiLine ai={task.ai} /> : null}
+        {task.ai && !done ? <TaskAiLine ai={task.ai} taskId={task.id} /> : null}
       </div>
       {task.estimateMin !== null && !done ? (
         <span className="shrink-0 font-mono text-fg2 text-meta" data-kind="task-estimate">

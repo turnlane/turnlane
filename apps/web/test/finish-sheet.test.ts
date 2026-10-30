@@ -19,6 +19,7 @@ import {
   finishDefaults,
   finishMessages,
   finishRequest,
+  getCleaning,
   getFinishSheet,
   prepareCleanup,
   riskyBranches,
@@ -326,5 +327,61 @@ describe("シートの見た目", () => {
     expect(riskyBranches({ launches: [item("dirty"), item("clean")] })).toEqual([
       "tl/fix-lanes-1234",
     ]);
+  });
+});
+
+describe("片付けの途中（押してから終わるまで）", () => {
+  test("「完了」を押すとシートは閉じずに途中の見え方。片付けの間はタスクが片付け中。終わったら閉じてトースト", async () => {
+    plan = { launches: [item("clean")] };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const inner = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/finish")) await gate;
+      return inner(input, init);
+    }) as typeof fetch;
+    const p = setComplete(task("t1", true), true);
+    (await sheetShown()).resolve({
+      kind: "finish",
+      choice: { closeTerminal: true, removeWorktree: true },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(getFinishSheet()?.busy).toEqual({ waitingAi: true });
+    expect([...getCleaning()]).toEqual(["t1"]);
+    release();
+    await p;
+    expect(getFinishSheet()).toBeNull();
+    expect([...getCleaning()]).toEqual([]);
+    expect(toasts()).toContain("Closed the tab and removed the worktree.");
+  });
+
+  test("途中はチェックとボタンを止め、主ボタンを「片付けています…」、AI の終了を待つ 1 行", () => {
+    for (const [locale, busy, wait] of [
+      ["ja", "片付けています…", "AI の終了を待っています（最長 20 秒）"],
+      ["en", "Cleaning up…", "Waiting for the AI to exit (up to 20 s)"],
+    ] as const) {
+      const out = renderToStaticMarkup(
+        createElement(
+          I18nProvider,
+          { locale } as Parameters<typeof I18nProvider>[0],
+          createElement(FinishSheetView, {
+            state: {
+              plan: { launches: [item("clean")] },
+              defaults: { closeTerminal: true, removeWorktree: true },
+              busy: { waitingAi: true },
+            },
+            onDecide: () => {},
+          }),
+        ),
+      );
+      expect(out).toContain("data-busy");
+      expect(out).toContain(busy);
+      expect(out).toContain(wait);
+      expect(out).not.toContain("finish-confirm");
+      expect(out.match(/disabled=""/g)?.length).toBeGreaterThanOrEqual(4);
+    }
   });
 });

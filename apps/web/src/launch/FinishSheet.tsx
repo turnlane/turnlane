@@ -2,8 +2,11 @@
  * 完了のシート（AI に頼むで起動した作業の片付け。launch/finish.ts）: 2 つのチェック（AI を終了してタブを閉じる・worktree を
  * 消す）と、「完了」（選んだ片付けをしてから完了）・「片付けずに完了」。Esc で取り消し（完了にしない）、⏎ で「完了」。
  * 取り込まれていない worktree は、その行の下に赤字で「ブランチの変更が消えます（<ブランチ>）」。
- * 片付けだけのシート（mode: cleanup。AI の画面）はボタンが「やめる」（Esc と同じ）と「片付ける」（⏎）
+ * 片付けだけのシート（mode: cleanup。AI の画面）はボタンが「やめる」（Esc と同じ）と「片付ける」（⏎）。
+ * 押した後は片付けが終わるまで「片付けの途中」: チェックとボタンを止め、主ボタンをスピナーと `片付けています…` に、AI の終了を
+ * 待つときはその下に 1 行。Esc・⏎ は効かせない（途中で止められない）。終わったらシートを閉じてトースト
  */
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Button, Kbd } from "../components/ui.tsx";
@@ -38,6 +41,8 @@ export function FinishSheetView({
   const [choice, setChoice] = useState<FinishChoice>(state.defaults);
   useEffect(() => setChoice(state.defaults), [state]);
   const cleanup = state.mode === "cleanup";
+  // 片付けの途中（押した後、終わるまで）: 止められないので Esc も ⏎ も効かせない
+  const busy = state.busy;
   const hasWorktree = planWorktrees(state.plan).length > 0;
   const risky = riskyBranches(state.plan);
   const finish = () =>
@@ -48,6 +53,11 @@ export function FinishSheetView({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isImeKey(e)) return;
+      if (busy && (e.key === "Escape" || e.key === "Enter")) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -72,6 +82,7 @@ export function FinishSheetView({
         <input
           type="checkbox"
           checked={choice[key]}
+          disabled={!!busy}
           onChange={(e) => setChoice((c) => ({ ...c, [key]: e.target.checked }))}
           data-testid={testId}
         />
@@ -92,6 +103,8 @@ export function FinishSheetView({
         className="w-[440px] max-w-[calc(100vw-32px)] rounded-pop border border-line bg-raised p-4 shadow-pop"
         data-testid="finish-sheet"
         data-mode={cleanup ? "cleanup" : "complete"}
+        data-busy={busy ? "" : undefined}
+        aria-busy={busy ? true : undefined}
       >
         <h2 className="font-semibold text-body">
           {t(cleanup ? "finish.cleanup.title" : "finish.title")}
@@ -110,10 +123,16 @@ export function FinishSheetView({
               )
             : null}
         </div>
+        {busy?.waitingAi ? (
+          <p className="mt-3 text-fg2 text-meta" data-testid="finish-busy-note">
+            {t("finish.busyWait")}
+          </p>
+        ) : null}
         <div className="mt-4 flex justify-end gap-2">
           {cleanup ? (
             <Button
               variant="ghost"
+              disabled={!!busy}
               onClick={() => onDecide({ kind: "cancel" })}
               data-testid="finish-cancel"
             >
@@ -122,16 +141,24 @@ export function FinishSheetView({
           ) : (
             <Button
               variant="ghost"
+              disabled={!!busy}
               onClick={() => onDecide({ kind: "skip" })}
               data-testid="finish-skip"
             >
               {t("finish.skip")}
             </Button>
           )}
-          <Button variant="primary" onClick={finish} data-testid="finish-confirm">
-            {t(cleanup ? "finish.cleanup.confirm" : "finish.confirm")}
-            <Kbd className="border-onaccent/30 text-onaccent">⏎</Kbd>
-          </Button>
+          {busy ? (
+            <Button variant="primary" disabled data-testid="finish-busy">
+              <LoaderCircle size={14} strokeWidth={1.5} className="dl-spin" aria-hidden="true" />
+              {t("finish.busy")}
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={finish} data-testid="finish-confirm">
+              {t(cleanup ? "finish.cleanup.confirm" : "finish.confirm")}
+              <Kbd className="border-onaccent/30 text-onaccent">⏎</Kbd>
+            </Button>
+          )}
         </div>
       </div>
     </div>

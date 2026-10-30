@@ -48,6 +48,7 @@
  * - --reports: 外の作業の報告（ADR 0021）を 2 件足す。myscript の Nightly export（プロジェクト Reports。問いで待っている。
  *   開く先は https://example.com/runs/42）と、nightly の Backup（実行中）。spool の report-*.jsonl に書き、取り込みで読む。
  *   開く先は偽の OS（何も起動しない）
+ * - --finish-delay <ms>: 完了のときの片付けの worktree の削除を遅らせる（片付けの途中の見え方。偽の git なので何も消さない）
  * - --scratch: 壁打ち（D-135）の状態を足す。Codex のアプリのプロジェクト外の会話（質問で終わって自分の番）、CLI で
  *   ~/Documents/Codex の下で始めた会話、設定で印を付けたフォルダ（一時 HOME の ~/scratch）の Claude Code の会話。
  *   詳細パネルの開く先は偽の OS（Codex のアプリが入っている扱い。「Codex で開く」が出る。何も起動しない）
@@ -2188,6 +2189,17 @@ chmodSync(join(fakeBin, "claude"), 0o755);
 const LAUNCH = args.includes("--launch");
 const launchSys = new FakeLaunchSystem();
 if (args.includes("--codex")) launchSys.installed = ["claude_code", "codex"];
+// --finish-delay <ms>: 完了のときの片付けの worktree の削除を遅らせる（片付けの途中の見え方の E2E。偽の git なので何も消さない）
+const FINISH_DELAY = Number(opt("--finish-delay") ?? 0);
+if (FINISH_DELAY > 0) {
+  const git = launchSys.git;
+  launchSys.git = {
+    run: async (cwd, a, timeoutMs) => {
+      if (a[0] === "worktree" && a[1] === "remove") await Bun.sleep(FINISH_DELAY);
+      return git.run(cwd, a, timeoutMs);
+    },
+  };
+}
 for (const r of git.repos.keys()) launchSys.paths.add(r);
 // Claude のアカウント（D-122）: 一時 HOME の ~/.claude-main と ~/.claude-sandbox（2つあるので「アカウント」の行が出る）
 launchSys.paths.add(main);

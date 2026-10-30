@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Codex sessions: with Turnlane's hooks installed, Open now lands on the terminal tab the session runs in, and Answer and Next instruction work for Codex too. Turnlane finds the `codex` you are typing in from the hooks, also when they come from Codex's background app-server rather than the terminal (it then looks for the `codex` running in the session's folder), and a session no longer shows as ended while that `codex` is still open. Sessions without hooks keep the 6-hour estimate on the AI screen.
 - Day view: the AI lane label of a snoozed item, one moved to tomorrow, or one placed on the timeline now says when it comes back, instead of showing idle time.
+- Ask AI: the completion sheet now shows that it is cleaning up (a spinner, "Cleaning up…", and "Waiting for the AI to exit") instead of looking stuck while it waits up to 20 seconds for the AI to exit, and the task's AI label reads "Cleaning up" meanwhile.
 
 ## [0.7.4] - 2026-10-29
 
