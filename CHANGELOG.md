@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-30
+
 ### Added
 
 - Your turn: when you answer an AI's question with a question of your own ("how do I see that?"), the question stays open instead of closing. It leaves Your turn while the AI answers you and comes back under its own title when the AI is done, unless the AI asks something new, which then takes its place. The item's flow shows such a run as "Asked back: …". This uses the saved first line of your input, so it needs the setting "Keep what the AI waited on" (on by default).
@@ -96,7 +98,8 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/turnlane/turnlane/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/turnlane/turnlane/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/turnlane/turnlane/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/turnlane/turnlane/compare/v0.7.1...v0.7.2
