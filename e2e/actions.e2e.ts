@@ -702,6 +702,21 @@ async function eventPlace(t: Ctx, m: Mocked, p: EventPlace) {
             !(off.reserved ?? []).some((r) => r.eventId === id)
               ? true
               : `on ${JSON.stringify(on)} label ${label} off ${JSON.stringify(off)}`;
+        } else if (action === "hideCalendar") {
+          // このカレンダーを表示しない（Issue #5）: その予定は描かれなくなる。戻すのは上部バーの「カレンダー」（ここは API で）
+          const gone = await until(
+            () => p.event(page, title).count(),
+            (n) => n === 0,
+          );
+          await board.api("PUT", "/config/calendar.hidden", { value: [] });
+          const back = await until(
+            async () => {
+              await p.open(page);
+              return p.event(page, title).count();
+            },
+            (n) => n > 0,
+          );
+          result = gone === 0 && back > 0 ? true : `gone ${gone} back ${back}`;
         } else result = `no check for “${action}”`;
       }
     } catch (e) {

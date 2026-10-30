@@ -579,9 +579,9 @@ async function eventPanel(t: Ctx) {
     .locator('[data-testid="context-menu"] [data-menu-id]')
     .evaluateAll((els) => els.map((e) => e.getAttribute("data-menu-id")));
   t.check(
-    "event panel (ended): no focus button; ⋯ has open and colour only",
+    "event panel (ended): no focus button; ⋯ has open, colour and hide calendar only",
     (await panel.getByTestId("event-focus").count()) === 0 &&
-      JSON.stringify(ids) === JSON.stringify(["eventOpen", "calColor"]) &&
+      JSON.stringify(ids) === JSON.stringify(["eventOpen", "calColor", "hideCalendar"]) &&
       (await panel.getByTestId("event-open").count()) === 1,
     JSON.stringify(ids),
   );

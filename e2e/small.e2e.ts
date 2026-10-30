@@ -1,7 +1,7 @@
 /**
  * 0.8 の小物の E2E（dev-board --lang en。今は 2026-10-02（金）13:20 JST）。
  * - snooze-pick: AI の詳細パネルの ⋯ › スヌーズ › 「Pick a time…」で時刻を指定してスヌーズする（Issue #4）
- * - calendar-hide: 設定 › カレンダーの「Hide」で、その予定をデイビューに描かない。会議の長さ・空き枠は変わらない（Issue #5）
+ * - calendar-hide: 上部バーの「Calendars ▾」のポップオーバーでカレンダーを表示しない・戻す。会議の長さ・空き枠は変わらない（Issue #5）
  */
 import type { Page } from "playwright";
 import type { DayResponse, QueueResponse } from "../packages/core/src/api/index.ts";
@@ -71,49 +71,77 @@ async function calendarHide(t: Ctx) {
   const day = () => board.api<DayResponse>("GET", `/day/${TODAY}`);
   const before = (await day()).day;
   t.check("API: today has events", before.events.length > 0);
-  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fsettings%23calendar"));
-  // 今日の予定のカレンダーを表示しない
   const calId = before.events[0]?.calendarId ?? "";
-  const box = page.locator(`[data-calendar-id="${calId}"] [data-testid="settings-calendar-hide"]`);
-  await box.waitFor({ timeout: 15000 });
-  await settle(page);
-  await box.click();
-  const after = (await until(day, (x) => x.day.events.every((e) => e.calendarId !== calId), 5000))
-    .day;
-  t.check(
-    "API: the hidden calendar's events are not drawn",
-    after.events.every((e) => e.calendarId !== calId) &&
-      before.events.some((e) => e.calendarId === calId),
+  const titles = before.events
+    .filter((e) => e.calendarId === calId)
+    .map((e) => e.title)
+    .filter((x): x is string => !!x);
+  // デイビューの上部バーの「Calendars ▾」→ ポップオーバーのチェックを外す
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fday"));
+  const btn = page.getByTestId("calendars-button");
+  await btn.waitFor({ timeout: 15000 });
+  await settle(page, 600);
+  t.check("bar: the Calendars button", (await btn.innerText()).includes("Calendars"));
+  await btn.click();
+  const check = page.locator(
+    `[data-testid="calendars-item"][data-calendar-id="${calId}"] [data-testid="calendars-check"]`,
   );
+  await check.waitFor({ timeout: 3000 });
+  t.check("popover: the calendar is listed and checked", await check.isChecked());
+  // Space で切り替え（最初のカレンダーに focus がある。↓ で移れる）
+  await check.focus();
+  await page.keyboard.press("Space");
+  const gone = await until(
+    async () => {
+      const text = await page.locator("main, body").first().innerText();
+      return titles.every((x) => !text.includes(x));
+    },
+    (v) => v,
+  );
+  t.check("day view: its events disappear right away", gone, titles.join(", "));
+  await page.keyboard.press("Escape");
+  await settle(page);
+  t.check(
+    "bar: the button says how many are hidden",
+    (await btn.innerText()).includes("1 hidden"),
+    await btn.innerText(),
+  );
+  const after = (await until(day, (x) => x.day.events.every((e) => e.calendarId !== calId))).day;
   t.check(
     "API: meetings, free slots and busy time do not change",
     after.totals.meetingsMs === before.totals.meetingsMs &&
       JSON.stringify(after.freeSlots) === JSON.stringify(before.freeSlots) &&
       after.totals.eventsMs === before.totals.eventsMs,
   );
-  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fday"));
-  await page.waitForSelector('[data-kind="event"], [data-testid="day-view"]', { timeout: 15000 });
+  // 3 日ボードでも消えている（同じ設定）
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fboard"));
+  await page.getByTestId("calendars-button").waitFor({ timeout: 15000 });
   await settle(page, 600);
-  const shown = await page.locator(`[data-kind="event"][data-calendar-id="${calId}"]`).count();
-  const anyHiddenTitle = before.events
-    .filter((e) => e.calendarId === calId)
-    .map((e) => e.title)
-    .filter(Boolean);
-  const text = await page.locator("body").innerText();
+  const boardText = await page.locator("body").innerText();
   t.check(
-    "day view: the hidden calendar's events are gone",
-    shown === 0 && anyHiddenTitle.every((x) => !text.includes(x as string)),
-    anyHiddenTitle.join(", "),
+    "board: hidden there too",
+    titles.every((x) => !boardText.includes(x)),
   );
-  // 戻すとまた描く
+  // 設定 › カレンダーの行には印だけ
   await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fsettings%23calendar"));
-  await page.getByTestId("settings-calendar-hide").first().waitFor({ timeout: 15000 });
-  await settle(page);
-  await page
-    .locator(`[data-calendar-id="${calId}"] [data-testid="settings-calendar-hide"]`)
-    .click();
+  const mark = page.locator(
+    `[data-testid="settings-calendar-row"][data-calendar-id="${calId}"] [data-testid="settings-calendar-hidden"]`,
+  );
+  await mark.waitFor({ timeout: 15000 });
+  t.check(
+    "settings: the row says it is hidden and where to show it again",
+    (await mark.innerText()).includes("Calendars on the board"),
+  );
+  // ポップオーバーから戻す
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fday"));
+  await page.getByTestId("calendars-button").click({ timeout: 15000 });
+  await check.waitFor({ timeout: 3000 });
+  await check.click();
   const back = (await until(day, (x) => x.day.events.length === before.events.length)).day;
-  t.check("API: unhiding draws them again", back.events.length === before.events.length);
+  t.check(
+    "popover: checking it again draws the events again",
+    back.events.length === before.events.length,
+  );
 }
 
 export const snoozePickSuite: Suite = {

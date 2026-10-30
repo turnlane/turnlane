@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Your turn: "Back to Your turn" (`u`, or the hover button and right-click on closed rows, the item's flow, and the AI item menu) puts a closed item back on Your turn. It stays there until you close it or a new turn starts in that session.
 - Reports from your own scripts and agents: `turnlane ai report` (also the MCP tool `report_ai_work` and `POST /api/ai/reports`) lets work that leaves no session log say it started, is waiting on you, finished, or failed. It shows up as AI work under the name you choose and its project; a waiting report lands on Your turn right away, with its question and options to read and the link it gave to open. If Turnlane isn't running, the report is saved and read when it starts.
 - Snooze and place: the snooze menu in the AI detail panel now has "Pick a time…", like `s` on a row, and `p` on a Your turn row puts it on the timeline, like dragging it onto the Me lane.
-- Calendars: "Hide" in Settings › Calendars takes a calendar's events off the board and day view for a while. Unlike "Ignore", its events still count as busy time (free slots, "in a meeting", focus mode).
+- Calendars: a Calendars button on the board and the day view hides a calendar for a while, like the calendar list in Calendar.app (also "Hide this calendar" on an event's right-click and its panel). Unlike "Ignore" in Settings, its events still count as busy time (free slots, "in a meeting", focus mode).
 
 ### Fixed
 

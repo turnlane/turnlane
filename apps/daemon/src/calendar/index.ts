@@ -446,6 +446,10 @@ export function createCalendar(o: {
         if (key.startsWith("workdays.")) {
           o.hub.publish("calendar", { dates: windowDates() });
           if (key === "workdays.holiday_calendars") service.schedule(0);
+        } else if (key === "calendar.hidden") {
+          // 表示しないカレンダー（Issue #5）: 描く予定が変わる（忙しい時間は変わらない）。開いている全部の画面で描き直す
+          o.hub.publish("calendar", { dates: windowDates() });
+          o.hub.publish("settings", {});
         } else if (key === "work_hours.planned") {
           // 計画の目安（D-062・D-106）: 空き時間が変わる
           o.hub.publish("plan_guide", { dates: windowDates() });

@@ -164,6 +164,7 @@ describe("この予定の間は集中する（D-130）", () => {
       ["eventOpen", "menu.eventOpen"],
       ["eventFocus", "menu.eventFocus"],
       ["calColor", "menu.calColor"],
+      ["hideCalendar", "menu.hideCalendar"],
       ["eventDelete", "menu.eventDelete"],
     ]);
     expect(ids("on")[2]).toEqual(["eventFocus", "menu.eventFocusOn"]);

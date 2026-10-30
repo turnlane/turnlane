@@ -66,6 +66,7 @@ import { EventPanel } from "../panel/EventPanel.tsx";
 import { RecordPanel } from "../panel/RecordPanel.tsx";
 import { TaskPanel } from "../panel/TaskPanel.tsx";
 import { useAiSummary } from "../routes/AiPage.tsx";
+import { CalendarsButton } from "./CalendarsButton.tsx";
 import {
   type CalendarNotice,
   calendarNotice,
@@ -297,6 +298,8 @@ function TopBar({ queue }: { queue: QueueItem[] }) {
               {t("top.day")}
             </Link>
           </div>
+          {/* カレンダーの一時的な表示・非表示（Issue #5）。狭ければアイコンだけ */}
+          <CalendarsButton compact={omit >= 2} />
         </>
       ) : title ? (
         <h1 className="flex items-center gap-2 font-semibold text-title" data-testid="page-title">

@@ -25,6 +25,7 @@ import {
 import { PaletteGrid } from "../components/CalendarColors.tsx";
 import { ContextMenu, type MenuEntry, type SubPanelCtx } from "../components/ContextMenu.tsx";
 import { ConfirmDialog } from "../components/ui.tsx";
+import { setCalendarHidden } from "../data/calendar-visibility.ts";
 import { keys } from "../data/invalidate.ts";
 import { deleteEvent, patchEvent, setCalendarColor } from "../data/mutations.ts";
 import { useCalendars, useFocus } from "../data/queries.ts";
@@ -157,6 +158,11 @@ function EventBody({ e }: { e: CalendarEventDetail }) {
           if (a.t === "eventOpen") open();
           else if (a.t === "eventFocus") toggleEventFocus(e.id, a.on);
           else if (a.t === "eventDelete") setConfirmDelete(true);
+          else if (a.t === "hideCalendar") {
+            // 予定ごと見えなくなるのでパネルも閉じる（戻すのは上部バーの「カレンダー」）
+            closeEvent();
+            void setCalendarHidden(e.calendarId, true);
+          }
         },
       }));
   const calendarEntries = (): MenuEntry[] =>

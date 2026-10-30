@@ -128,16 +128,18 @@ describe("右クリックメニュー（UX 監査 A1。5.P3）", () => {
     expect(ids(menuSpec([], { event: { editable: false } }))).toEqual(["detail", "eventOpen"]);
     expect(ids(menuSpec([], { event: { editable: true } }))).toContain("eventDelete");
   });
-  test("予定: カレンダーが分かれば「カレンダーの色 ▸」（D-125。読み取りのみの予定でも。削除の上）", () => {
+  test("予定: カレンダーが分かれば「カレンダーの色 ▸」と「このカレンダーを表示しない」（読み取りのみの予定でも。削除の上）", () => {
     expect(ids(menuSpec([], { event: { editable: false, calendarId: "c1" } }))).toEqual([
       "detail",
       "eventOpen",
       "calColor",
+      "hideCalendar",
     ]);
     expect(ids(menuSpec([], { event: { editable: true, calendarId: "c1" } }))).toEqual([
       "detail",
       "eventOpen",
       "calColor",
+      "hideCalendar",
       "eventDelete",
     ]);
   });

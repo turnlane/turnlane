@@ -31,6 +31,7 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarColorButton } from "../components/CalendarColors.tsx";
 import { MenuSelect } from "../components/MenuSelect.tsx";
 import { ConfirmDialog } from "../components/ui.tsx";
+import { useHiddenCalendars } from "../data/calendar-visibility.ts";
 import { keys } from "../data/invalidate.ts";
 import { useSources } from "../data/queries.ts";
 import { type MessageKey, useI18n, useT } from "../i18n/index.tsx";
@@ -1061,33 +1062,8 @@ export function CalendarsSection() {
   const qc = useQueryClient();
   const q = useCalendars();
   const [err, setErr] = useState(false);
-  // 表示しないカレンダー（Issue #5。calendar.hidden）。描かないだけで、忙しい時間・空き枠の数え方は変えない
-  const config = useQuery({
-    queryKey: ["settings", "config"],
-    queryFn: () =>
-      unwrap<{ values: Record<string, unknown> }>(api.api.config.$get()).then((r) => r.values),
-    staleTime: 60_000,
-  });
-  const hiddenRaw = config.data?.["calendar.hidden"];
-  const hidden = new Set(
-    Array.isArray(hiddenRaw) ? hiddenRaw.filter((x): x is string => typeof x === "string") : [],
-  );
-  const setHidden = async (id: string, hide: boolean) => {
-    setErr(false);
-    const next = [...hidden].filter((x) => x !== id);
-    if (hide) next.push(id);
-    try {
-      await unwrap(
-        api.api.config[":key"].$put({ param: { key: "calendar.hidden" }, json: { value: next } }),
-      );
-    } catch {
-      setErr(true);
-    }
-    void qc.invalidateQueries({ queryKey: ["settings"] });
-    void qc.invalidateQueries({
-      predicate: (x) => x.queryKey[0] === "board" || x.queryKey[0] === "day",
-    });
-  };
+  // 表示しないカレンダー（Issue #5）。切り替えは上部バーの「カレンダー」で、ここでは非表示の印だけ出す
+  const hidden = useHiddenCalendars();
   if (q.isError) return null;
   if (!q.data) return null;
   const { calendars, status } = q.data;
@@ -1135,19 +1111,10 @@ export function CalendarsSection() {
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {c.role === "source" ? (
-              <label
-                className="flex shrink-0 items-center gap-1.5 text-fg2 text-meta"
-                title={t("settings.calendars.hide.hint")}
-              >
-                <input
-                  type="checkbox"
-                  checked={hidden.has(c.id)}
-                  onChange={(e) => void setHidden(c.id, e.target.checked)}
-                  data-testid="settings-calendar-hide"
-                />
-                {t("settings.calendars.hide")}
-              </label>
+            {c.role === "source" && hidden.has(c.id) ? (
+              <span className="shrink-0 text-fg3 text-meta" data-testid="settings-calendar-hidden">
+                {t("settings.calendars.hidden")}
+              </span>
             ) : null}
             <MenuSelect
               label={c.name}

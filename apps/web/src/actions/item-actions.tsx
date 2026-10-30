@@ -45,6 +45,7 @@ import { PaletteGrid } from "../components/CalendarColors.tsx";
 import { ContextMenu, type MenuEntry, type SubPanelCtx } from "../components/ContextMenu.tsx";
 import { ConfirmDialog } from "../components/ui.tsx";
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
+import { setCalendarHidden } from "../data/calendar-visibility.ts";
 import {
   cancelFocusReservation,
   deleteEvent,
@@ -108,6 +109,8 @@ export type MenuAction =
   | { t: "eventDelete" }
   /** カレンダーの色 ▸（D-125。サブメニューのパレット） */
   | { t: "calColor" }
+  /** このカレンダーを表示しない（Issue #5。戻すのは上部バーの「カレンダー」） */
+  | { t: "hideCalendar" }
   /** この予定の間は集中する（D-130。on なら取り消す） */
   | { t: "eventFocus"; on: boolean }
   /** 既存のタスクを AI に頼む（D-107） */
@@ -164,7 +167,10 @@ export function menuSpec(
       });
     // カレンダーの色（D-125。Turnlane の中だけ。読み取りのみのカレンダーの予定でも選べる）
     if (opts.event.calendarId)
-      out.push({ id: "calColor", label: "menu.calColor", sep: true, action: { t: "calColor" } });
+      out.push(
+        { id: "calColor", label: "menu.calColor", sep: true, action: { t: "calColor" } },
+        { id: "hideCalendar", label: "menu.hideCalendar", action: { t: "hideCalendar" } },
+      );
     if (opts.event.editable)
       out.push({
         id: "eventDelete",
@@ -291,6 +297,7 @@ export const MENU_ICON: Record<string, LucideIcon> = {
   eventOpen: CalendarDays,
   eventDelete: Trash2,
   calColor: Palette,
+  hideCalendar: EyeOff,
   eventFocus: CalendarCheck,
   newTask: CircleCheck,
   newEvent: CalendarPlus,
@@ -415,7 +422,10 @@ export function useItemActionsHost(o: HostOptions): { api: ItemActionsApi; node:
         );
     } else if (a.t === "eventOpen") void openEvent(id, () => toast(t("eventPanel.openFailed")));
     else if (a.t === "eventFocus") toggleEventFocus(id, a.on);
-    else if (a.t === "eventDelete") {
+    else if (a.t === "hideCalendar") {
+      const cal = o.eventOf?.(id)?.calendarId;
+      if (cal) void setCalendarHidden(cal, true);
+    } else if (a.t === "eventDelete") {
       // 確認の文にカレンダーの名前を出す（予定のパネルの削除と同じ文）
       const e = o.eventOf?.(id);
       void unwrap<{ calendarName: string }>(
