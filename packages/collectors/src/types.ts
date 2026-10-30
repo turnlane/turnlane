@@ -277,6 +277,11 @@ export interface HookEvent {
    * Orca のどの端末に送るかを決める。形が合うものだけ（不透明な ID。会話の中身ではない）
    */
   term?: string;
+  /**
+   * hook のハンドラの親のプロセスの pid（Codex。turnlane hook が spool の ppid に残す。Issue #10）。デーモンがセッションの
+   * live_pid に写す。追加の任意項目
+   */
+  pid?: number;
   spool: { file: string; offset: number };
 }
 

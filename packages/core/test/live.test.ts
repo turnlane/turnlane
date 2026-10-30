@@ -322,3 +322,19 @@ describe("行の札", () => {
     );
   });
 });
+
+describe("Codex のプロセス（hooks の親の pid。Issue #10）", () => {
+  const base = { tool: "codex", livePid: 5151, lastActivityAt: 0 };
+  test("確かめた値があれば alive / gone。無ければ分からない（6 時間の推定）", () => {
+    expect(itemProcess([{ ...base, liveStatus: "busy", liveCheckedAt: 1000 }], 2000).process).toBe(
+      "alive",
+    );
+    expect(itemProcess([{ ...base, liveStatus: "gone", liveCheckedAt: 1000 }], 2000).process).toBe(
+      "gone",
+    );
+    expect(
+      itemProcess([{ ...base, livePid: null, liveStatus: null, liveCheckedAt: null }], 2000)
+        .process,
+    ).toBe("unknown");
+  });
+});

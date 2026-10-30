@@ -1575,7 +1575,8 @@ export const ja: Dict = {
   "ai.live.sub": "サブ {count}",
   "ai.live.subHint": { other: "サブエージェント {count} 件が動いています" },
   "ai.live.sessions": { other: "{count} セッション" },
-  "ai.live.estimatedHint": "Codex はプロセスの有無が分からないので、最後の動きから 6 時間出します",
+  "ai.live.estimatedHint":
+    "hooks の届いていない Codex はプロセスの有無が分からないので、最後の動きから 6 時間出します",
   "ai.live.lastActivity": "最後の動き {time}",
   "ai.live.more": { other: "ほか {count} 件" },
   "ai.live.cleanupAction": "片付け…",

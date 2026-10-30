@@ -604,7 +604,10 @@ export function sessionStatus(
     // Stop の hook で終わった（トランスクリプトの取り込みが遅れている）: 実行中にしない（自分の番の候補 (d)）。
     // Stop より後に見たプロセスの busy だけは、まだ動いているとみなす
     const stopAt = turnHookStopOf(f, s, last);
-    const liveFresh = s.liveCheckedAt !== null && now - s.liveCheckedAt < 2 * 60_000;
+    // プロセスの busy / idle は Claude Code の sessions/<pid>.json の値だけ。Codex の live（hooks の親の pid。Issue #10）は
+    // プロセスがあることしか分からないので、状態の判定には使わない
+    const liveFresh =
+      s.tool !== "codex" && s.liveCheckedAt !== null && now - s.liveCheckedAt < 2 * 60_000;
     if (
       liveFresh &&
       s.liveStatus === "busy" &&

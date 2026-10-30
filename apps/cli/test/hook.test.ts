@@ -15,6 +15,33 @@ import {
 const SENTINEL = "SENTINEL_BODY_6f1c";
 
 describe("extract（許可リスト）", () => {
+  test("Codex は親（codex のプロセス）の pid を ppid に残す。Claude Code には付けない（Issue #10）", () => {
+    const codex = extract(
+      { hook_event_name: "Stop", session_id: "s1" },
+      "codex",
+      1000,
+      "/fixture/home/.codex",
+      undefined,
+      undefined,
+      5151,
+    );
+    expect(codex?.ppid).toBe(5151);
+    const claude = extract(
+      { hook_event_name: "Stop", session_id: "s1" },
+      "claude_code",
+      1000,
+      "/fixture/home/.claude",
+      undefined,
+      undefined,
+      5151,
+    );
+    expect(claude?.ppid).toBeUndefined();
+    // 1 以下（親が init に付け替わった）は残さない
+    expect(
+      extract({ session_id: "s1" }, "codex", 1, undefined, undefined, undefined, 1)?.ppid,
+    ).toBe(undefined);
+  });
+
   test("許可リストのキーだけを残し、本文系のキーは捨てる", () => {
     const rec = extract(
       {

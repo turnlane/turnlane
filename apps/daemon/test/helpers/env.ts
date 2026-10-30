@@ -20,6 +20,7 @@ import { type AiSystem, createAiSystem } from "../../src/ai.ts";
 import type { GhClient } from "../../src/github/pr-poller.ts";
 import { SseHub } from "../../src/http/sse.ts";
 import { FakeGit } from "../../src/ingest/git.ts";
+import type { CodexProcessProbe } from "../../src/ingest/supervisor.ts";
 import { Supervisor } from "../../src/ingest/supervisor.ts";
 import { ClaudeLimitsStore } from "../../src/limits/claude.ts";
 import { seedPresence } from "../../src/presence/service.ts";
@@ -128,7 +129,13 @@ export interface AiEnv {
 
 /** supervisor + runner + API の組（実際の gh・launchd・実データには触れない） */
 export function makeAiEnv(
-  opts: { now?: number; gh?: GhClient | null; excludeDirs?: string[] } = {},
+  opts: {
+    now?: number;
+    gh?: GhClient | null;
+    excludeDirs?: string[];
+    /** Codex のプロセスの確かめ（Issue #10）。既定は「どの pid も動いていない」（実際の OS を見ない） */
+    codexProcess?: CodexProcessProbe;
+  } = {},
 ): AiEnv {
   const home = mkdtempSync(join(tmpdir(), "turnlane-ai-"));
   const dataDir = join(home, "data");
@@ -160,6 +167,7 @@ export function makeAiEnv(
     // テストは実際に open を実行しない
     openSystem: open,
     ...(opts.excludeDirs ? { excludeDirs: opts.excludeDirs } : {}),
+    codexProcess: opts.codexProcess ?? { alive: () => false, name: () => null },
   });
   return {
     open,

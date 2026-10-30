@@ -87,6 +87,8 @@ export const HOOK_SPOOL_META_KEYS = [
   "term",
   "truncated",
   "quota_horizon",
+  // Codex の hook のハンドラの親（codex のプロセス）の pid（Issue #10）。turnlane hook が process.ppid から付ける
+  "ppid",
 ] as const;
 
 /**

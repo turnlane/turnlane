@@ -133,10 +133,15 @@ export default defineAdapter({
       }
       const configRoot = str(r.config_root);
       const term = str(r.term);
+      const ppid =
+        typeof r.ppid === "number" && Number.isInteger(r.ppid) && r.ppid > 1 && tool === "codex"
+          ? r.ppid
+          : undefined;
       events.push({
         ...n,
         ...(configRoot ? { configRoot } : {}),
         ...(term && TERM_HANDLE_RE.test(term) ? { term } : {}),
+        ...(ppid !== undefined ? { pid: ppid } : {}),
         spool: { file: stream.key, offset: line.offset },
       });
     }

@@ -636,6 +636,8 @@ export const hookEvent = sqliteTable(
     occurredAt: integer("occurred_at").notNull(),
     spoolFile: text("spool_file").notNull(),
     spoolOffset: integer("spool_offset").notNull(),
+    // 0023（Issue #10）: Codex の hook のハンドラの親（codex のプロセス）の pid。セッションの live_pid に写す
+    pid: integer("pid"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

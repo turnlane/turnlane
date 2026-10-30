@@ -53,6 +53,13 @@
    - 保存しない: 文は DB・ログ・SSE に入れない（ログは `instruction.sent` の文字数と届け先の種類だけ）。送った文は記録に自分の指示として現れ、ADR 0018 の規則（1 行目）で保存される。Decision 2（自動では送らない）は変わらない
    - 送れるかの事前の判定は最後の返答の応答（`GET /api/work-items/:id/last-reply` の `instruct`。no-store）に入れる。文を読まない判定なので、設定「行に中身を出す」がオフでも付く
    - やらない: 会話の履歴の表示、文の補完・提案、自動送信。端末の無いセッション（Claude Desktop の Code タブ・Codex のアプリ）には送れない
+
+12. **Codex のセッションのプロセスは hooks の親の pid で知る**（Issue #10 の追記。2026-10-30）: Codex の記録（rollout）には pid が無く、「開く」はアプリを前に出すだけ、「答える」「次の指示」は送れなかった（`process_unknown`）。Codex は hook のハンドラ（`turnlane hook --tool codex`）を自分の子として直接起こす（シェルを挟まない。手元の一時 `CODEX_HOME` と偽のハンドラで、`codex exec` の SessionStart・UserPromptSubmit の hook の親が `codex` のプロセスであることを確かめた。認証ファイルは開かず、モデルの呼び出しは手元の閉じたポートに向けて失敗させた）。
+   - `turnlane hook` は Codex の行にだけ `ppid`（`process.ppid`。1 より大きい整数）を残す（spool のメタのキー。`hook_event.pid`、マイグレーション 0023）。tty は hook では取らない（`ps` を起こすと 50ms の目標を食う）。tty・tmux のペイン・端末のアプリは、開く・答えるときにデーモンが pid から `ps` で調べる（Claude Code と同じ `locateLive`）
+   - デーモンは 5 秒ごとに、Codex のセッションの最後の pid の付いた hook の pid が生きていて（`kill(pid, 0)`）、`codex` のプロセス（`ps -o comm=`。pid の使い回しに備えて 1 分ごと）なら `ai_session.live_status = busy`・`live_pid`、そうでなければ `gone` にする。その pid の後に SessionEnd の hook が来ていれば `gone`。hooks の来ていないセッションは触らない（今までどおりプロセスの有無は分からず、AI の画面では最後の動きから 6 時間の推定）
+   - Codex の `busy` は「プロセスがある」だけの意味で、状態の判定（running / needs_input）には使わない（Claude Code の `sessions/<pid>.json` の busy / idle とは違う）
+   - 送る文: Codex はいつも 1 行に畳む（Codex の TUI の改行の入れ方が端末と設定で違い、tmux から確かに改行にする送り方が分からないため。仮置き）。選択肢の番号は文字のまま送る。許可待ちの「許可する」は今までどおり出さない
+   - Codex のアプリ（Desktop）のセッションは端末が無いので、pid が分かっても送れない（届け先が見つからない）
 （外側の端末に関係なく）・iTerm2・Terminal（ターミナル.app。Decision 8）・Ghostty（1.3 以降。Decision 9）・Orca。送れない端末（Warp・Kitty、AppleScript を切っている・古い Ghostty など）は「この端末には送れません」と「開く」だけ。Turnlane が起動するセッション（AI に頼む・時刻起動）は、送れない端末では tmux の新しいセッションの中で起動する（設定 `launch.tmux_wrap`、既定オン。tmux があるときだけ）。
 - 複数行の答え: tmux の Claude Code は改行を LF（Ctrl+J。Claude Code の文書にある改行の入れ方）のまま送る。ほかは 1 行に畳む（改行を空白に）。改行を Enter にしない。
 - Claude Code・Codex の TUI の細部（許可のダイアログの番号キー、AskUserQuestion の番号、Codex の承認の画面）は公式の文書に書かれていない部分があり、実機で確かめる。Codex の許可待ちには「許可する」を出さない。

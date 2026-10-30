@@ -678,7 +678,7 @@ exports[`スキーマ スナップショット（sqlite_master） 1`] = `
 	\`occurred_at\` integer NOT NULL,
 	\`spool_file\` text NOT NULL,
 	\`spool_offset\` integer NOT NULL,
-	\`created_at\` integer NOT NULL, \`term_handle\` text, \`agent_id\` text, \`agent_type\` text, \`permission_mode\` text, \`quota_horizon\` integer,
+	\`created_at\` integer NOT NULL, \`term_handle\` text, \`agent_id\` text, \`agent_type\` text, \`permission_mode\` text, \`quota_horizon\` integer, \`pid\` integer,
 	CONSTRAINT "hook_event_tool_ck" CHECK(length(tool) BETWEEN 2 AND 32 AND tool NOT GLOB '*[^a-z0-9_]*')
 )"
 ,

@@ -60,6 +60,21 @@ async function run(t: Ctx) {
     JSON.stringify(body),
   );
 
+  // 詳細: リポジトリの欄は `myscript · Reports` で、端末・ブランチのアイコンは出さない
+  await row.click();
+  await page.waitForSelector('[data-testid="queue-detail"]', { timeout: 5000 });
+  await settle(page, 400);
+  const panelText = await page.locator('[data-testid="queue-detail"]').innerText();
+  t.check(
+    "panel: the row reads “myscript · Reports”",
+    panelText.includes("myscript · Reports"),
+    panelText.slice(0, 200),
+  );
+  const whereIcons = await page
+    .locator('[data-testid="queue-detail"] span:has-text("myscript · Reports") > svg')
+    .count();
+  t.check("panel: no terminal or branch icon next to it", whereIcons === 0, String(whereIcons));
+
   // 答える: 中身は読めるだけ
   const w = await board.api<WaitResponse>("GET", `/work-items/${mine.workItemId}/wait`);
   t.check(
@@ -73,8 +88,27 @@ async function run(t: Ctx) {
   );
 }
 
+async function settingsRow(t: Ctx) {
+  const { page, board } = t;
+  // 設定 › AI の取り込みの「報告」の行: 説明と、報告してきた出どころ
+  await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fsettings%23ai"));
+  await page.waitForSelector('[data-testid="report-sources"]', { timeout: 15000 });
+  await settle(page, 300);
+  const text = await page.locator('[data-testid="report-sources"]').innerText();
+  t.check(
+    "settings: the Reports row lists myscript and nightly",
+    text.includes("turnlane ai report") &&
+      text.includes("myscript (1)") &&
+      text.includes("nightly (1)"),
+    text,
+  );
+}
+
 export const reportSuite: Suite = {
   name: "report",
   args: ["--reports", "--lang", "en"],
-  run,
+  run: async (t) => {
+    await run(t);
+    await settingsRow(t);
+  },
 };

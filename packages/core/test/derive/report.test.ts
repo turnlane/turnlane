@@ -9,7 +9,18 @@ import {
   isReportSession,
   runningStaleOf,
 } from "../../src/derive/index.ts";
-import { at, facts, hook, MIN, SETTINGS, session, TIMING, turn } from "./helpers.ts";
+import {
+  at,
+  compute,
+  facts,
+  followUp,
+  hook,
+  MIN,
+  SETTINGS,
+  session,
+  TIMING,
+  turn,
+} from "./helpers.ts";
 
 const ON = {
   ...SETTINGS,
@@ -117,5 +128,35 @@ describe("報告のセッション", () => {
     const r = judge(f, now);
     expect(r.st.status).toBe(status as never);
     expect(r.fus).toEqual(fus as never);
+  });
+});
+
+describe("報告の待ちには猶予を付けない（自分の番はすぐ出るので、区間も最初から放置）", () => {
+  test("問い（返答タスク <turn>:ask）・許可待ちの hook", () => {
+    const t1 = rt({ start: at("10:00"), end: null, pendingQuestion: true });
+    const ask = followUp({
+      kind: "reply",
+      triggerAt: at("10:05"),
+      triggerTurnId: t1.id,
+      artifactRef: `${t1.id}:ask`,
+    });
+    const f = facts({ turns: [t1], followUps: [ask], sessions: [S(at("10:05"))], nonGit: true });
+    const kinds = compute(f, at("10:40"), { presence: [[at("09:00"), at("11:00")]] }).segments.map(
+      (x) => x.kind,
+    );
+    expect(kinds).not.toContain("grace");
+    expect(kinds).toContain("idle");
+    const t2 = rt({ start: at("10:00"), end: null });
+    const g = facts({
+      turns: [t2],
+      hooks: [H("PermissionRequest", at("10:05"))],
+      sessions: [S(at("10:05"))],
+      nonGit: true,
+    });
+    expect(
+      compute(g, at("10:40"), { presence: [[at("09:00"), at("11:00")]] }).segments.some(
+        (x) => x.kind === "grace",
+      ),
+    ).toBe(false);
   });
 });

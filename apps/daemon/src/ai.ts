@@ -53,7 +53,7 @@ import type { SseHub } from "./http/sse.ts";
 import { dirExcludeGlobs } from "./ingest/enrich.ts";
 import { type GitProbe, ScratchAwareGit } from "./ingest/git.ts";
 import type { ClaudeLimitsSink } from "./ingest/sink.ts";
-import { type SourceRow, Supervisor } from "./ingest/supervisor.ts";
+import { type CodexProcessProbe, type SourceRow, Supervisor } from "./ingest/supervisor.ts";
 import { notifyLocale } from "./notify/runner.ts";
 import { Opener } from "./open/index.ts";
 import { type OpenSystem, systemOpen } from "./open/system.ts";
@@ -94,6 +94,8 @@ export interface AiOptions {
   mcpCli?: string | null;
   /** Claude の利用枠の記録先（取り込みが `.claude.json` のキャッシュを見つけたら記録する） */
   limits?: ClaudeLimitsSink;
+  /** Codex のプロセスの確かめ（Issue #10。テストは偽物） */
+  codexProcess?: CodexProcessProbe;
 }
 
 export interface AiSystem {
@@ -213,6 +215,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
     yieldTo: () => runner.idle(),
     onSourceChanged: () => o.hub.publish("source", {}),
     ...(o.limits ? { limits: o.limits } : {}),
+    ...(o.codexProcess ? { codexProcess: o.codexProcess } : {}),
     ...(o.noWatch ? { noWatch: true } : {}),
     builtinExclude: (o.excludeDirs ?? []).flatMap(dirExcludeGlobs),
     ...(o.consented ? { consented: o.consented } : {}),

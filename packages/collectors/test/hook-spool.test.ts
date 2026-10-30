@@ -21,6 +21,27 @@ runGoldenSuite(hookSpool, FIXTURES);
 runIncrementalSuite(hookSpool, FIXTURES);
 
 describe("hook_spool（phase0-plan 3.6.1）", () => {
+  test("Codex の行の ppid はプロセスの pid（Issue #10）。Claude Code の行・形の合わない値は捨てる", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "turnlane-spool-"));
+    try {
+      const line = (o: object) =>
+        JSON.stringify({ v: 1, received_at: 1, hook_event_name: "Stop", session_id: "s1", ...o });
+      writeFileSync(
+        join(dir, "hooks-20260902.jsonl"),
+        `${[
+          line({ tool: "codex", ppid: 5151 }),
+          line({ tool: "claude_code", ppid: 5151 }),
+          line({ tool: "codex", ppid: "5151" }),
+          line({ tool: "codex", ppid: 1 }),
+        ].join("\n")}\n`,
+      );
+      const ev = (await readAll(hookSpool, rootFor(hookSpool, dir), fixtureCtx())) as HookEvent[];
+      expect(ev.map((e) => e.pid ?? null)).toEqual([5151, null, null, null]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("各イベントを元ツールの ToolId で正規化し、(file, offset) を付ける。不明なツール・session_id なしは捨てる", async () => {
     const dir = join(FIXTURES, "v1", "each-event");
     const ev = (await readAll(hookSpool, rootFor(hookSpool, dir), fixtureCtx())) as HookEvent[];

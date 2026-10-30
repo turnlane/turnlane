@@ -29,6 +29,7 @@ import {
   isLimitResume,
   isManualReply,
   isPermissionHook,
+  isReportSession,
   noTaskExpiryAt,
   prOpenAt,
   turnStopOf,
@@ -81,6 +82,10 @@ export interface WaitInterval {
   active: Range[];
   /** active のうち、時間に置いた開始の前でもない区間（D-051）。省略時は active と同じ */
   ready?: Range[];
+  /**
+   * 猶予を付けない（報告の待ち。ADR 0021: 報告した側は端末の前にいないので、自分の番はすぐ出る。区間も最初から放置）
+   */
+  noGrace?: boolean;
 }
 
 type Settings = Pick<TurnlaneSettings, "graceMs" | "replyExpireMs" | "nonGitEditExpireMs">;
@@ -359,6 +364,8 @@ function yourTurnWaits(
 function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
   const out: WaitInterval[] = [];
   for (const s of f.sessions) {
+    // 報告のセッション（ADR 0021）の待ちには猶予を付けない
+    const report = isReportSession(s) ? { noGrace: true } : {};
     const all = f.hooks.filter((h) => h.sessionExternalId === s.externalId);
     const ownerKey = (h: HookFact) => {
       const o = hookOwner(f, s, h);
@@ -424,6 +431,7 @@ function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
         followUpId: tasks[0]?.id ?? null,
         expired: false,
         ...taskRanges(tasks),
+        ...report,
       });
     }
     // タスクの無い未回答の AskUserQuestion（設定でオフ・72時間より古い）は、今開いているものだけ（推定）。
@@ -450,6 +458,7 @@ function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
         expired: false,
         shown: [],
         active: [],
+        ...report,
       });
     }
   }
@@ -486,7 +495,10 @@ function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
     if (fu.engagedAt !== null && fu.engagedAt >= fu.triggerAt && fu.engagedAt < end.at)
       end = { at: fu.engagedAt, reason: "engaged" };
     const isOpen = end.at > now;
+    const trigger = f.turns.find((t) => t.id === fu.triggerTurnId);
+    const ts = trigger ? f.sessions.find((x) => x.id === trigger.sessionId) : undefined;
     out.push({
+      ...(ts && isReportSession(ts) ? { noGrace: true } : {}),
       waitKey: ask ? `turn:${fu.triggerTurnId ?? fu.id}:ask` : `fu:${fu.id}`,
       workItemId: f.workItemId,
       start: fu.triggerAt,
@@ -652,7 +664,7 @@ export function classifyWait(iv: WaitInterval, ctx: ClassifyContext): WaitSegmen
   const base = classifyCountable(iv, ctx);
   const firstShown = iv.shown[0]?.[0] ?? Number.POSITIVE_INFINITY;
   const grace: Range[] = [];
-  let left = ctx.settings.graceMs;
+  let left = iv.noGrace ? 0 : ctx.settings.graceMs;
   for (const s of base) {
     if (left <= 0) break;
     const end =

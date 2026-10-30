@@ -22,7 +22,6 @@ import {
   instructBlock,
   instructUndeliverable,
   type Locale,
-  prepareAnswer,
 } from "@turnlane/core";
 import type {
   AnswerDelivery,
@@ -43,6 +42,7 @@ import { locateLive } from "../open/locate.ts";
 import type { OpenSystem } from "../open/system.ts";
 import { loadTarget } from "../open/target.ts";
 import {
+  answerText,
   type Delivery,
   ghosttyFailure,
   parseOrcaSend,
@@ -209,9 +209,7 @@ export class Answerer {
     const { d, tool, host } = await this.#deliveryFor(workItemId, w);
     if (!d.ok) throw new OpError(409, "undeliverable");
     if (allow && tool !== "claude_code") throw new OpError(409, "undeliverable");
-    const prepared = allow
-      ? { text: "1", folded: false }
-      : prepareAnswer(input.text, sendsNewlines(d, tool));
+    const prepared = allow ? { text: "1", folded: false } : answerText(tool, d, input.text);
     if (!prepared) throw new OpError(400, "invalid_input");
     const steps = planSend(d, allow ? { kind: "allow" } : { kind: "text", text: prepared.text });
     let observed = false;
@@ -316,7 +314,7 @@ export class Answerer {
     if (!plan) throw new OpError(404, "not_found");
     if (!plan.ok) throw new OpError(409, plan.reason);
     const { d, tool, host, read } = plan;
-    const prepared = prepareAnswer(input.text, sendsNewlines(d, tool));
+    const prepared = answerText(tool, d, input.text);
     if (!prepared) throw new OpError(400, "invalid_input");
     const steps = planSend(d, { kind: "text", text: prepared.text });
     let observed = false;

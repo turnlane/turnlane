@@ -21,6 +21,7 @@
  * 引用符・バックスラッシュのエスケープが要らない。制御文字は prepareAnswer が除く）。文の改行は、改行を送れない端末では呼び出し側が 1 行に畳む（prepareAnswer）。
  * 許可待ちの「許可する」は `1` と Enter を別々に送る（Claude Code の許可のダイアログの 1 = Yes。今後も許可（2）は送らない）
  */
+import { prepareAnswer } from "@turnlane/core";
 import type { AnswerUndeliverable } from "@turnlane/core/api";
 import type { FoundApp } from "../open/apps.ts";
 import { GHOSTTY_MARKED, ghosttyMarkPrep, hostTerminal } from "../open/focus.ts";
@@ -151,6 +152,21 @@ export function resolveDelivery(
 /** 改行をそのまま送れるか（tmux の Claude Code だけ。Ctrl+J が改行。ほかは 1 行に畳む） */
 export function sendsNewlines(d: Delivery, tool: string | null): boolean {
   return d.ok && d.via === "tmux" && tool === "claude_code";
+}
+
+/**
+ * 送る文の組み立て（ツールごと。Issue #10）。
+ * - Claude Code: 改行を送れる届け先（tmux の Ctrl+J）なら改行のまま、ほかは 1 行に畳む
+ * - Codex: いつも 1 行に畳む。Codex の TUI の入力欄で改行を入れるキーは端末と設定で違い（Enter は送信）、tmux から
+ *   確かに改行にする送り方が分からないため（仮置き）。選択肢の番号（`1`）は文字のまま送る（Codex の問いは文で答える
+ *   もので、Claude Code の AskUserQuestion のような番号のダイアログは無い）。許可する（`1`）は送らない（canAllow）
+ */
+export function answerText(
+  tool: string | null,
+  d: Delivery,
+  text: string,
+): { text: string; folded: boolean } | null {
+  return prepareAnswer(text, tool === "codex" ? false : sendsNewlines(d, tool));
 }
 
 /** tmux: 文を文字のまま送る（末尾の `;` は 16 進で）。Enter は enterStep で別に送る */

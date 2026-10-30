@@ -632,7 +632,8 @@ CREATE TABLE hook_event (
   agent_id             TEXT,                           -- サブエージェントの中で出た hook の agent_id（Claude Code。session_external_id は親。0019）
   agent_type           TEXT,                           -- そのサブエージェントの種類（agent_type。0019）
   permission_mode      TEXT,                           -- 権限のモード（permission_mode。bypassPermissions の許可の hook は待ちにしない。0019）
-  quota_horizon        INTEGER                         -- 利用枠の自動再開を止めた通知が「明けるのが 24 時間より先」の定型文だった（1。文は持たない。0020）
+  quota_horizon        INTEGER,                        -- 利用枠の自動再開を止めた通知が「明けるのが 24 時間より先」の定型文だった（1。文は持たない。0020）
+  pid                  INTEGER                         -- Codex の hook のハンドラの親（codex のプロセス）の pid（turnlane hook の ppid。セッションの live_pid に写す。0023）
 );
 CREATE UNIQUE INDEX hook_event_spool_uq  ON hook_event(spool_file, spool_offset);   -- 冪等性
 CREATE INDEX        hook_event_sess_idx  ON hook_event(session_external_id, occurred_at);
@@ -1045,7 +1046,7 @@ packages/collectors ──▶ node:fs / node:path のみ（bun:sqlite は将来 
 | `builtinAdapters` | 同梱アダプタの配列（`registry.ts`）。daemon の supervisor はこれだけを見る |
 | `readJsonlIncremental()` | 3.2 の冪等規則を満たすリーダ。アダプタはファイルを直接読まず、これを使う。SQLite 用のリーダは Phase0 では作らない（必要になったら ai-session-ingestion 1.4 のコピー方式で `openSqliteSnapshot()` を足す） |
 | `pickAllowed(record, keys)` | 許可リストのキーだけを取り出す。アダプタは JSON をパースした直後にこれを通す |
-| `@turnlane/collectors/hook-allowlist` | hooks の spool に残すキー（`HOOK_ALLOWLIST`。ToolId → `{ events, keys, droppable }`）と `HOOK_TOOL_IDS`。import を1つも持たない定数だけのモジュールで、`turnlane hook` が直接 import する（ADR 0009）。各アダプタの `HookSpec.allowlist` はこの定数から作る。spool の行には許可リストのキーのほか、`turnlane hook` が付ける `v`・`tool`・`received_at`・`config_root`（環境変数から取る設定ディレクトリ。S5）・`term`（環境変数 `ORCA_TERMINAL_HANDLE` の Orca の端末のハンドル。形の合うものだけ。Turnlane から答える届け先。D-238）が入る |
+| `@turnlane/collectors/hook-allowlist` | hooks の spool に残すキー（`HOOK_ALLOWLIST`。ToolId → `{ events, keys, droppable }`）と `HOOK_TOOL_IDS`。import を1つも持たない定数だけのモジュールで、`turnlane hook` が直接 import する（ADR 0009）。各アダプタの `HookSpec.allowlist` はこの定数から作る。spool の行には許可リストのキーのほか、`turnlane hook` が付ける `v`・`tool`・`received_at`・`config_root`（環境変数から取る設定ディレクトリ。S5）・`term`（環境変数 `ORCA_TERMINAL_HANDLE` の Orca の端末のハンドル。形の合うものだけ。Turnlane から答える届け先。D-238）・`ppid`（Codex の行だけ。ハンドラの親の codex のプロセスの pid。セッションの live_pid に写す。Issue #10）が入る |
 | `@turnlane/collectors/testing` | `runGoldenSuite(adapter, fixturesDir)`、`runIncrementalSuite(...)`（任意のバイト位置で分割して一致を確認）、`runSentinelSuite(...)`（本文系キーに番兵を入れて出力に漏れないことを確認）、`withRootJail(...)`（ルート外アクセスの検出） |
 
 semver: 公開 IF の破壊的変更は `ADAPTER_API_VERSION` を上げ、パッケージのメジャー版も上げる。公開前（0.x）の間はマイナーで上げてよい。
@@ -1395,7 +1396,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | `turnlane ai run <起動 ID>` | 「AI に頼む」が端末に入力する。依頼を1回だけ受け取り、Claude Code / Codex を引数の配列で起動して終了コードを返す（D-107。ADR 0014、m2-api 27章） |
 | `turnlane queue [--json]` | 要対応キュー |
 | `turnlane report [date] [--copy]` | 日報 Markdown（`--copy` で pbcopy） |
-| `turnlane hook --tool <ToolId> [--managed-by turnlane]` | hooks から呼ばれる。`--tool` はアダプタの ToolId をそのまま受ける（Phase0 は `claude_code` / `codex`。ADR 0009）。stdin の JSON から許可リスト（`@turnlane/collectors/hook-allowlist`）のキーだけを取り出し、spool に1行追記して exit 0。デーモンとは通信しない。`--managed-by turnlane` は設定ファイル上の識別用で読み飛ばす（未知の引数も無視して exit 0）。spool には `config_root`（`CLAUDE_CONFIG_DIR` / `CODEX_HOME`、未設定なら既定のディレクトリ）も残す（S5） |
+| `turnlane hook --tool <ToolId> [--managed-by turnlane]` | hooks から呼ばれる。`--tool` はアダプタの ToolId をそのまま受ける（Phase0 は `claude_code` / `codex`。ADR 0009）。stdin の JSON から許可リスト（`@turnlane/collectors/hook-allowlist`）のキーだけを取り出し、spool に1行追記して exit 0。デーモンとは通信しない。`--managed-by turnlane` は設定ファイル上の識別用で読み飛ばす（未知の引数も無視して exit 0）。spool には `config_root`（`CLAUDE_CONFIG_DIR` / `CODEX_HOME`、未設定なら既定のディレクトリ）も残す（S5）。Codex の行には親（codex のプロセス）の pid を `ppid` に残す（`process.ppid`。ps は起こさない。Issue #10） |
 | `turnlane hooks install|uninstall|status [--claude-dir <dir>]... [--codex] [--dry-run]` | 識別子付きで冪等に追加・削除する。方式は 3.6.1（S5）。変更があるときだけ書き換え前に `<実パス>.bak-turnlane-<ts>` を作る。`--dry-run` で差分を表示 |
 | `turnlane sources [list|rescan|health]` | 取り込み元と縮退レベル |
 | `turnlane calendar authorize|status|calendars|cleanup-timeblocks|holidays|sync|install|uninstall` | ヘルパの権限取得（`open` でダイアログ）、状態（接続・権限・予定の書き先（Calendar.app のデフォルトカレンダー）・Holidays from・次の稼働日）、カレンダー一覧と役割（`--role <id> source|ignored`）、M3-3 で書いた時間ブロックの予定の削除（`cleanup-timeblocks [--dry-run] [--yes]`。件数と期間を出し、確認してから消す。D-093）、祝日カレンダー（`--set <id>...|--none|--auto`）、窓の再取得、ヘルパの配置と LaunchAgent の登録・削除（M3 の A。[手順](../dev/m3-a.md)） |

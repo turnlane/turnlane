@@ -60,7 +60,11 @@ export function itemProcess(
   if (alive > 0) return { process: "alive", liveSessions: alive };
   const last = [...sessions].sort((a, b) => b.lastActivityAt - a.lastActivityAt)[0];
   if (!last) return { process: "gone", liveSessions: 0 };
-  return { process: PROBED_TOOLS.has(last.tool) ? "gone" : "unknown", liveSessions: 0 };
+  // 確かめられる取り込み元か、確かめた値がある（Codex は hooks の親の pid。Issue #10）なら gone。無ければ分からない
+  return {
+    process: PROBED_TOOLS.has(last.tool) || last.liveStatus !== null ? "gone" : "unknown",
+    liveSessions: 0,
+  };
 }
 
 /** プロセスが生きている（Claude Code）か、分からないが最後の動きから 6 時間以内（推定） */

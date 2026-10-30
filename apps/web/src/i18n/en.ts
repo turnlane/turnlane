@@ -1628,7 +1628,7 @@ export const en = {
   "ai.live.subHint": { one: "{count} subagent is running", other: "{count} subagents are running" },
   "ai.live.sessions": { one: "{count} session", other: "{count} sessions" },
   "ai.live.estimatedHint":
-    "Codex doesn't tell whether its process is still running, so it stays here for 6 hours after its last activity",
+    "Without hooks, Codex doesn't tell whether its process is still running, so it stays here for 6 hours after its last activity",
   "ai.live.lastActivity": "Last activity {time}",
   "ai.live.more": { one: "{count} more", other: "{count} more" },
   "ai.live.cleanupAction": "Clean up…",

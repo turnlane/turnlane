@@ -554,7 +554,10 @@ function QueueDetail({
         </span>
         <span className="flex items-center gap-1.5 text-fg2 text-meta">
           {[whereName(item, t("ai.scratch")), item.branch].filter(Boolean).join(" · ")}
-          <SquareTerminal size={14} strokeWidth={1.5} aria-hidden="true" />
+          {/* 報告の項目（ADR 0021）は端末のセッションではないので、端末のアイコンを出さない */}
+          {!item.repoRoot && item.sources.some((x) => x.report) ? null : (
+            <SquareTerminal size={14} strokeWidth={1.5} aria-hidden="true" />
+          )}
         </span>
       </div>
       {!(answering && fu?.kind !== "approve") ? (

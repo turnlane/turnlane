@@ -64,6 +64,7 @@ export function extract(
   root?: string,
   home?: string,
   term?: string,
+  ppid?: number,
 ): Record<string, unknown> | null {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return null;
   const src = input as Record<string, unknown>;
@@ -71,6 +72,9 @@ export function extract(
   if (root && root.length <= MAX_VALUE_LENGTH) out.config_root = root;
   // Orca の端末のハンドル（D-238）。形が合うものだけ
   if (term && TERM_HANDLE_RE.test(term)) out.term = term;
+  // Codex のプロセスの pid（Issue #10）: Codex はハンドラを自分の子として直接起こす（シェルを挟まない。手元の一時
+  // CODEX_HOME で確かめた）ので、親の pid が codex。tty は取らない（ps を起こすと 50ms の目標を食う。デーモンが pid から取る）
+  if (tool === "codex" && ppid !== undefined && Number.isInteger(ppid) && ppid > 1) out.ppid = ppid;
   for (const k of HOOK_ALLOWLIST[tool].keys) {
     const v = src[k];
     if (typeof v === "string" && v.length <= MAX_VALUE_LENGTH && hookValueAllowed(k, v))
@@ -135,6 +139,7 @@ export async function runHook(args: string[]): Promise<never> {
         configRoot(tool, env),
         env.HOME,
         env.ORCA_TERMINAL_HANDLE,
+        process.ppid,
       );
       if (rec) {
         const line = toLine(rec);
