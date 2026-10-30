@@ -1135,6 +1135,7 @@ export class DeriveRunner {
       .filter((e) => derive.isBusyEvent(e))
       .map((e) => [e.startAt, e.endAt] as [number, number]);
     const ctx = { settings, presence, busy };
+    const fromStart = dayStartMs(from, settings.tz, settings.dayBoundary);
     const starts: number[] = [];
     // 区間を先に計算し（カードごとに譲る）、書き込みは最後に 1 つのトランザクションでまとめる
     const rows: (string | number | null)[][] = [];
@@ -1144,6 +1145,8 @@ export class DeriveRunner {
       if (!f) continue;
       for (const iv of derive.waitIntervals(f, now, settings, timing)) {
         starts.push(iv.start);
+        // 作り直す範囲より前に終わった待ちは区分しない（どの区間も from より前の日付になる）
+        if (iv.end <= fromStart) continue;
         for (const s of derive.classifyWait(iv, ctx)) {
           if (s.localDate < from) continue;
           rows.push([

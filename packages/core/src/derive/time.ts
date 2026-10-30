@@ -125,18 +125,61 @@ export function unionLength(ranges: readonly Range[]): number {
   return unionRanges(ranges).reduce((sum, [s, e]) => sum + (e - s), 0);
 }
 
+/** 時刻順に並んだ重ならない区間で、終わりが t より後の最初の位置（二分探索） */
+function firstEndingAfter(u: readonly Range[], t: number): number {
+  let lo = 0;
+  let hi = u.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((u[mid] as Range)[1] > t) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
+/**
+ * 区間の差。cut を和集合にしてから、ranges の各区間に重なる cut だけを順に引く（以前は cut の 1 つごとに全体を作り直して
+ * いたため、在席・予定が数千あると待ち 1 つで数千回の配列の作り直しになり、判定が秒単位で塞がった）
+ */
 function subtract(ranges: Range[], cut: readonly Range[]): Range[] {
-  let out = ranges;
-  for (const [cs, ce] of cut) {
-    const next: Range[] = [];
-    for (const [s, e] of out) {
-      if (ce <= s || cs >= e) next.push([s, e]);
-      else {
-        if (cs > s) next.push([s, cs]);
-        if (ce < e) next.push([ce, e]);
-      }
+  if (cut.length === 0) return ranges;
+  const u = unionOnce(cut);
+  const out: Range[] = [];
+  for (const [s, e] of ranges) {
+    let cur = s;
+    for (let i = firstEndingAfter(u, s); i < u.length; i++) {
+      const [cs, ce] = u[i] as Range;
+      if (cs >= e) break;
+      if (cs > cur) out.push([cur, cs]);
+      if (ce > cur) cur = ce;
+      if (cur >= e) break;
     }
-    out = next;
+    if (cur < e) out.push([cur, e]);
+  }
+  return out;
+}
+
+/**
+ * 和集合を配列ごとに 1 回だけ作る（判定の 1 回の実行で、在席・予定の同じ配列を待ちの数だけ並べ直さない）。呼ぶ側は
+ * 返した配列を書き換えない
+ */
+const unionCache = new WeakMap<readonly Range[], Range[]>();
+function unionOnce(r: readonly Range[]): Range[] {
+  let u = unionCache.get(r);
+  if (!u) {
+    u = unionRanges(r);
+    unionCache.set(r, u);
+  }
+  return u;
+}
+
+/** 重ならない区間の和集合 u のうち [s, e) に重なる部分（切り詰めた新しい区間） */
+function clip(u: readonly Range[], s: number, e: number): Range[] {
+  const out: Range[] = [];
+  for (let i = firstEndingAfter(u, s); i < u.length; i++) {
+    const [a, b] = u[i] as Range;
+    if (a >= e) break;
+    out.push([Math.max(a, s), Math.min(b, e)]);
   }
   return out;
 }
@@ -696,8 +739,9 @@ export function classifyWait(iv: WaitInterval, ctx: ClassifyContext): WaitSegmen
 function classifyCountable(iv: WaitInterval, ctx: ClassifyContext): WaitSegment[] {
   const segs: WaitSegment[] = [];
   if (iv.end <= iv.start) return segs;
-  const busyAll = unionRanges(ctx.busy);
-  const presentAll = unionRanges(ctx.presence);
+  // 在席・予定は和集合を 1 回だけ作り、この待ちに重なる分だけを使う
+  const busyAll = clip(unionOnce(ctx.busy), iv.start, iv.end);
+  const presentAll = clip(unionOnce(ctx.presence), iv.start, iv.end);
   for (const p of splitByDate([iv.start, iv.end], ctx)) {
     const open: Range[] = [p.range];
     for (const r of subtract(open, presentAll)) segs.push(seg(p.date, "excluded", "away", r));

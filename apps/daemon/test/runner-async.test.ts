@@ -117,4 +117,45 @@ describe("runner: 非同期の実行", () => {
     r.runOnce();
     expect(snapshot()).toEqual(after);
   });
+
+  test("1 回の判定が閾値を超えたら derive.slow を 1 行（件数と時間だけ）", async () => {
+    await setup();
+    const logs: { event: string; fields: Record<string, unknown> }[] = [];
+    const push = (event: string, fields?: unknown) =>
+      logs.push({ event, fields: (fields ?? {}) as Record<string, unknown> });
+    runner = new DeriveRunner({
+      sqlite: env.sqlite,
+      mutate: env.mutate,
+      git: env.git,
+      clock: env.clock,
+      logger: { debug: push, info: push, warn: push, error: push },
+      runningStaleMs: { claude_code: 10 * MIN },
+      debounceMs: 0,
+      tickMs: 3_600_000,
+      sliceMs: 0,
+      slowMs: 0,
+    });
+    await runner.runNow();
+    const slow = logs.filter((l) => l.event === "derive.slow");
+    expect(slow).toHaveLength(1);
+    expect(slow[0]?.fields).toMatchObject({ aborted: false, sync: false, turns: 18, sessions: 3 });
+    expect(Object.keys(slow[0]?.fields ?? {}).sort()).toEqual(
+      ["aborted", "ms", "sessions", "sync", "turns", "wall_ms"].sort(),
+    );
+    // 閾値の下なら残さない
+    logs.length = 0;
+    runner.stop();
+    runner = new DeriveRunner({
+      sqlite: env.sqlite,
+      mutate: env.mutate,
+      git: env.git,
+      clock: env.clock,
+      logger: { debug: push, info: push, warn: push, error: push },
+      runningStaleMs: { claude_code: 10 * MIN },
+      debounceMs: 0,
+      tickMs: 3_600_000,
+    });
+    await runner.runNow();
+    expect(logs.filter((l) => l.event === "derive.slow")).toEqual([]);
+  });
 });
