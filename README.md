@@ -2,7 +2,7 @@
 
 **A daily planner for people who run AI coding agents.** Your calendar, your own tasks, and the work of Claude Code and Codex, in the terminal or in their desktop apps, sit on the same day lane. Nothing is typed in by hand: AI work is read from the agents' local files, and the moments an agent is waiting on you surface as *Your turn*.
 
-> **0.7.0 is the first public release.** macOS only (macOS 14 or later, Apple Silicon). Install with Homebrew or the signed zip (below); [CHANGELOG.md](CHANGELOG.md) lists what changes between versions. Interfaces, file formats, and the CLI may still change before 1.0.
+> **Public since 0.7.0 (2026-10-27); the current version is on the [Releases page](https://github.com/turnlane/turnlane/releases).** macOS only (macOS 14 or later, Apple Silicon). Install with Homebrew or the signed zip (below); [CHANGELOG.md](CHANGELOG.md) lists what changes between versions. Interfaces, file formats, and the CLI may still change before 1.0.
 
 ![Three-day board: yesterday, today, and the next workday. Events and your tasks on the left of today, AI work on the right, Your turn at the top.](docs/assets/board.png)
 
