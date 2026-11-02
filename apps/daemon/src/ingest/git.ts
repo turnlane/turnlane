@@ -59,7 +59,7 @@ export class SystemGit implements GitProbe {
   readonly #default = new Map<string, string | null>();
   readonly #branch = new Map<string, { v: string | null; at: number }>();
   readonly #dirty = new Map<string, { v: boolean | null; at: number }>();
-  readonly #commits = new Map<string, { v: number | null; at: number }>();
+  readonly #commits = new Map<string, { v: number[] | null; since: number; at: number }>();
   readonly #remotes = new Map<string, { v: string[]; at: number }>();
   readonly #ttlMs: number;
   readonly #now: () => number;
@@ -118,28 +118,42 @@ export class SystemGit implements GitProbe {
     return v;
   }
 
+  /**
+   * since より後の最初のコミットの時刻。リポジトリ・ブランチごとに、問われた中で一番古い since からのコミットの時刻を
+   * TTL の間覚え、それより新しい since はそこから答える（判定は待ちのセッションごとに違う since で問うので、since ごとに
+   * git log を起こすと、セッションの数だけ毎回待っていた）
+   */
   firstCommitAfter(repoRoot: string, branch: string, since: number): number | null {
-    const key = `${repoRoot}\0${branch}\0${since}`;
+    const key = `${repoRoot}\0${branch}`;
     const hit = this.#commits.get(key);
-    if (hit && this.#now() - hit.at < this.#ttlMs) return hit.v;
-    const out =
-      isAbsolute(repoRoot) && existsSync(repoRoot)
-        ? run([
-            "-C",
-            repoRoot,
-            "log",
-            "--format=%ct",
-            `--since=@${Math.floor(since / 1000)}`,
-            "--end-of-options",
-            branch,
-          ])
-        : null;
-    let v: number | null = null;
-    for (const line of out?.split("\n") ?? []) {
-      const t = Number(line) * 1000;
-      if (Number.isFinite(t) && t > since && (v === null || t < v)) v = t;
+    const fresh = hit && this.#now() - hit.at < this.#ttlMs ? hit : null;
+    let times: number[] | null;
+    if (fresh && fresh.since <= since) times = fresh.v;
+    else {
+      const from = fresh ? Math.min(fresh.since, since) : since;
+      const out =
+        isAbsolute(repoRoot) && existsSync(repoRoot)
+          ? run([
+              "-C",
+              repoRoot,
+              "log",
+              "--format=%ct",
+              `--since=@${Math.floor(from / 1000)}`,
+              "--end-of-options",
+              branch,
+            ])
+          : null;
+      times =
+        out === null
+          ? null
+          : (out
+              .split("\n")
+              .map((line) => Number(line) * 1000)
+              .filter((t) => Number.isFinite(t) && t > 0) as number[]);
+      this.#commits.set(key, { v: times, since: from, at: this.#now() });
     }
-    this.#commits.set(key, { v, at: this.#now() });
+    let v: number | null = null;
+    for (const t of times ?? []) if (t > since && (v === null || t < v)) v = t;
     return v;
   }
 

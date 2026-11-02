@@ -191,6 +191,8 @@ export function createAiSystem(o: AiOptions): AiSystem {
   // 待ちの中身の保存（ADR 0018）: 読めなかったフォローアップは同じ起動の間は読み直さない
   const triedWaits = new Set<string>();
   const runner = new DeriveRunner({
+    // 動いているかの確かめ（5 秒ごと）の書き直しでは判定を打ち切らない
+    ignoredChanges: () => supervisor.refreshWrites,
     afterRun: (now, s) => {
       if (s.storeDetail) snapshotWaitDetails(o.sqlite, { now, home: o.home, tried: triedWaits });
     },

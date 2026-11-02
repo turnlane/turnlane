@@ -140,7 +140,20 @@ describe("runner: 非同期の実行", () => {
     expect(slow).toHaveLength(1);
     expect(slow[0]?.fields).toMatchObject({ aborted: false, sync: false, turns: 18, sessions: 3 });
     expect(Object.keys(slow[0]?.fields ?? {}).sort()).toEqual(
-      ["aborted", "ms", "sessions", "sync", "turns", "wall_ms"].sort(),
+      [
+        "aborted",
+        "git_calls",
+        "git_ms",
+        "group_ms",
+        "load_ms",
+        "ms",
+        "sessions",
+        "status_ms",
+        "sync",
+        "turns",
+        "waits_ms",
+        "wall_ms",
+      ].sort(),
     );
     // 閾値の下なら残さない
     logs.length = 0;

@@ -330,6 +330,16 @@ export class Supervisor {
   }
 
   /** 取り込みに同意しているか */
+  /**
+   * 動いているかの確かめ（5 秒ごと）で、状態も PID も変わらずに確かめた時刻だけを書き直した行の数。判定（derive）は譲っている
+   * 間の書き込みで実行を打ち切るが、この書き込みでは打ち切らない（数えて差し引く）。打ち切ると、5 秒より長い判定が毎回
+   * 打ち切られ、打ち切り 3 回 → 譲らない実行 を繰り返していた
+   */
+  get refreshWrites(): number {
+    return this.#refreshWrites;
+  }
+  #refreshWrites = 0;
+
   get consented(): boolean {
     return this.#o.consented?.() ?? true;
   }
@@ -957,6 +967,7 @@ export class Supervisor {
       const status = alive ? "busy" : gone ? "gone" : null;
       const pid = alive ? tui : gone ? (c?.pid ?? tui ?? r.live_pid) : null;
       if (r.live_status !== status || r.live_pid !== pid) changed.add(r.id);
+      else this.#refreshWrites++;
       this.#o.sqlite.run(
         "UPDATE ai_session SET live_status = ?, live_pid = ?, live_checked_at = ? WHERE id = ?",
         [status, pid, status === null ? null : now, r.id],
@@ -1004,6 +1015,7 @@ export class Supervisor {
               .get(p.ref.tool, p.ref.externalId);
             if (!r) continue;
             if (r.live_status !== p.status || r.live_pid !== (p.pid ?? null)) changed.add(r.id);
+            else this.#refreshWrites++;
             this.#o.sqlite.run(
               "UPDATE ai_session SET live_status = ?, live_pid = ?, live_checked_at = ? WHERE id = ?",
               [p.status, p.pid ?? null, this.#o.clock.now(), r.id],

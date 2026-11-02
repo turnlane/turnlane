@@ -80,6 +80,11 @@ export interface RunnerOptions {
   sliceMs?: number;
   /** derive.slow を残す閾値（既定 1000 ms） */
   slowMs?: number;
+  /**
+   * 判定の入力を変えない書き込みの累計（同じ接続の total_changes から差し引く）。動いているかの確かめが確かめた時刻だけを
+   * 書き直した行（Supervisor.refreshWrites）
+   */
+  ignoredChanges?: () => number;
   settings?: () => TurnlaneSettings;
   /** 壁打ちのフォルダか（D-135。ai.ts の scratchMatcher）。省略時は壁打ちを作らない */
   isScratch?: (cwd: string) => boolean;
@@ -115,10 +120,16 @@ export class DeriveRunner {
   lastRun: RunStats | null = null;
   /** 譲っている間に DB が書き換わって打ち切った回数（確認・テスト用） */
   abortedRuns = 0;
+  /** 終えた非同期の実行（取り込みの後・tick・runNow）の数 */
+  completedRuns = 0;
   /** 今の実行で JS を動かした時間（譲っている間を除く。derive.slow） */
   #busyMs = 0;
   /** 最後に読んだ件数（derive.slow） */
   #size = { turns: 0, sessions: 0 };
+  /** 最後の実行の段階ごとの時間（壁時計。derive.slow） */
+  #phases = { load: 0, group: 0, status: 0, waits: 0 };
+  /** 最後の実行で git を問い合わせた回数と時間（derive.slow） */
+  #gitMeter = { calls: 0, ms: 0 };
   /**
    * 最後の実行で見つけた待ちの始まり（全期間。在席・カレンダーで区分する前）。オンボーディングの要約の
    * 「AI が人を待った回数」に使う（onboarding.md 4.3。窓より古い日は待ち区間の行を作らないため、行からは数えない）
@@ -236,9 +247,16 @@ export class DeriveRunner {
           sync,
           turns: this.#size.turns,
           sessions: this.#size.sessions,
+          load_ms: Math.round(this.#phases.load),
+          group_ms: Math.round(this.#phases.group),
+          status_ms: Math.round(this.#phases.status),
+          waits_ms: Math.round(this.#phases.waits),
+          git_calls: this.#gitMeter.calls,
+          git_ms: Math.round(this.#gitMeter.ms),
         });
       this.#aborts = completed ? 0 : this.#aborts + 1;
       if (!completed) this.abortedRuns++;
+      else this.completedRuns++;
       this.#running = false;
       for (const w of this.#idleWaiters.splice(0)) w();
       if (!this.#stopped && (this.#again || !completed)) {
@@ -316,7 +334,10 @@ export class DeriveRunner {
   /** この接続の書き込みの累計と、他の接続の書き込みの印（PRAGMA data_version） */
   #dbStamp(): string {
     const db = this.#o.sqlite;
-    const c = db.query<{ c: number }, []>("SELECT total_changes() AS c").get()?.c ?? 0;
+    // 判定の入力を変えない書き込み（動いているかを確かめた時刻だけの書き直し）は数えない
+    const c =
+      (db.query<{ c: number }, []>("SELECT total_changes() AS c").get()?.c ?? 0) -
+      (this.#o.ignoredChanges?.() ?? 0);
     const v = db.query<{ data_version: number }, []>("PRAGMA data_version").get()?.data_version;
     return `${c}:${v ?? 0}`;
   }
@@ -335,10 +356,13 @@ export class DeriveRunner {
       waitSegments: 0,
     };
 
+    const loadAt = performance.now();
+    this.#phases = { load: 0, group: 0, status: 0, waits: 0 };
     const sessions = loadSessions(o.sqlite);
     const sessionById = new Map(sessions.map((s) => [s.id, s]));
     const allTurns = loadTurns(o.sqlite);
     this.#size = { turns: allTurns.length, sessions: sessions.length };
+    this.#phases.load = performance.now() - loadAt;
     const turns = allTurns.filter((t) => {
       const s = sessionById.get(t.session_id);
       return s && s.is_noise !== 1;
@@ -351,7 +375,10 @@ export class DeriveRunner {
     // ---------- 1. グルーピング ----------
     const isScratch = o.isScratch ? memo(o.isScratch) : undefined;
     this.#isScratch = isScratch;
-    const git = memoGit(o.git);
+    const meter = { calls: 0, ms: 0 };
+    this.#gitMeter = meter;
+    const phase0 = performance.now();
+    const git = memoGit(o.git, meter);
     this.#git = git;
     const repoOf = (cwd: string | null): string | null | undefined => {
       if (!cwd) return null;
@@ -539,6 +566,8 @@ export class DeriveRunner {
       }
     })();
 
+    this.#phases.group = performance.now() - phase0;
+    const phase1 = performance.now();
     // ---------- 2・3. 状態とフォローアップ ----------
     // セッション → ターンを持つカード（題名の「他のカードにまたがるか」。D-066 (3)）
     const cardsBySession = new Map<string, Set<string>>();
@@ -728,8 +757,11 @@ export class DeriveRunner {
       diffSig(this.#turnSig, turnSig, changedWis, changedDates);
       this.#turnSig = turnSig;
 
+      this.#phases.status = performance.now() - phase1;
+      const phase2 = performance.now();
       // ---------- 4. 待ち ----------
       const waits = yield* this.#waits(activeWis, factsFor, settings, now, today, timing);
+      this.#phases.waits = performance.now() - phase2;
       stats.waitSegments = waits.count;
       diffSig(this.#waitSig, waits.sig, changedWis, changedDates);
       this.#waitSig = waits.sig;
@@ -1233,17 +1265,32 @@ function memo<T>(fn: (k: string) => T): (k: string) => T {
 }
 
 /** 1 回の実行の間だけ cwd の存在とリポジトリを覚える GitProbe（ターンごとに同じ cwd を何度も見る） */
-function memoGit(git: GitProbe): GitProbe {
+function memoGit(git: GitProbe, meter?: { calls: number; ms: number }): GitProbe {
+  // 診断用（derive.slow）: git を問い合わせた回数と時間（キャッシュに当たった分も含む。外の git を待つ時間はここに出る）
+  const timed =
+    <A extends unknown[], R>(f: (...a: A) => R) =>
+    (...a: A): R => {
+      if (!meter) return f(...a);
+      const t = performance.now();
+      try {
+        return f(...a);
+      } finally {
+        meter.calls++;
+        meter.ms += performance.now() - t;
+      }
+    };
   const exists = memo((cwd) => git.cwdExists(cwd));
-  const root = memo((cwd) => git.repoRoot(cwd));
+  const root = memo(timed((cwd: string) => git.repoRoot(cwd)));
   return {
     repoRoot: root,
     cwdExists: exists,
-    currentBranch: (cwd) => git.currentBranch(cwd),
-    defaultBranch: (r) => git.defaultBranch(r),
-    isDirty: (r) => git.isDirty(r),
-    firstCommitAfter: (r, b, since) => git.firstCommitAfter(r, b, since),
-    remoteRepos: (r) => git.remoteRepos(r),
+    currentBranch: timed((cwd: string) => git.currentBranch(cwd)),
+    defaultBranch: timed((r: string) => git.defaultBranch(r)),
+    isDirty: timed((r: string) => git.isDirty(r)),
+    firstCommitAfter: timed((r: string, b: string, since: number) =>
+      git.firstCommitAfter(r, b, since),
+    ),
+    remoteRepos: timed((r: string) => git.remoteRepos(r)),
   };
 }
 
