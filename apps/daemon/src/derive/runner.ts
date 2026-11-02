@@ -128,6 +128,8 @@ export class DeriveRunner {
   #size = { turns: 0, sessions: 0 };
   /** 最後の実行の段階ごとの時間（壁時計。derive.slow） */
   #phases = { load: 0, group: 0, status: 0, waits: 0 };
+  /** 最後の実行の待ちの段階の内訳（derive.slow） */
+  #waitTimes = { facts: 0, intervals: 0, classify: 0, write: 0, maxTurns: 0 };
   /** 最後の実行で git を問い合わせた回数と時間（derive.slow） */
   #gitMeter = { calls: 0, ms: 0 };
   /**
@@ -251,6 +253,11 @@ export class DeriveRunner {
           group_ms: Math.round(this.#phases.group),
           status_ms: Math.round(this.#phases.status),
           waits_ms: Math.round(this.#phases.waits),
+          facts_ms: Math.round(this.#waitTimes.facts),
+          intervals_ms: Math.round(this.#waitTimes.intervals),
+          classify_ms: Math.round(this.#waitTimes.classify),
+          write_ms: Math.round(this.#waitTimes.write),
+          max_turns: this.#waitTimes.maxTurns,
           git_calls: this.#gitMeter.calls,
           git_ms: Math.round(this.#gitMeter.ms),
         });
@@ -1171,11 +1178,20 @@ export class DeriveRunner {
     const starts: number[] = [];
     // 区間を先に計算し（カードごとに譲る）、書き込みは最後に 1 つのトランザクションでまとめる
     const rows: (string | number | null)[][] = [];
+    const wt = this.#waitTimes;
+    wt.facts = wt.intervals = wt.classify = wt.write = wt.maxTurns = 0;
     for (const wiId of wis) {
       yield;
+      let t0 = performance.now();
       const f = factsFor(wiId);
+      wt.facts += performance.now() - t0;
       if (!f) continue;
-      for (const iv of derive.waitIntervals(f, now, settings, timing)) {
+      if (f.turns.length > wt.maxTurns) wt.maxTurns = f.turns.length;
+      t0 = performance.now();
+      const ivs = derive.waitIntervals(f, now, settings, timing);
+      wt.intervals += performance.now() - t0;
+      t0 = performance.now();
+      for (const iv of ivs) {
         starts.push(iv.start);
         // 作り直す範囲より前に終わった待ちは区分しない（どの区間も from より前の日付になる）
         if (iv.end <= fromStart) continue;
@@ -1204,8 +1220,10 @@ export class DeriveRunner {
           );
         }
       }
+      wt.classify += performance.now() - t0;
     }
     yield;
+    const tw = performance.now();
     // 前回と同じ行は残し、変わった分だけ消して足す（毎回全部を書き直すと、行が多いときに書き込みが長くなる）
     const sigOf = (r: readonly unknown[]) => JSON.stringify(r);
     const keep = new Map<string, string[]>();
@@ -1235,6 +1253,7 @@ export class DeriveRunner {
       for (const ids of keep.values()) for (const id of ids) remove.run(id);
       for (const r of added) insert.run(...(r as [string]));
     })();
+    wt.write = performance.now() - tw;
     const n = rows.length;
     this.#waitStarts = starts;
     return { count: n, sig };

@@ -20,7 +20,7 @@ const H = 60 * MIN;
 const NOW = Date.UTC(2026, 10, 1, 10, 0);
 
 /** 実機の台帳の形の合成（件数だけ合わせる）。1 つの項目に 40 セッション、終わっていないセッション 197 */
-function ledgerShape(e: AiEnv): { liveSid: string } {
+function ledgerShape(e: AiEnv, opts: { heavy?: boolean } = {}): { liveSid: string } {
   e.git.repos.set("/w/app", "/w/app");
   e.git.defaults.set("/w/app", "main");
   e.git.dirty.set("/w/app", true);
@@ -29,7 +29,7 @@ function ledgerShape(e: AiEnv): { liveSid: string } {
   mkdirSync(spool, { recursive: true });
   let n = 0;
   const hooks: string[] = [];
-  const hook = (sid: string, at: number, name: string, cwd: string) =>
+  const hook = (sid: string, at: number, name: string, cwd: string, extra: object = {}) =>
     hooks.push(
       JSON.stringify({
         v: 1,
@@ -39,6 +39,7 @@ function ledgerShape(e: AiEnv): { liveSid: string } {
         hook_event_name: name,
         session_id: sid,
         cwd,
+        ...extra,
       }),
     );
   const rec = (sid: string, at: number, cwd: string, branch: string, body: object) =>
@@ -60,11 +61,14 @@ function ledgerShape(e: AiEnv): { liveSid: string } {
     const branch = i < 40 ? "feat/big" : i % 4 === 0 ? "main" : `feat/b${i % 30}`;
     const dir = join(root, `-w-app${i % 7}`);
     mkdirSync(dir, { recursive: true });
-    const start = NOW - (i % 30) * 24 * H - (i % 10) * MIN - 2 * H;
-    const turns = i === 0 ? 150 : 5;
+    // heavy: 1 つのセッションに 1,090 ターン（31 日前から今日まで。終わっていない）とサブエージェント 300、許可待ち
+    const heavy = opts.heavy === true && i === 0;
+    const start = heavy ? NOW - 30 * MIN : NOW - (i % 30) * 24 * H - (i % 10) * MIN - 2 * H;
+    const turns = heavy ? 1090 : i === 0 ? 150 : 5;
+    const step = heavy ? Math.floor((31 * 24 * H) / turns) : 15 * MIN;
     let text = "";
     for (let t = 0; t < turns; t++) {
-      const at = start - (turns - t) * 15 * MIN;
+      const at = start - (turns - t) * step;
       text += rec(sid, at, cwd, branch, {
         type: "user",
         promptId: `p${n}`,
@@ -100,9 +104,32 @@ function ledgerShape(e: AiEnv): { liveSid: string } {
       });
       hook(sid, at + 61_000, "Stop", cwd);
       if (t % 2 === 0) hook(sid, at + 62_000, "Notification", cwd);
+      if (heavy) hook(sid, at + 63_000, "PermissionRequest", cwd, { tool_name: "Bash" });
+    }
+    if (heavy) {
+      // サブエージェント（親のターンの終わりをまたいで動いた）と、その許可待ち
+      const sdir = join(dir, sid, "subagents");
+      mkdirSync(sdir, { recursive: true });
+      for (let k = 0; k < 300; k++) {
+        const at = start - (turns - Math.floor((k * turns) / 300)) * step + 50_000;
+        let st = "";
+        for (let q = 0; q < 4; q++)
+          st += `${JSON.stringify({
+            type: q === 3 ? "assistant" : "user",
+            timestamp: new Date(at + q * MIN).toISOString(),
+            sessionId: sid,
+            isSidechain: true,
+            cwd,
+            agentId: `a${k}`,
+            message: q === 3 ? { stop_reason: "end_turn" } : { content: "x" },
+          })}\n`;
+        writeFileSync(join(sdir, `agent-a${k}.jsonl`), st);
+        hook(sid, at + 90_000, "PermissionRequest", cwd, { tool_name: "Bash" });
+        hook(sid, at + 91_000, "Notification", cwd, { notification_type: "permission_prompt" });
+      }
     }
     // 197 は終わっていない（SessionEnd が無い）
-    if (i >= 197) hook(sid, start + 3 * H, "SessionEnd", cwd);
+    if (i >= 197 && !heavy) hook(sid, start + 3 * H, "SessionEnd", cwd);
     writeFileSync(join(dir, `${sid}.jsonl`), text);
   }
   writeFileSync(join(spool, "hooks-20261101.jsonl"), `${hooks.join("\n")}\n`);
@@ -190,5 +217,29 @@ describe("判定が回り続けない（台帳の形の合成）", () => {
     await Bun.sleep(1500);
     await r.idle();
     expect(r.completedRuns).toBe(runs);
+  }, 60_000);
+
+  test("1 つのセッションに 1,090 ターン・サブエージェント 300・許可待ち（31 日間、終わっていない）でも 1 回 500 ms 未満", async () => {
+    env = makeAiEnv({ now: NOW });
+    ledgerShape(env, { heavy: true });
+    await env.ai.supervisor.beginIngest();
+    await env.sync();
+    const big = env.sqlite
+      .query<{ n: number }, []>(
+        "SELECT max(c) AS n FROM (SELECT count(*) c FROM ai_turn GROUP BY session_id)",
+      )
+      .get();
+    expect(big?.n).toBe(1090);
+    const hooks = env.sqlite
+      .query<{ n: number }, []>(
+        "SELECT max(c) AS n FROM (SELECT count(*) c FROM hook_event GROUP BY session_external_id)",
+      )
+      .get();
+    expect(hooks?.n).toBeGreaterThan(2500);
+    env.clock.set(NOW + MIN);
+    const a = performance.now();
+    env.ai.runner.runOnce();
+    // 直す前は、ターンごとの待ちの始まりで許可待ちと hook を調べ直していて 1 回 2 秒を超えていた
+    expect(performance.now() - a).toBeLessThan(500);
   }, 60_000);
 });

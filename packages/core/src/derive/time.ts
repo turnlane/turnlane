@@ -415,18 +415,32 @@ function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
       return o === "parent" ? "parent" : `sub:${o?.id ?? h.agentId ?? "?"}`;
     };
     const keys = new Map(all.map((h) => [h.id, ownerKey(h)]));
+    // 持ち主（親・サブエージェントごと）の hook の並びと、その中の位置（許可待ちごとに全 hook を絞り直さない）
+    const byKey = new Map<string, HookFact[]>();
+    const pos = new Map<string, number>();
+    for (const h of all) {
+      const k = keys.get(h.id) as string;
+      const xs = byKey.get(k) ?? [];
+      pos.set(h.id, xs.length);
+      xs.push(h);
+      byKey.set(k, xs);
+    }
     for (let j = 0; j < all.length; j++) {
       const h = all[j];
       if (!h || !isPermissionHook(h)) continue;
-      const key = keys.get(h.id);
+      const key = keys.get(h.id) as string;
       // 同じ持ち主（親・サブエージェントごと）の hook の並び
-      const hooks = all.filter((x) => keys.get(x.id) === key);
-      const i = hooks.indexOf(h);
+      const hooks = byKey.get(key) ?? [];
+      const i = pos.get(h.id) ?? hooks.indexOf(h);
       // 同じ待ちの続き（PermissionRequest の直後の Notification など）は1つにまとめる
-      const prev = hooks
-        .slice(0, i)
-        .reverse()
-        .find((x) => isPermissionHook(x) || (key === "parent" && isClearingHook(x)));
+      let prev: HookFact | undefined;
+      for (let q = i - 1; q >= 0; q--) {
+        const x = hooks[q] as HookFact;
+        if (isPermissionHook(x) || (key === "parent" && isClearingHook(x))) {
+          prev = x;
+          break;
+        }
+      }
       if (prev && isPermissionHook(prev)) {
         // サブエージェントの前の許可待ちが閉じていなければ、その続き
         if (key === "parent") continue;

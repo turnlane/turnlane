@@ -58,7 +58,16 @@ export function hookOwner(
   if (h.agentId) return subs.find((x) => x.agentId === h.agentId) ?? null;
   if (subs.length === 0 || !isPermissionHook(h)) return "parent";
   const at = h.occurredAt;
-  const turn = [...(f.sessionTurns.get(s.id) ?? [])].reverse().find((t) => t.startedAt <= at);
+  // その時点の親のターン（後ろから探す。配列を写さない）
+  const ts = f.sessionTurns.get(s.id) ?? [];
+  let turn: TurnFact | undefined;
+  for (let i = ts.length - 1; i >= 0; i--) {
+    const t = ts[i] as TurnFact;
+    if (t.startedAt <= at) {
+      turn = t;
+      break;
+    }
+  }
   if (!turn || turn.endedAt === null || turn.endedAt >= at) return "parent";
   const cand = subs
     .filter(
@@ -142,15 +151,39 @@ export function openSubagentPermission(
   s: SessionFact,
   since: number,
 ): HookFact | null {
-  const hooks = f.hooks.filter(
-    (h) => h.sessionExternalId === s.externalId && h.occurredAt >= since && isPermissionHook(h),
-  );
-  for (const h of [...hooks].reverse()) {
-    const owner = hookOwner(f, s, h);
-    if (owner === "parent") continue;
-    if (subagentPermissionEnd(f, s, h, owner) === null) return h;
+  const open = openSubagentPermissions(f, s);
+  for (let i = open.length - 1; i >= 0; i--) {
+    const h = open[i] as HookFact;
+    if (h.occurredAt >= since) return h;
   }
   return null;
+}
+
+/**
+ * セッション s のサブエージェントの許可待ちのうち、まだ閉じていないもの（hooks の並び順）。since によらないので、同じ事実
+ * （WorkItemFacts）につき 1 回だけ作る。以前は待ちの始まり（settledAfter）をターンごとに求めるたびに、since 以後の
+ * 許可待ちのすべてについて持ち主と終わりを調べ直していて、ターン × 許可待ち × hook の計算になっていた
+ */
+const openPermsCache = new WeakMap<object, Map<string, HookFact[]>>();
+function openSubagentPermissions(f: WorkItemFacts, s: SessionFact): HookFact[] {
+  let bySession = openPermsCache.get(f);
+  if (!bySession) {
+    bySession = new Map();
+    openPermsCache.set(f, bySession);
+  }
+  const hit = bySession.get(s.id);
+  if (hit) return hit;
+  const out: HookFact[] = [];
+  if (subagentsOf(f, s).length > 0 || f.hooks.some((h) => h.agentId)) {
+    for (const h of f.hooks) {
+      if (h.sessionExternalId !== s.externalId || !isPermissionHook(h)) continue;
+      const owner = hookOwner(f, s, h);
+      if (owner === "parent") continue;
+      if (subagentPermissionEnd(f, s, h, owner) === null) out.push(h);
+    }
+  }
+  bySession.set(s.id, out);
+  return out;
 }
 
 /** 親のセッション s のサブエージェントが動いているか、許可を待っているか（親のターン last の始まりより後の許可待ち） */

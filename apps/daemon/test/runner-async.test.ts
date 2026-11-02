@@ -142,6 +142,11 @@ describe("runner: 非同期の実行", () => {
     expect(Object.keys(slow[0]?.fields ?? {}).sort()).toEqual(
       [
         "aborted",
+        "classify_ms",
+        "facts_ms",
+        "intervals_ms",
+        "max_turns",
+        "write_ms",
         "git_calls",
         "git_ms",
         "group_ms",
