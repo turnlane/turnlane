@@ -351,6 +351,8 @@ export class Supervisor {
 
   async start(): Promise<void> {
     await this.detect();
+    // 検出を待っている間に止められていたら、タイマーを作らない（止めた後に作ると誰も消さず、閉じた DB に触り続ける）
+    if (this.#stopped) return;
     this.#intervals.push(
       setInterval(() => void this.reconcile(), this.#o.reconcileMs ?? 60_000),
       setInterval(() => void this.probeLive(), this.#o.liveMs ?? 5_000),
@@ -370,12 +372,15 @@ export class Supervisor {
   }
 
   async #begin(): Promise<void> {
+    if (this.#stopped) return;
     this.#begun = true;
     this.#updateHooksState();
     await this.scanAll();
+    if (this.#stopped) return;
     this.#firstScanDone = true;
     this.#o.onProgress?.();
     await this.probeLive();
+    if (this.#stopped) return;
     if (!this.#o.noWatch) this.#watchAll();
     void this.whenIdle().then(() => {
       this.backfillDone = true;
@@ -410,6 +415,7 @@ export class Supervisor {
 
   /** 検出して ai_source に登録する（既存の enabled・除外ルールは保つ） */
   async detect(): Promise<void> {
+    if (this.#stopped) return;
     const now = this.#o.clock.now();
     const detected = new Set<string>();
     const extraRoots = this.#o.extraRoots?.() ?? [];
@@ -425,6 +431,7 @@ export class Supervisor {
           ...errorFields(e),
         });
       }
+      if (this.#stopped) return;
       for (const root of roots) {
         this.#o.sqlite.run(
           `INSERT INTO ai_source (id, tool, root_path, profile_label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -519,7 +526,7 @@ export class Supervisor {
    * まだ読んでいないストリームのうち、取り込む範囲（importSince）より前に更新が止まったものは読まない（D-181）
    */
   async scanAll(): Promise<number> {
-    if (!this.consented) return 0;
+    if (this.#stopped || !this.consented) return 0;
     const since = this.#o.importSince?.() ?? null;
     let n = 0;
     this.#scanning++;
@@ -535,6 +542,7 @@ export class Supervisor {
           });
           continue;
         }
+        if (this.#stopped) return n;
         this.#listed.set(sourceId, new Map(streams.map((s) => [s.key, s.path])));
         const withMtime = streams.map((s) => ({ s, m: mtimeOf(s.path) }));
         this.#resetPolled(sourceId, a.adapter.watch(a.root), withMtime);
@@ -630,12 +638,14 @@ export class Supervisor {
   async reconcile(): Promise<void> {
     if (this.#stopped) return;
     await this.detect();
-    if (!this.consented) return;
+    // 止めた後（DB を閉じた後かもしれない）は続けない
+    if (this.#stopped || !this.consented) return;
     if (!this.#begun) {
       await this.#begin();
       return;
     }
     await this.scanAll();
+    if (this.#stopped) return;
     if (!this.#o.noWatch) this.#watchAll();
     this.#cleanSpool();
     this.#updateHooksState();
@@ -990,12 +1000,13 @@ export class Supervisor {
   }
 
   async probeLive(): Promise<void> {
-    if (!this.#begun) return;
+    if (!this.#begun || this.#stopped) return;
     this.#probeCodex();
     for (const [, a] of this.#sources) {
       if (!a.adapter.probeLive) continue;
       try {
         const all = await a.adapter.probeLive(a.root);
+        if (this.#stopped) return;
         const probes = all.filter((p) => p.kind === "live_status");
         const changed = new Set<string>();
         let limits = false;

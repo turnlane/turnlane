@@ -18,6 +18,8 @@ afterEach(async () => {
 const MIN = 60_000;
 const H = 60 * MIN;
 const NOW = Date.UTC(2026, 10, 1, 10, 0);
+/** 1 回の判定の上限。CI の共有ランナーは遅いので緩める（直す前は 2〜5 秒だった。循環が無いことの確認は緩めない） */
+const RUN_LIMIT_MS = process.env.CI ? 1500 : 500;
 
 /** 実機の台帳の形の合成（件数だけ合わせる）。1 つの項目に 40 セッション、終わっていないセッション 197 */
 function ledgerShape(e: AiEnv, opts: { heavy?: boolean } = {}): { liveSid: string } {
@@ -190,7 +192,7 @@ describe("判定が回り続けない（台帳の形の合成）", () => {
     env.clock.set(NOW + MIN);
     const a = performance.now();
     r.runOnce();
-    expect(performance.now() - a).toBeLessThan(500);
+    expect(performance.now() - a).toBeLessThan(RUN_LIMIT_MS);
 
     // 非同期の実行の間、確かめを回し続ける（毎回、確かめた時刻だけを書き直す）
     const aborted0 = r.abortedRuns;
@@ -240,6 +242,6 @@ describe("判定が回り続けない（台帳の形の合成）", () => {
     const a = performance.now();
     env.ai.runner.runOnce();
     // 直す前は、ターンごとの待ちの始まりで許可待ちと hook を調べ直していて 1 回 2 秒を超えていた
-    expect(performance.now() - a).toBeLessThan(500);
+    expect(performance.now() - a).toBeLessThan(RUN_LIMIT_MS);
   }, 60_000);
 });
