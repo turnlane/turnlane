@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-02
+
 ### Added
 
 - Reports: `--state scheduled --at <time>` (also MCP and HTTP) shows a planned run as a band on the AI lane and in Later on the AI screen (click it for its details: time, source, Open, Hide), without counting it as running or AI time. A band 30 minutes past its time reads "Past its planned time".
@@ -15,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reports: the detail panel of a reported item shows only its source, project, state, the reported link, the waiting question, and its timeline. The ⋯ menu offers mark done, back to your turn, and hide.
+
+### Fixed
+
+- The daemon no longer recomputes the board almost continuously: the 5-second liveness probe wrote a timestamp that aborted every recompute longer than 5 seconds, so it restarted again and again. Recomputes now run on their 60-second tick and after new activity only, and no longer keep a CPU core busy.
+- One long session (a thousand turns or more) made every recompute take several seconds: waits were classified against all presence and calendar ranges per wait, and open subagent permissions were recomputed for every turn. Both are done once per run now.
+- The first commit after a wait is looked up with one `git log` per repository and branch instead of one per waiting session.
+- Slow recomputes and slow transcript reads are logged (`derive.slow`, `ingest.slow`) with a breakdown, so a report can say where the time went.
 
 ## [0.8.0] - 2026-10-30
 
@@ -108,7 +117,8 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/turnlane/turnlane/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/turnlane/turnlane/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/turnlane/turnlane/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/turnlane/turnlane/compare/v0.7.2...v0.7.3
