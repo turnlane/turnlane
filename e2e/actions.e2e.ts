@@ -708,7 +708,15 @@ async function eventPlace(t: Ctx, m: Mocked, p: EventPlace) {
             () => p.event(page, title).count(),
             (n) => n === 0,
           );
+          // 画面は保存の前に予定を外す（楽観的）。保存が届くのを待ってから戻す（先に戻すと、遅れて届いた保存がまた隠し、
+          // 以降の試験の予定が出なくなる。遅い CI で起きた）
+          const hiddenNow = async () =>
+            ((await board.api<{ values: Record<string, unknown> }>("GET", "/config")).values[
+              "calendar.hidden"
+            ] ?? []) as unknown[];
+          const saved = await until(hiddenNow, (v) => v.length > 0, 10_000);
           await board.api("PUT", "/config/calendar.hidden", { value: [] });
+          const cleared = await until(hiddenNow, (v) => v.length === 0, 10_000);
           const back = await until(
             async () => {
               await p.open(page);
@@ -716,7 +724,10 @@ async function eventPlace(t: Ctx, m: Mocked, p: EventPlace) {
             },
             (n) => n > 0,
           );
-          result = gone === 0 && back > 0 ? true : `gone ${gone} back ${back}`;
+          result =
+            gone === 0 && saved.length > 0 && cleared.length === 0 && back > 0
+              ? true
+              : `gone ${gone} saved ${saved.length} cleared ${cleared.length} back ${back}`;
         } else result = `no check for “${action}”`;
       }
     } catch (e) {
