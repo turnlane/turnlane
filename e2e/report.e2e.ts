@@ -183,6 +183,17 @@ async function planned(t: Ctx) {
       text.includes("nightly · Reports"),
     text,
   );
+  // 2 行（題名と札）が枠の中に収まる（下が欠けない）
+  // （各行が行の高さより縮んでいない・枠の外にはみ出していない）
+  const clipped = await band.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return [...el.children].some((c) => {
+      const r = c.getBoundingClientRect();
+      const line = Number.parseFloat(getComputedStyle(c).lineHeight) || 16;
+      return r.height < line - 0.5 || r.bottom > box.bottom + 0.5;
+    });
+  });
+  t.check("day view: both lines of the plan band fit inside it", !clipped);
   await page.goto(board.url.replace(/next=[^&]*/, "next=%2Fai"));
   const row = page.getByTestId("ai-plan-row").first();
   await row.waitFor({ timeout: 15000 });

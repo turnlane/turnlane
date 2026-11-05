@@ -15,6 +15,16 @@ import { planKey, setUi } from "../lib/store.ts";
 export const PLAN_LATE_MS = 30 * 60_000;
 /** 帯の長さ（予定には長さが無いので 30 分ぶん） */
 const PLAN_SPAN_MS = 30 * 60_000;
+/**
+ * 帯の最小の高さ: 題名と札の 2 行（text-meta の行の高さ 16px × 2）と上下の余白（2px × 2）と枠（1px × 2）。
+ * 時間軸が詰まった表示（デイビューの 30 分が 2 行より低い）でも 2 行目が欠けない
+ */
+export const PLAN_MIN_HEIGHT = 16 * 2 + 2 * 2 + 1 * 2;
+
+/** 帯の高さ（純粋関数）: 30 分ぶんの高さと、2 行が収まる高さの大きいほう */
+export function planBandHeight(top: number, spanBottom: number): number {
+  return Math.max(PLAN_MIN_HEIGHT, spanBottom - top);
+}
 
 type PlanTime = Pick<ReportPlanView, "at" | "overdue">;
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -57,7 +67,7 @@ export function PlanBands({
     <>
       {plans.map((p) => {
         const top = y(p.at);
-        const height = Math.max(32, y(p.at + PLAN_SPAN_MS) - top);
+        const height = planBandHeight(top, y(p.at + PLAN_SPAN_MS));
         const where = [p.source, p.project].filter(Boolean).join(" · ");
         const label = planLabel(p, now, tz, t);
         return (

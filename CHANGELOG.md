@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reports: a planned run's band on the AI lane is now always tall enough for its title and its "Planned · 22:00" line; in the day view the second line was cut off.
+
 ## [0.8.1] - 2026-11-02
 
 ### Added

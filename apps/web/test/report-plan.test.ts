@@ -1,6 +1,6 @@
 /** 報告の予定（scheduled。0.8.1）の札と、報告の項目の見分け */
 import { describe, expect, test } from "bun:test";
-import { planLabel } from "../src/board/PlanBands.tsx";
+import { PLAN_MIN_HEIGHT, planBandHeight, planLabel } from "../src/board/PlanBands.tsx";
 import { shouldInvalidate } from "../src/data/invalidate.ts";
 import { translate } from "../src/i18n/index.tsx";
 import { parsePlanKey, planKey } from "../src/lib/store.ts";
@@ -12,6 +12,11 @@ const t = (k: Parameters<typeof translate>[1], p?: Record<string, string | numbe
   translate("ja", k, p);
 
 describe("予定の札", () => {
+  test("帯の高さは題名と札の 2 行が収まる高さ以上（30 分が低い時間軸でも 2 行目が欠けない）", () => {
+    expect(PLAN_MIN_HEIGHT).toBe(38);
+    expect(planBandHeight(100, 120)).toBe(38);
+    expect(planBandHeight(100, 160)).toBe(60);
+  });
   test("予定 · 22:00。30 分過ぎたら「予定の時刻を過ぎています」", () => {
     expect(planLabel({ at: AT, overdue: false }, AT - 60_000, TZ, t)).toBe("予定 · 22:00");
     expect(planLabel({ at: AT, overdue: false }, AT + 29 * 60_000, TZ, t)).toBe("予定 · 22:00");
