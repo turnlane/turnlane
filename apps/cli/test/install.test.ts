@@ -45,8 +45,12 @@ class DaemonLaunchctl extends FakeLaunchctl {
   }
   override bootout(label: string): void {
     super.bootout(label);
-    pending = daemon?.stop().then(() => {
-      daemon = null;
+    // 止めたデーモンだけを外す。再インストールでは直後の bootstrap が次のデーモンを daemon に入れるので、止め終わりで
+    // 無条件に null にすると次のデーモンを外してしまい、後始末で止めずに一時 HOME を消していた（CI で 60 秒後の
+    // reconcile が消えた DB を読み、テストの間の未処理のエラーになった）
+    const d = daemon;
+    pending = d?.stop().then(() => {
+      if (daemon === d) daemon = null;
     });
   }
 }

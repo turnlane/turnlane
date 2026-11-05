@@ -353,12 +353,33 @@ export class Supervisor {
     await this.detect();
     // 検出を待っている間に止められていたら、タイマーを作らない（止めた後に作ると誰も消さず、閉じた DB に触り続ける）
     if (this.#stopped) return;
+    // タイマーの失敗（DB が閉じた・消えたなど）は、未処理の拒否にせずログに 1 行残す（止めた後は各処理の入口で戻る）
+    const tick = (event: string, f: () => unknown) => () => {
+      if (this.#stopped) return;
+      try {
+        const r = f();
+        if (r instanceof Promise) r.catch((e) => this.#o.logger.warn(event, errorFields(e)));
+      } catch (e) {
+        this.#o.logger.warn(event, errorFields(e));
+      }
+    };
     this.#intervals.push(
-      setInterval(() => void this.reconcile(), this.#o.reconcileMs ?? 60_000),
-      setInterval(() => void this.probeLive(), this.#o.liveMs ?? 5_000),
+      setInterval(
+        tick("ingest.reconcile_failed", () => this.reconcile()),
+        this.#o.reconcileMs ?? 60_000,
+      ),
+      setInterval(
+        tick("ingest.live_failed", () => this.probeLive()),
+        this.#o.liveMs ?? 5_000,
+      ),
     );
     if (!this.#o.noWatch)
-      this.#intervals.push(setInterval(() => this.pollChanged(), this.#o.pollTickMs ?? 1_000));
+      this.#intervals.push(
+        setInterval(
+          tick("ingest.poll_failed", () => this.pollChanged()),
+          this.#o.pollTickMs ?? 1_000,
+        ),
+      );
     if (this.consented) await this.#begin();
   }
 

@@ -47,3 +47,41 @@ test("検出を待っている間に止めたら、タイマーを作らず、�
   expect(afterStop).toBe(0);
   rmSync(home, { recursive: true, force: true });
 });
+
+test("止めずに DB を閉じた後にタイマーが動いても、未処理のエラーにせずログに残す（止めた後は何もしない）", async () => {
+  const home = mkdtempSync(join(tmpdir(), "turnlane-stop-"));
+  mkdirSync(join(home, "data"), { recursive: true });
+  const sqlite = openDatabase(join(home, "data", "turnlane.db"));
+  migrate(sqlite, migrations);
+  const warns: string[] = [];
+  const push = (event: string) => warns.push(event);
+  const sup = new Supervisor({
+    sqlite,
+    clock: new FakeClock(Date.UTC(2026, 10, 1)),
+    logger: { debug: () => {}, info: () => {}, warn: push, error: push },
+    adapters: builtinAdapters,
+    git: new FakeGit(),
+    env: { home, vars: { TURNLANE_DATA_DIR: join(home, "data") } },
+    settings: () => ({ tz: "Asia/Tokyo", dayBoundary: 240, storeTitles: true }),
+    onChanged: () => {},
+    noWatch: true,
+    debounceMs: 0,
+    reconcileMs: 5,
+    liveMs: 5,
+    // デーモンでは設定を DB から読む（閉じた DB なら投げる）
+    extraRoots: () => {
+      sqlite.query("SELECT 1").get();
+      return [];
+    },
+  });
+  await sup.start();
+  // 始めたまま DB を閉じる（後始末の漏れ）。タイマーが動いて reconcile が失敗する
+  sqlite.close();
+  await Bun.sleep(40);
+  expect(warns).toContain("ingest.reconcile_failed");
+  await sup.stop();
+  const n = warns.length;
+  await Bun.sleep(30);
+  expect(warns.length).toBe(n);
+  rmSync(home, { recursive: true, force: true });
+});
