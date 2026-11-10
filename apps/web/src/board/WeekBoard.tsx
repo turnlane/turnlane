@@ -16,6 +16,7 @@ import {
   type MeLaneBox,
   type MeLaneItem,
   nextWeekday,
+  type PastRemainingGroup,
   type QueueItem,
   type QueueResponse,
   type TaskView,
@@ -117,6 +118,7 @@ import {
 } from "./geometry.ts";
 import { InboxTray, useInboxTray } from "./InboxTray.tsx";
 import { HoverLinks, hoverWorkItem, OffscreenHint } from "./overlays.tsx";
+import { PastRemaining } from "./PastRemaining.tsx";
 import { PlanBands } from "./PlanBands.tsx";
 import { ribbonOf } from "./ribbon.ts";
 import {
@@ -863,6 +865,7 @@ export function WeekBoard() {
                       }
                       carry={l?.day.carry ?? null}
                       onCarry={(older) => void carryDay(date, { older })}
+                      past={l?.day.pastRemaining}
                       isSel={isSel}
                       onPick={(k) => clickKey(date, k)}
                       onAdd={(el) => setPrompt({ kind: "new", date, anchor: el })}
@@ -1362,6 +1365,7 @@ function Unscheduled({
   onToggleMore,
   carry,
   onCarry,
+  past,
   isSel,
   onPick,
   onAdd,
@@ -1376,6 +1380,8 @@ function Unscheduled({
   /** 過去の日の「残り N 件を今日へ」（D-192 §2.2）。無ければ出さない */
   carry: { count: number; older: number } | null;
   onCarry: (older: boolean) => void;
+  /** 今日の列の「過去から N 件」（0.8.2）。今日の列だけ */
+  past?: PastRemainingGroup[] | undefined;
   isSel: (k: string) => boolean;
   onPick: (k: string) => void;
   /** 末尾の「+ 追加」（無ければ出さない。朝の計画の今日の列） */
@@ -1431,10 +1437,28 @@ function Unscheduled({
       {carryButton}
     </div>
   );
+  // 「過去から N 件」（0.8.2）: 見出しの直下。行は未定のカードと同じ部品（クリック・ドラッグ・右クリックもそのまま）
+  const pastRow = (
+    <PastRemaining
+      groups={past}
+      renderTask={(x) => (
+        <DraggableTask task={x}>
+          <TaskCard
+            task={x}
+            selected={isSel(`task:${x.id}`)}
+            project={projectName(x.projectId)}
+            onClick={() => onPick(`task:${x.id}`)}
+            onToggle={() => void setComplete(x, x.status !== "done")}
+          />
+        </DraggableTask>
+      )}
+    />
+  );
   if (tasks.length === 0)
     return (
       <section className="flex flex-col gap-1.5">
         {head}
+        {pastRow}
         {add}
       </section>
     );
@@ -1456,6 +1480,7 @@ function Unscheduled({
   return (
     <section className="flex flex-col gap-1.5">
       {head}
+      {pastRow}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="unscheduled-row">
         {tasks.slice(0, shown).map((x) => (
           <CardDrop key={x.id} date={date} taskId={x.id} ids={ids} className="w-full max-w-[340px]">

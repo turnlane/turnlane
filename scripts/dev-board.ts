@@ -2675,6 +2675,9 @@ if (DESIGN) {
   });
   task("Draft newsletter", Y, { block: [at("18:00", -1), at("18:30", -1)] });
   task("Clean up downloads", Y, {});
+  // 「過去から N 件」（0.8.2）: 3 週間前に残ったまま（「残り N 件を今日へ」の 14 日の外。昨日の 2 件と合わせて 2 つの日付）
+  task("Renew the domain", addDays(TODAY, -20), {});
+  task("Order a new keyboard", addDays(TODAY, -20), {});
   if (DENSE) {
     task("朝のメール確認とSlackの未読を片付ける", TODAY, {
       estimateMin: 20,

@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nullLogger } from "@turnlane/collectors";
-import { resolvePaths, type TurnlanePaths } from "@turnlane/core";
+import { FakeClock, resolvePaths, type TurnlanePaths } from "@turnlane/core";
 import { type RunningDaemon, startDaemon } from "../../daemon/src/main.ts";
 import { aiCommand, dur, queueCommand, sourcesCommand } from "../src/commands/ai.ts";
 import { auditDb, doctorCommand } from "../src/commands/doctor.ts";
@@ -33,6 +33,8 @@ async function setup(): Promise<CliEnv> {
     paths,
     logger: nullLogger,
     port: 0,
+    // 合成の記録（2026-09 の日付）が --days 62 の窓に入る今にする（実時計だと 11 月から窓の外に出て落ちていた）
+    clock: new FakeClock(Date.UTC(2026, 8, 14, 1, 0)),
     ingest: { noWatch: true },
     onboarding: { assumeDone: true },
   });

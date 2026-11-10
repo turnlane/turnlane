@@ -1450,3 +1450,10 @@ ReportInput {
 - 予定の詳細パネル（2026-10-30 追記）: `GET /api/ai/reports/:source/:id` → `ReportItemResponse { source, externalId, title, project, url, plan: ReportPlanView | null, workItemId: string | null }`（無い・取り込み元を止めている間は 404）。予定の間は `plan`、started などで AI の項目になったら `workItemId`（web はその項目の AI 詳細パネルに切り替える）。`POST /api/ai/reports/:source/:id/open` は報告の `url` を `open` に渡す（無ければ 409）。`POST /api/ai/reports/:source/:id/hide` は予定を非表示にする（`ai_session.plan_hidden_at` にいまの始める時刻。マイグレーション 0025。違う時刻で送り直せばまた出る。予定が無ければ 404）。予定が出た・動いた・消えた報告は、AI の項目が変わらなくても `work_item` の知らせ（`dates` は今日と前後の始める日、`ids` は空）を出す。web のキーは `["reportItem", source, id]`（`work_item` で読み直す）
 - 報告の項目の詳細パネル（web）: 出どころ（バッジ + 識別子）・プロジェクト・状態・開く先（`report_url` があるときだけ「開く」）・待ちの中身・流れだけ。最後の返答（`GET /api/work-items/:id/last-reply`）は呼ばない。`⋯` は 完了にする・自分の番に戻す・非表示
 
+## 38. 過去から N 件（0.8.2。[ux-mvp.md](ux-mvp.md) 4.4 の「過去から N 件」）
+
+- `DayColumn.pastRemaining?: { date: LocalDate; tasks: TaskView[] }[]`: 今日の論理日の列だけ（`GET /api/board` の今日の列と `GET /api/day/:today` の `day`）。今日より前の日付に `todo` / `doing` のまま残っている自分のタスク（自分の番のタスク＝フォローアップに紐づくもの・someday・やめた・削除は除く。上限なし）を日付ごとに、新しい日付から。日付の中はレーンの順。無ければ空の配列。ほかの列には無い
+- 更新は SSE の `task`: 今日より前の日付のタスクが変わったら、今日を含む `board` / `day` のキャッシュも読み直す（web の `shouldInvalidate`）
+- `POST /api/days/past/carry`（本文なし）: 対象すべてを今日の未定へ移す（時間ブロックは外し `rollover_count` +1、`usage_event(kind='carry')` を残す）。応答は `CarryDayResponse`（`{ rev, to, moved: { taskId, from, blocks }[] }`）、元に戻すは既存の `POST /api/days/carry/undo { moved }`。経路は `/days/:date/carry` より先に置く（`past` を日付として読まない）。対象が無ければ `moved: []`
+- MCP `list_tasks` の `date: "past"`: 同じ対象を日付の新しい順に返す（各タスクの `date` はそのタスクの日付）
+

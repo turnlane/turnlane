@@ -116,6 +116,10 @@ export const ja: Dict = {
   "board.offscreen.up": { other: "↑ 上に {count} 件" },
   "board.offscreen.down": { other: "↓ 下に {count} 件" },
   "board.carryToday": { other: "残り {count} 件を今日へ" },
+  "board.pastRemaining": { other: "過去から {count} 件" },
+  "board.pastRemaining.carry": "すべて今日へ",
+  "board.pastRemaining.def":
+    "今日より前の日付に残っている未完了のタスクを、全部今日の未定へ移します（元に戻せます）。",
   "board.carryToday.def": "この日に残った未完了のタスクを、今日の未定へ移します（元に戻せます）。",
   "board.carryToday.older": { other: "うち {date} より前 {count} 件" },
   "board.collapseDay": "畳む",
@@ -511,7 +515,7 @@ export const ja: Dict = {
     "Claude Code / Codex から Turnlane にタスクを入れるには turnlane mcp install。状態は上の取り込み元ごとに出します。",
   "settings.carryOver": "持ち越し",
   "settings.carryOver.hint":
-    "自動では動かしません。昨日の列の「残り N 件を今日へ」で、残ったタスクを今日の未定へ移します。休みの日と祝日は稼働日として数えません（計画の目安と稼働日）。",
+    "自動では動かしません。残ったタスクは、今日の未定の「過去から N 件」か、過去の列の「残り N 件を今日へ」で今日の未定へ移します。休みの日と祝日は稼働日として数えません（計画の目安と稼働日）。",
   "settings.desktop.notificationsTitle": "デスクトップの通知",
   "settings.desktop.status": "状態",
   "settings.desktop.running": "起動中 · {version}",

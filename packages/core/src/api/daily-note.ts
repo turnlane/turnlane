@@ -153,6 +153,12 @@ export interface DeferFollowUpResponse {
 export const carryDayInput = z.object({ older: z.boolean().optional() });
 export type CarryDayInput = z.infer<typeof carryDayInput>;
 
+/**
+ * POST /api/days/past/carry（「過去から N 件」の「すべて今日へ」。0.8.2）: 今日より前の日付に todo / doing のまま残っている
+ * 自分のタスクを全部、今日の未定へ移す（時間ブロックは外し、rollover_count を +1。期間の上限なし）。本文は無し。
+ * 応答は CarryDayResponse、元に戻すのは POST /api/days/carry/undo（同じ形）
+ */
+
 /** 移した1件（元に戻すために元の日付と時間ブロックを持つ） */
 export interface CarriedTask {
   taskId: string;

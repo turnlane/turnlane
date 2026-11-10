@@ -59,6 +59,7 @@ import {
   useLaneLaterTexts,
   useLaneWaits,
 } from "../board/lane-wait.ts";
+import { PastRemaining } from "../board/PastRemaining.tsx";
 import { PlanBands } from "../board/PlanBands.tsx";
 import {
   GridBackground,
@@ -728,6 +729,21 @@ export function DayView() {
                       </button>
                     ) : null}
                   </div>
+                  {/* 今日の「過去から N 件」（0.8.2）。見出しの直下。行は未定と同じ部品 */}
+                  <PastRemaining
+                    groups={day.pastRemaining}
+                    renderTask={(x) => (
+                      <DraggableTask task={x}>
+                        <TaskCard
+                          task={x}
+                          selected={isSel(`task:${x.id}`)}
+                          project={projectName(x.projectId)}
+                          onClick={() => pick(`task:${x.id}`)}
+                          onToggle={() => void setComplete(x, x.status !== "done")}
+                        />
+                      </DraggableTask>
+                    )}
+                  />
                   {layout.unscheduled.map((x) => (
                     <DraggableTask key={x.id} task={x}>
                       <TaskCard

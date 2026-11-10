@@ -119,6 +119,10 @@ export const en = {
   "board.offscreen.up": { one: "↑ {count} above", other: "↑ {count} above" },
   "board.offscreen.down": { one: "↓ {count} below", other: "↓ {count} below" },
   "board.carryToday": { one: "Move {count} to today", other: "Move {count} to today" },
+  "board.pastRemaining": { one: "{count} from earlier days", other: "{count} from earlier days" },
+  "board.pastRemaining.carry": "Move all to today",
+  "board.pastRemaining.def":
+    "Moves every unfinished task left on earlier days to today's Unscheduled (you can undo).",
   "board.carryToday.def":
     "Moves this day's unfinished tasks to today's Unscheduled (you can undo).",
   "board.carryToday.older": {
@@ -537,7 +541,7 @@ export const en = {
     "To add tasks to Turnlane from Claude Code / Codex, run turnlane mcp install. The state is shown for each source above.",
   "settings.carryOver": "Carry over",
   "settings.carryOver.hint":
-    "Nothing moves on its own. Yesterday's column shows “Move N to today”; press it to move what's left to today's Unscheduled. Days off and holidays don't count as workdays (Planning hours and workdays).",
+    "Nothing moves on its own. Move what's left to today's Unscheduled with “N from earlier days” under today's Unscheduled, or with “Move N to today” in a past column. Days off and holidays don't count as workdays (Planning hours and workdays).",
   "settings.desktop.notificationsTitle": "Desktop notifications",
   "settings.desktop.status": "Status",
   "settings.desktop.running": "Running · {version}",

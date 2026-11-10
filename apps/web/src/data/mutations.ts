@@ -1172,11 +1172,25 @@ const refreshCarry = () =>
  * older はその日より前の日付（14日）のまま残っている未完了も一緒に。完了と同じ知らせに「元に戻す」（⌘Z でも戻る。D-144）
  */
 export async function carryDay(date: string, o: { older: boolean }): Promise<number> {
+  return carryWith(() =>
+    unwrap<CarryDayResponse>(
+      api.api.days[":date"].carry.$post({ param: { date }, json: { older: o.older } }),
+    ),
+  );
+}
+
+/**
+ * 「過去から N 件」の「すべて今日へ」（0.8.2）: 今日より前の日付に残っている自分のタスクを全部、今日の未定へ。
+ * 知らせと元に戻す（4 秒・⌘Z）は「残り N 件を今日へ」と同じ
+ */
+export async function carryPast(): Promise<number> {
+  return carryWith(() => unwrap<CarryDayResponse>(api.api.days.past.carry.$post()));
+}
+
+async function carryWith(req: () => Promise<CarryDayResponse>): Promise<number> {
   let r: CarryDayResponse;
   try {
-    r = await unwrap<CarryDayResponse>(
-      api.api.days[":date"].carry.$post({ param: { date }, json: { older: o.older } }),
-    );
+    r = await req();
   } catch {
     toast(translate(getLocale(), "toast.saveFailed"));
     return 0;

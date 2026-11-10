@@ -195,7 +195,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "list_tasks",
-    description: 'List tasks for a date (default today), or the Inbox with date "inbox".',
+    description:
+      'List tasks for a date (default today), the Inbox with date "inbox", or with date "past" the tasks left as todo or doing on days before today (newest date first; each task keeps its own date).',
     inputSchema: {
       type: "object",
       properties: { date: { type: "string" }, include_done: { type: "boolean" } },
@@ -204,7 +205,12 @@ export const TOOLS: Tool[] = [
       let tasks: TaskView[];
       if (a.date === "inbox")
         tasks = (await api<InboxResponse>(ctx, "GET", "/api/inbox")).data.tasks;
-      else {
+      else if (a.date === "past") {
+        const t = await today(ctx);
+        const col = (await api<BoardResponse>(ctx, "GET", `/api/board?from=${t}&to=${t}`)).data
+          .days[0];
+        tasks = (col?.pastRemaining ?? []).flatMap((g) => g.tasks);
+      } else {
         const date = str(a.date) ?? (await today(ctx));
         tasks =
           (await api<BoardResponse>(ctx, "GET", `/api/board?from=${date}&to=${date}`)).data.days[0]

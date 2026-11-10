@@ -10,6 +10,7 @@ import type {
   BoardResponse,
   CarryDayResponse,
   DailyReportResponse,
+  DayResponse,
   DeferFollowUpResponse,
   QueueResponse,
   UndoCarryResponse,
@@ -388,6 +389,118 @@ describe("残り N 件を今日へ（D-192）", () => {
     expect(q("SELECT report_md FROM daily_note WHERE date = ?", THU)).toEqual([
       { report_md: saved },
     ]);
+  });
+});
+
+describe("過去から N 件（0.8.2）", () => {
+  test("今日の列に、今日より前の todo / doing を日付ごとに新しい順で出す。上限なし・時間ブロックのものも含む・自分の番・someday・やめた・完了は除く", async () => {
+    const { call, tr } = setup();
+    // 木曜の質問で返答タスク（自分の番）が木曜の日付で残る
+    tr.human(T0 - 15 * H - 30 * MIN);
+    tr.assistantEnd(T0 - 15 * H, "Which option?", { durationMs: 30 * MIN });
+    for (let t = T0 - 15 * H; t <= T0 - 14 * H; t += 15 * MIN) {
+      env.clock.set(t);
+      await env.sync();
+    }
+    env.clock.set(T0);
+    await env.sync();
+    const left = task("Invoice template fix", THU);
+    const doing = task("Half done", THU, { status: "doing", laneOrder: "b" });
+    const blocked = task("Write the outline", THU, { laneOrder: "c" });
+    insertRow(env.mutate, schema.timeBlock, {
+      id: newId(env.clock),
+      taskId: blocked.id,
+      startAt: T0 - 14 * H,
+      endAt: T0 - 13 * H,
+      tz: "Asia/Tokyo",
+      writebackState: "pending",
+    });
+    const ancient = task("Ancient errand", "2026-06-01");
+    task("Someday idea", THU, { status: "someday" });
+    task("Canceled", THU, { status: "canceled" });
+    task("Done thing", THU, { status: "done", completedAt: T0 - 10 * H });
+    task("Today thing", FRI);
+    const gone = task("Deleted", THU);
+    env.sqlite.run("UPDATE task SET deleted_at = ? WHERE id = ?", [T0, gone.id]);
+
+    const b = await call<BoardResponse>("GET", `/api/board?around=${FRI}`);
+    const today = b.body.days.find((d) => d.date === FRI);
+    expect(today?.pastRemaining?.map((g) => [g.date, g.tasks.map((t) => t.id)])).toEqual([
+      [THU, [left.id, doing.id, blocked.id]],
+      ["2026-06-01", [ancient.id]],
+    ]);
+    // 今日の列だけ
+    expect(b.body.days.find((d) => d.date === THU)?.pastRemaining).toBeUndefined();
+    // デイビュー（今日）も同じ
+    const d = await call<DayResponse>("GET", `/api/day/${FRI}`);
+    expect(d.body.day.pastRemaining?.flatMap((g) => g.tasks.map((t) => t.id))).toEqual([
+      left.id,
+      doing.id,
+      blocked.id,
+      ancient.id,
+    ]);
+    // 過去・未来の日のデイビューには無い
+    expect((await call<DayResponse>("GET", `/api/day/${THU}`)).body.day.pastRemaining).toBe(
+      undefined,
+    );
+  });
+
+  test("すべて今日へ: 今日の未定へ移し（時間ブロックを外し、持ち越し回数 +1）、元に戻すで元の日付とブロックに戻る", async () => {
+    const { call } = setup();
+    const a = task("Old errand", "2026-08-15");
+    const b = task("Write the outline", THU, { status: "doing" });
+    const block = insertRow(env.mutate, schema.timeBlock, {
+      id: newId(env.clock),
+      taskId: b.id,
+      startAt: T0 - 14 * H,
+      endAt: T0 - 13 * H,
+      tz: "Asia/Tokyo",
+      writebackState: "pending",
+    });
+    const c = await call<CarryDayResponse>("POST", "/api/days/past/carry");
+    expect(c.status).toBe(200);
+    expect(c.body.to).toBe(FRI);
+    expect(c.body.moved.map((m) => [m.taskId, m.from, m.blocks.length])).toEqual([
+      [b.id, THU, 1],
+      [a.id, "2026-08-15", 0],
+    ]);
+    expect(
+      q(
+        "SELECT id, scheduled_date, rollover_count, status FROM task WHERE id IN (?, ?) ORDER BY title",
+        a.id,
+        b.id,
+      ),
+    ).toEqual([
+      { id: a.id, scheduled_date: FRI, rollover_count: 1, status: "todo" },
+      { id: b.id, scheduled_date: FRI, rollover_count: 1, status: "doing" },
+    ]);
+    expect(
+      q("SELECT deleted_at IS NOT NULL AS gone FROM time_block WHERE id = ?", block.id),
+    ).toEqual([{ gone: 1 }]);
+    const after = await call<BoardResponse>("GET", `/api/board?around=${FRI}`);
+    expect(after.body.days.find((d) => d.date === FRI)?.pastRemaining).toEqual([]);
+    // 元に戻す（既存の持ち越しと同じ口）
+    const u = await call<UndoCarryResponse>("POST", "/api/days/carry/undo", {
+      moved: c.body.moved,
+    });
+    expect(u.body.restored).toHaveLength(2);
+    expect(
+      q(
+        "SELECT id, scheduled_date, rollover_count FROM task WHERE id IN (?, ?) ORDER BY title",
+        a.id,
+        b.id,
+      ),
+    ).toEqual([
+      { id: a.id, scheduled_date: "2026-08-15", rollover_count: 0 },
+      { id: b.id, scheduled_date: THU, rollover_count: 0 },
+    ]);
+    expect(q("SELECT deleted_at FROM time_block WHERE id = ?", block.id)).toEqual([
+      { deleted_at: null },
+    ]);
+    // 何も無ければ空
+    await call("POST", "/api/days/past/carry");
+    await call("POST", "/api/days/past/carry");
+    expect((await call<CarryDayResponse>("POST", "/api/days/past/carry")).body.moved).toEqual([]);
   });
 });
 

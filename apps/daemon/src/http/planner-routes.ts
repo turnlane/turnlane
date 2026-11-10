@@ -224,6 +224,8 @@ export function createPlannerRoutes(get: () => PlannerDeps | undefined) {
       // 今やる（自分の番の画面の「後で」）: スヌーズを外し、明日へ移したタスクは今日へ戻す（m2-api 2.3）
       .post("/follow-ups/:id/wake", (c) => c.json(deps().dailyNote.wake(c.req.param("id"))))
       // 「残り N 件を今日へ」（D-192）。本文は {older?}
+      // 「過去から N 件」の「すべて今日へ」（0.8.2）。/days/:date/carry より先に置く（past を日付として読まない）
+      .post("/days/past/carry", (c) => c.json(deps().dailyNote.carryPast()))
       .post("/days/:date/carry", zValidator("json", carryDayInput, invalid), (c) => {
         const date = c.req.param("date");
         if (!dateParam.safeParse(date).success) return c.json({ error: "invalid_input" }, 400);

@@ -85,6 +85,10 @@ export function shouldInvalidate(
     case "task":
       return (
         ((k === "board" || k === "day" || k === "dailyNote") && overlaps(key, dates)) ||
+        // 今日の列の「過去から N 件」（0.8.2）: 今日より前の日付のタスクが変われば、今日を含むボード・デイビューも
+        ((k === "board" || k === "day") &&
+          dates.some((d) => d < today) &&
+          overlaps(key, [today])) ||
         (k === "inbox" && data.inbox === true) ||
         // 新しいプロジェクト（#blog）はタスクの作成で作られる
         k === "projects" ||

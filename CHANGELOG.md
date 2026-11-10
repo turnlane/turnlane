@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Today's Unscheduled in the day view and the 3-day board now shows "N from earlier days": your unfinished tasks left on any earlier day, grouped by date, with "Move all to today" (undoable). MCP `list_tasks` takes `date: "past"` for the same list.
+
 ### Fixed
 
 - Reports: a planned run's band on the AI lane is now always tall enough for its title and its "Planned · 22:00" line; in the day view the second line was cut off.

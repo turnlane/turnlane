@@ -95,6 +95,22 @@ export function carryCandidates(db: Database, date: string, older: boolean): Tas
     .all(date, floor);
 }
 
+/**
+ * 「過去から N 件」（0.8.2）: 今日より前の日付に todo / doing のまま残っている自分のタスク。自分の番のタスク（フォローアップに
+ * 紐づくもの）・someday・やめた・削除は除く。期間の上限なし。新しい日付から、日付の中はレーンの順
+ */
+export function pastCandidates(db: Database, today: string): TaskRow[] {
+  return db
+    .query<TaskRow, [string]>(
+      `SELECT t.* FROM task t
+        WHERE t.deleted_at IS NULL AND t.status IN ('todo', 'doing')
+          AND t.scheduled_date IS NOT NULL AND t.scheduled_date < ?1
+          AND NOT EXISTS (SELECT 1 FROM follow_up f WHERE f.task_id = t.id AND f.deleted_at IS NULL)
+        ORDER BY t.scheduled_date DESC, t.lane_order`,
+    )
+    .all(today);
+}
+
 /** 列ごとの「残り N 件」（ボードの見出し。older は最初の過去の列だけ） */
 export function carryCounts(db: Database, date: string): { count: number; older: number } {
   const same = carryCandidates(db, date, false).length;
@@ -252,9 +268,19 @@ export class DailyNoteService {
     const d = this.#date(date);
     const to = this.#today();
     if (d >= to) throw new OpError(400, "not_past");
+    return this.#carryTasks(carryCandidates(this.o.sqlite, d, input.older === true), d, to);
+  }
+
+  /** POST /api/days/past/carry（「過去から N 件」の「すべて今日へ」。0.8.2）: 今日より前の残りを全部、今日の未定へ */
+  carryPast(): CarryDayResponse {
+    const to = this.#today();
+    return this.#carryTasks(pastCandidates(this.o.sqlite, to), to, to);
+  }
+
+  #carryTasks(tasks: TaskRow[], d: string, to: string): CarryDayResponse {
     const moved: CarriedTask[] = [];
     const dates = new Set<string>([to]);
-    for (const t of carryCandidates(this.o.sqlite, d, input.older === true)) {
+    for (const t of tasks) {
       const from = t.scheduled_date ?? d;
       const blocks = this.o.sqlite
         .query<{ id: string; start_at: number; end_at: number }, [string]>(

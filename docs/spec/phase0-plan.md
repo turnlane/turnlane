@@ -1365,7 +1365,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | ツール | 入力 | 出力 | 備考 |
 |---|---|---|---|
 | `add_task` | `title`, `date?`, `estimate_min?`, `project?`, `notes?`, `source?`, `external_id?`, `url?` | `{task, created, skipped?}` | `task.source=mcp`、`source_ref=mcp:<clientInfo.name>:<cwd>`。既定は Inbox。`source` と `external_id` は両方指定か両方省略（片方だけはエラー）。指定時は `task.external_source` / `external_id` / `external_url` に入れ、3.4 の `POST /api/tasks` と同じ規則で冪等にする（同じものを何度呼んでも1件。ユーザーが削除したものは作り直さない）。UI に「<source または client 名> が1件追加しました [元に戻す]」、カードに出所の印（`source` の表示名と外部リンク） |
-| `list_tasks` | `date?`（既定は今日）, `include_done?` | タスク一覧 | |
+| `list_tasks` | `date?`（既定は今日。`"inbox"` で Inbox、`"past"` で今日より前に残った todo / doing を日付の新しい順。0.8.2）, `include_done?` | タスク一覧 | |
 | `get_today` | — | 今日の予定・タスク・時間ブロック・空き時間・要対応件数 | 会話の冒頭で使う想定 |
 | `get_day` | `date` | 同上（任意の日） | |
 | `get_free_slots` | `date`, `min_minutes` | 空き枠 | |

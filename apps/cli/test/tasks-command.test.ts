@@ -269,6 +269,27 @@ describe("turnlane mcp（3.5）", () => {
     expect(rows).toHaveLength(2);
   });
 
+  test("list_tasks の date: past は今日より前に残った todo / doing を日付の新しい順に返す（date はそのタスクの日付）", async () => {
+    const { paths } = await setup();
+    const state = { ctx: { paths, client: "claude-code", cwd: "/w/app" } };
+    let n = 100;
+    const tool = (name: string, args: object) =>
+      handleMessage(
+        { jsonrpc: "2.0", id: n++, method: "tools/call", params: { name, arguments: args } },
+        state,
+      ) as Promise<{
+        result: { structuredContent?: { tasks?: { title: string; date: string | null }[] } };
+      }>;
+    await tool("add_task", { title: "Older", date: "2026-01-05" });
+    await tool("add_task", { title: "Newer", date: "2026-01-12" });
+    await tool("add_task", { title: "In the Inbox" });
+    const past = (await tool("list_tasks", { date: "past" })).result.structuredContent?.tasks;
+    expect(past?.map((t) => [t.title, t.date])).toEqual([
+      ["Newer", "2026-01-12"],
+      ["Older", "2026-01-05"],
+    ]);
+  });
+
   test("schedule_task はタスクの時間ブロックを1つに保つ（時刻を変えたら置き換え、日付だけなら同じ時刻のまま移す）", async () => {
     const { paths } = await setup();
     const state = { ctx: { paths, client: "claude-code", cwd: "/w/app" } };

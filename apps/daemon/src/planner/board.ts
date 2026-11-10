@@ -28,6 +28,7 @@ import type {
   DayColumn,
   DayWaitSegment,
   Interval,
+  PastRemainingGroup,
   TimeEntryView,
   WaitSegmentBrief,
 } from "@turnlane/core/api";
@@ -48,7 +49,7 @@ import {
   type TaskRow,
   taskView,
 } from "./common.ts";
-import { carryCounts } from "./daily-note.ts";
+import { carryCounts, pastCandidates } from "./daily-note.ts";
 
 interface EventRow {
   id: string;
@@ -560,6 +561,28 @@ export function buildBoard(
       const c = carryCounts(db, d.date);
       d.carry = { count: c.count, older: firstPast ? c.older : 0 };
       firstPast = false;
+    }
+
+    // 「過去から N 件」（0.8.2）: 今日の論理日の列だけ。日付ごとに新しい順
+    const todayCol = days.find((d) => d.date === today && d.logicalPhase === "today");
+    if (todayCol) {
+      const rows = pastCandidates(db, today);
+      const pastTitles = resolveTaskTitles(db, rows);
+      const pastAis = aiByTask(
+        db,
+        rows.map((t) => t.id),
+      );
+      const groups: PastRemainingGroup[] = [];
+      for (const r of rows) {
+        const date = r.scheduled_date as string;
+        let g = groups.at(-1);
+        if (g?.date !== date) {
+          g = { date, tasks: [] };
+          groups.push(g);
+        }
+        g.tasks.push(taskView(r, pastTitles, fus.get(r.id), pastAis.get(r.id)));
+      }
+      todayCol.pastRemaining = groups;
     }
 
     return { ...meta, days };

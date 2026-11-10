@@ -241,6 +241,17 @@ export interface DayColumn {
    * older はそれより前の日付（14日）のまま残っている未完了（範囲の最初の過去の列にだけ数える。ほかは 0）
    */
   carry?: { count: number; older: number };
+  /**
+   * 「過去から N 件」（今日の論理日の列だけ。0.8.2）: 今日より前の日付に todo / doing のまま残っている自分のタスク
+   * （自分の番のタスク・someday・やめた・削除は除く。期間の上限なし）を日付ごとに、新しい日付から。無ければ空
+   */
+  pastRemaining?: PastRemainingGroup[];
+}
+
+/** 「過去から N 件」の 1 日ぶん */
+export interface PastRemainingGroup {
+  date: LocalDate;
+  tasks: TaskView[];
 }
 
 export interface BoardResponse extends ReadMeta {
