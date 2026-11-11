@@ -316,6 +316,21 @@ function TextPrompt({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [guestText, setGuestText] = useState("");
   const guests = parseGuests(guestText);
+  // 招待の段を開いている間は、主のボタンも ⏎ も「Google カレンダーで開く」（Turnlane には作らない）
+  const inviting = google && inviteOpen;
+  const guestInput = useRef<HTMLInputElement>(null);
+  const closeInvite = () => {
+    setInviteOpen(false);
+    setGuestText("");
+    input.current?.focus();
+  };
+  // Google 以外の書き先に変えたら段を閉じ、招待する人を消す
+  useEffect(() => {
+    if (!google) {
+      setInviteOpen(false);
+      setGuestText("");
+    }
+  }, [google]);
   const openInGoogle = () => {
     if (!range0 || guests.length === 0 || !cal) return;
     openExternalUrl(
@@ -362,6 +377,12 @@ function TextPrompt({
         ? "task.renamePlaceholder"
         : "task.movePlaceholder";
   const submit = () => {
+    // 招待の段を開いている間は作らない: 招待する人がいれば Google を開き、まだなら招待する人の欄へ
+    if (inviting) {
+      if (guests.length > 0) openInGoogle();
+      else guestInput.current?.focus();
+      return;
+    }
     // 値は DOM から読む（変換の確定と同じ打鍵の ⏎ で、状態の反映が遅れても末尾を落とさない）
     const x = (input.current?.value ?? v).trim();
     if (prompt.kind === "new") {
@@ -467,6 +488,13 @@ function TextPrompt({
         }}
         onKeyDown={(e) => {
           if (isImeKey(e)) return;
+          if (e.key === "Escape" && inviting) {
+            // 招待の段を開いている間の ⎋ は段を閉じる（もう一度で入力を閉じる）
+            e.preventDefault();
+            e.stopPropagation();
+            closeInvite();
+            return;
+          }
           if (e.key === "Enter") {
             e.preventDefault();
             submit();
@@ -495,6 +523,7 @@ function TextPrompt({
         // フォーカスは枠の色だけ（確定画像。全体の :focus-visible の太い輪を出さない）
         style={{ outline: "none", ...evStyle }}
         data-event={isEvent ? "" : undefined}
+        data-own-escape={inviting ? "" : undefined}
         data-testid="prompt-input"
       />
       {range && newPrompt ? (
@@ -564,12 +593,13 @@ function TextPrompt({
       ) : null}
       {prompt.kind === "new" ? (
         // マウスだけでも作れるように「作成」のボタン（⏎ と同じ。UX 監査 6.1 の「マウスで完結する」）。予定は作成先のカレンダー
-        <div className="mt-4 flex items-center justify-end gap-2">
+        // 招待の段を開いている間は主のボタンが長いので、書き先の選択が細るときは折り返す（名前を残す）
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
           {asking ? <AiFoot opts={aiOpts.data} /> : null}
           {picker ? (
             <div
               ref={pickerBox}
-              className="mr-auto flex min-w-0 items-center gap-2"
+              className={`mr-auto flex items-center gap-2 ${inviting ? "min-w-[13rem]" : "min-w-0"}`}
               data-testid="event-calendar-row"
             >
               <CalendarPicker
@@ -584,9 +614,9 @@ function TextPrompt({
               />
               {google ? (
                 <InviteButton
-                  open={inviteOpen}
-                  onClick={() => setInviteOpen((o) => !o)}
-                  label={t("event.invite")}
+                  open={inviting}
+                  onClick={() => (inviting ? closeInvite() : setInviteOpen(true))}
+                  label={t(inviting ? "event.invite.stop" : "event.invite")}
                 />
               ) : null}
             </div>
@@ -600,9 +630,9 @@ function TextPrompt({
               <span className="truncate">{t("event.in", { name: cal.name })}</span>
               {google ? (
                 <InviteButton
-                  open={inviteOpen}
-                  onClick={() => setInviteOpen((o) => !o)}
-                  label={t("event.invite")}
+                  open={inviting}
+                  onClick={() => (inviting ? closeInvite() : setInviteOpen(true))}
+                  label={t(inviting ? "event.invite.stop" : "event.invite")}
                 />
               ) : null}
             </span>
@@ -610,20 +640,34 @@ function TextPrompt({
           <Button variant="ghost" onMouseDown={(e) => e.preventDefault()} onClick={onClose}>
             {t("action.cancel")}
           </Button>
-          <Button
-            variant="primary"
-            disabled={!v.trim() || (asking && !canLaunch(aiOpts.data, aiChoice))}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={submit}
-            data-testid="prompt-create"
-          >
-            {asking ? t("launch.createAndAsk") : t("prompt.create")}
-            <span className="font-mono text-micro opacity-70">{asking ? "⌘↵" : "↵"}</span>
-          </Button>
+          {inviting ? (
+            // 招待の段を開いている間は「作成」を出さない（作ると招待する人なしで Turnlane に作られる）
+            <Button
+              variant="primary"
+              disabled={guests.length === 0}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={openInGoogle}
+              data-testid="invite-open"
+            >
+              {t("event.invite.open")}
+              <span className="font-mono text-micro opacity-70">{"↵"}</span>
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              disabled={!v.trim() || (asking && !canLaunch(aiOpts.data, aiChoice))}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={submit}
+              data-testid="prompt-create"
+            >
+              {asking ? t("launch.createAndAsk") : t("prompt.create")}
+              <span className="font-mono text-micro opacity-70">{asking ? "⌘↵" : "↵"}</span>
+            </Button>
+          )}
         </div>
       ) : null}
-      {google && inviteOpen ? (
-        // 招待する人（カンマ区切りのメール）と「Google カレンダーで開く」。Turnlane には予定を作らない
+      {inviting ? (
+        // 招待する人（カンマ区切りのメール）と案内。開くのは主のボタン（⏎）。Turnlane には予定を作らない
         <div
           className="mt-3 flex flex-col gap-2 border-line border-t pt-3"
           data-testid="invite-row"
@@ -633,19 +677,19 @@ function TextPrompt({
             <input
               // biome-ignore lint/a11y/noAutofocus: 「招待…」を押したらすぐ打てるように
               autoFocus
+              ref={guestInput}
               value={guestText}
               onChange={(e) => setGuestText(e.target.value)}
               onKeyDown={(e) => {
                 if (isImeKey(e)) return;
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  openInGoogle();
+                  if (guests.length > 0) openInGoogle();
                 } else if (e.key === "Escape") {
-                  // 段だけ閉じる（入力は閉じない）
+                  // 段だけ閉じる（招待する人を消し、「作成」に戻る。入力は閉じない）
                   e.preventDefault();
                   e.stopPropagation();
-                  setInviteOpen(false);
-                  input.current?.focus();
+                  closeInvite();
                 }
               }}
               placeholder={t("event.invite.placeholder")}
@@ -656,19 +700,7 @@ function TextPrompt({
               data-testid="invite-guests"
             />
           </label>
-          <div className="flex items-center justify-between gap-2">
-            <span className="min-w-0 text-fg3 text-meta">{t("event.invite.hint")}</span>
-            <Button
-              variant="ghost"
-              disabled={guests.length === 0}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={openInGoogle}
-              data-testid="invite-open"
-            >
-              {t("event.invite.open")}
-              <span className="font-mono text-micro opacity-70">{"↵"}</span>
-            </Button>
-          </div>
+          <span className="min-w-0 text-fg3 text-meta">{t("event.invite.hint")}</span>
         </div>
       ) : null}
       {prompt.kind === "move" && v.trim() ? (

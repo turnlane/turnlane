@@ -97,29 +97,58 @@ async function run(t: Ctx) {
   await guests.waitFor({ timeout: 2000 });
   const row = await page.getByTestId("invite-row").innerText();
   t.check(
-    "invite row: guests, Open in Google Calendar and the hint",
+    "invite row: only the guests field and the hint; the toggle reads Stop inviting",
     row.includes("Guests") &&
-      row.includes("Open in Google Calendar") &&
-      row.includes("Not saved in Turnlane"),
+      row.includes("Not saved in Turnlane") &&
+      !row.includes("Open in Google Calendar") &&
+      (await invite.innerText()) === "Stop inviting",
     row,
+  );
+  t.check(
+    "while the row is open, Create is gone and the main button is Open in Google Calendar (disabled)",
+    (await page.getByTestId("prompt-create").count()) === 0 &&
+      (await page.getByTestId("invite-open").innerText()).includes("Open in Google Calendar") &&
+      (await page.getByTestId("invite-open").isDisabled()),
   );
   await guests.fill("not-an-email");
   t.check(
-    "Open is disabled until an entry looks like an email",
+    "Open stays disabled until an entry looks like an email",
     await page.getByTestId("invite-open").isDisabled(),
   );
-  // ⎋ は段だけ閉じる（入力は残る）
+  const before = (await events(board)).length;
+  // ⏎ in the title with no valid guest: moves to the guests field, creates nothing
+  await page.getByTestId("prompt-input").press("Enter");
+  await page.waitForTimeout(400);
+  t.check(
+    "⏎ in the title without a valid guest focuses the guests field and creates nothing",
+    (await guests.evaluate((el) => el === document.activeElement)) &&
+      (await events(board)).length === before &&
+      (await opened(page)).length === 0,
+  );
+  // ⎋ closes the row, clears the guests and brings Create back (the input stays)
   await guests.press("Escape");
   await page.waitForTimeout(200);
   t.check(
-    "Esc closes only the invite row",
+    "Esc closes the row and restores Create",
     (await page.getByTestId("invite-row").count()) === 0 &&
-      (await page.getByTestId("prompt-input").count()) === 1,
+      (await page.getByTestId("prompt-input").count()) === 1 &&
+      (await page.getByTestId("prompt-create").count()) === 1 &&
+      (await invite.innerText()) === "Invite…",
+  );
+  await invite.click();
+  t.check("reopening starts with empty guests", (await guests.inputValue()) === "");
+  // the toggle also closes
+  await invite.click();
+  await page.waitForTimeout(150);
+  t.check(
+    "Stop inviting closes the row and restores Create",
+    (await page.getByTestId("invite-row").count()) === 0 &&
+      (await page.getByTestId("prompt-create").count()) === 1,
   );
   await invite.click();
   await guests.fill("a@example.com, b+x@example.com");
-  const before = (await events(board)).length;
-  await guests.press("Enter");
+  // ⏎ in the title (not only in the guests field) opens Google
+  await page.getByTestId("prompt-input").press("Enter");
   await page.waitForTimeout(500);
   const urls = await opened(page);
   const u = urls.at(-1) ? new URL(urls.at(-1) as string) : null;

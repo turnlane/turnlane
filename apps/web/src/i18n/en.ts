@@ -1586,6 +1586,7 @@ export const en = {
   "onb.start.cliFailed": "couldn't install — try again in Settings › General",
   "onb.start.open": "Open the board",
   "event.invite": "Invite…",
+  "event.invite.stop": "Stop inviting",
   "event.invite.guests": "Guests",
   "event.invite.placeholder": "a@example.com, b@example.com",
   "event.invite.open": "Open in Google Calendar",

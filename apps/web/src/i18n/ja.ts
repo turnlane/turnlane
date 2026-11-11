@@ -1537,6 +1537,7 @@ export const ja: Dict = {
   "onb.start.cliFailed": "置けませんでした — 設定 › 一般 でもう一度",
   "onb.start.open": "ボードを開く",
   "event.invite": "招待…",
+  "event.invite.stop": "招待をやめる",
   "event.invite.guests": "招待する人",
   "event.invite.placeholder": "a@example.com, b@example.com",
   "event.invite.open": "Google カレンダーで開く",
