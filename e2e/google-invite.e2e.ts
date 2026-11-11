@@ -151,17 +151,23 @@ async function run(t: Ctx) {
   await page.getByTestId("prompt-input").press("Enter");
   await page.waitForTimeout(500);
   const urls = await opened(page);
-  const u = urls.at(-1) ? new URL(urls.at(-1) as string) : null;
+  // アカウント（カレンダーの名前のメール）が分かるので、Google のアカウントの選択を通して作成の画面へ
+  const w = urls.at(-1) ? new URL(urls.at(-1) as string) : null;
+  const inner = w?.searchParams.get("continue") ?? "";
+  const u = inner ? new URL(inner) : null;
   t.check(
-    "⏎ opens Google Calendar's event editor with title, time, time zone, guests and the account",
-    !!u &&
+    "⏎ opens Google's account chooser for the calendar's account, continuing to the prefilled event editor",
+    !!w &&
+      w.origin + w.pathname === "https://accounts.google.com/AccountChooser" &&
+      w.searchParams.get("Email") === "you@example.com" &&
+      !!u &&
       u.origin + u.pathname === "https://calendar.google.com/calendar/render" &&
       u.searchParams.get("action") === "TEMPLATE" &&
       u.searchParams.get("text") === "Plan & review" &&
       u.searchParams.get("dates") === "20261002T170000/20261002T180000" &&
       u.searchParams.get("ctz") === "Asia/Tokyo" &&
       u.searchParams.get("add") === "a@example.com,b+x@example.com" &&
-      u.searchParams.get("authuser") === "you@example.com",
+      !u.searchParams.has("authuser"),
     urls.at(-1) ?? "none",
   );
   const toast = await page
@@ -202,14 +208,17 @@ async function run(t: Ctx) {
   );
   await page.locator('[data-menu-id="eventOpenGoogle"]').click();
   await page.waitForTimeout(300);
-  const last = (await opened(page)).at(-1) ?? "";
+  const chooser = new URL((await opened(page)).at(-1) ?? "about:blank");
+  const last = chooser.searchParams.get("continue") ?? "";
   const eid = last.slice(last.lastIndexOf("/") + 1);
   const decoded = Buffer.from(eid.replaceAll("-", "+").replaceAll("_", "/"), "base64").toString(
     "utf8",
   );
   t.check(
-    "it opens the event's editor (eid = event id + calendar email)",
-    last.startsWith("https://calendar.google.com/calendar/u/0/r/eventedit/") &&
+    "it opens the event's editor through the account chooser (eid = event id + calendar email)",
+    chooser.origin + chooser.pathname === "https://accounts.google.com/AccountChooser" &&
+      chooser.searchParams.get("Email") === "you@example.com" &&
+      last.startsWith("https://calendar.google.com/calendar/u/0/r/eventedit/") &&
       decoded === "7kq2c3m9g1v0p8r5example you@example.com",
     `${last} ${decoded}`,
   );

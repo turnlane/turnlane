@@ -35,7 +35,7 @@ import { todayOrSystem } from "../lib/board-nav.ts";
 import { calColor } from "../lib/cal-color.ts";
 import { useNow } from "../lib/clock.ts";
 import { addDaysSafe } from "../lib/dates.ts";
-import { googleEventEditUrl, openExternalUrl } from "../lib/google-calendar.ts";
+import { googleAccountOf, googleEventEditUrl, openExternalUrl } from "../lib/google-calendar.ts";
 import { setUi, toast, useUi } from "../lib/store.ts";
 import {
   ActionButton,
@@ -140,6 +140,7 @@ function EventBody({ e }: { e: CalendarEventDetail }) {
         googleEventEditUrl({
           externalId: e.externalId,
           calendarName: googleCal?.name ?? e.calendarName,
+          account: googleAccountOf(googleCal?.name ?? e.calendarName, e.calendarAccount),
           date: e.allDay && e.startDate ? e.startDate : dateOf(e.start, tz),
         }),
       ),

@@ -8,6 +8,7 @@ import {
   googleNewEventUrl,
   looksLikeEmail,
   parseGuests,
+  withAccount,
 } from "../src/lib/google-calendar.ts";
 
 const TZ = "Asia/Tokyo";
@@ -42,18 +43,23 @@ describe("新しい予定の作成の画面", () => {
       location: "Room 3 & 4",
       account: "you@example.com",
     });
-    expect(url.startsWith("https://calendar.google.com/calendar/render?")).toBe(true);
-    const q = params(url);
+    // アカウントが分かれば Google のアカウントの選択を通す（continue が作成の画面）
+    const w = new URL(url);
+    expect(w.origin + w.pathname).toBe("https://accounts.google.com/AccountChooser");
+    expect(w.searchParams.get("Email")).toBe("you@example.com");
+    const inner = w.searchParams.get("continue") ?? "";
+    expect(inner.startsWith("https://calendar.google.com/calendar/render?")).toBe(true);
+    const q = params(inner);
     expect(q.get("action")).toBe("TEMPLATE");
     expect(q.get("text")).toBe("Plan & review: Q4 / 50% #1");
     expect(q.get("dates")).toBe("20261112T140000/20261112T150000");
     expect(q.get("ctz")).toBe(TZ);
     expect(q.get("add")).toBe("a@example.com,b+x@example.com");
     expect(q.get("location")).toBe("Room 3 & 4");
-    expect(q.get("authuser")).toBe("you@example.com");
+    expect(q.has("authuser")).toBe(false);
     // & と # と + は値の中でエスケープされている（URL の区切りにならない）
-    expect(url).not.toContain("Plan & review");
-    expect(url).toContain("b%2Bx%40example.com");
+    expect(inner).not.toContain("Plan & review");
+    expect(inner).toContain("b%2Bx%40example.com");
   });
 
   test("終日は YYYYMMDD/翌日。場所・アカウントが無ければ付けない", () => {
@@ -78,7 +84,11 @@ describe("新しい予定の作成の画面", () => {
     expect(googleDateTime(Date.UTC(2026, 0, 1, 0, 0), TZ)).toBe("20260101T090000");
   });
 
-  test("authuser: カレンダーの名前、無ければアカウントの名前がメールの形のとき", () => {
+  test("アカウントのメール: カレンダーの名前、無ければアカウントの名前がメールの形のとき。分からなければそのままの URL", () => {
+    expect(withAccount("https://calendar.google.com/calendar/render?a=1", null)).toBe(
+      "https://calendar.google.com/calendar/render?a=1",
+    );
+    expect(withAccount("https://x.test/?a=1&b=2", "Team")).toBe("https://x.test/?a=1&b=2");
     expect(googleAccountOf("you@example.com", "Google")).toBe("you@example.com");
     expect(googleAccountOf("Team", "me@example.com")).toBe("me@example.com");
     expect(googleAccountOf("Team", "Google")).toBeNull();
@@ -90,11 +100,16 @@ describe("既存の予定の編集画面", () => {
     expect(googleEventIdOf("7kq2c3m9g1v0p8r5example@google.com")).toBe("7kq2c3m9g1v0p8r5example");
     expect(googleEventIdOf("abc_20261112T050000Z@google.com")).toBe("abc_20261112T050000Z");
     expect(googleEventIdOf("040000008200E00074C5B7101A82E008@example.com")).toBeNull();
-    const url = googleEventEditUrl({
+    const wrapped = googleEventEditUrl({
       externalId: "abc_20261112T050000Z@google.com",
       calendarName: "you@example.com",
       date: "2026-11-12",
+      account: "you@example.com",
     });
+    const w = new URL(wrapped);
+    expect(w.origin + w.pathname).toBe("https://accounts.google.com/AccountChooser");
+    expect(w.searchParams.get("Email")).toBe("you@example.com");
+    const url = w.searchParams.get("continue") ?? "";
     const eid = url.slice(url.lastIndexOf("/") + 1);
     expect(url.startsWith("https://calendar.google.com/calendar/u/0/r/eventedit/")).toBe(true);
     expect(eid).not.toMatch(/[=+/]/);
@@ -108,6 +123,19 @@ describe("既存の予定の編集画面", () => {
     expect(
       googleEventEditUrl({ externalId: "x@google.com", calendarName: "Team", date: "2026-11-05" }),
     ).toBe("https://calendar.google.com/calendar/u/0/r/day/2026/11/05");
+    // アカウントが分かればその日の表示もアカウントの選択を通す
+    const d = new URL(
+      googleEventEditUrl({
+        externalId: "x@google.com",
+        calendarName: "Team",
+        date: "2026-11-05",
+        account: "me@example.com",
+      }),
+    );
+    expect(d.searchParams.get("Email")).toBe("me@example.com");
+    expect(d.searchParams.get("continue")).toBe(
+      "https://calendar.google.com/calendar/u/0/r/day/2026/11/05",
+    );
     expect(
       googleEventEditUrl({
         externalId: "uid-1",

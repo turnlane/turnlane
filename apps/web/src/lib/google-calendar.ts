@@ -44,7 +44,7 @@ export function googleDateTime(ms: number, tz: string): string {
 
 const compactDate = (d: string) => d.replaceAll("-", "");
 
-/** Google のアカウントの選択（authuser）: カレンダーの名前、無ければアカウントの名前がメールの形ならそれ */
+/** Google のアカウントのメール（アカウントの選択に渡す）: カレンダーの名前、無ければアカウントの名前がメールの形ならそれ */
 export function googleAccountOf(
   calendarName: string | null,
   accountName: string | null,
@@ -64,7 +64,7 @@ export interface NewGoogleEvent {
   tz: string;
   guests: readonly string[];
   location?: string | null;
-  /** authuser に渡すメール（分からなければ null） */
+  /** Google のアカウントのメール（分かればアカウントの選択を通して開く。分からなければ null） */
   account?: string | null;
 }
 
@@ -81,10 +81,24 @@ export function googleNewEventUrl(e: NewGoogleEvent): string {
   ];
   if (e.guests.length > 0) q.push(["add", e.guests.join(",")]);
   if (e.location?.trim()) q.push(["location", e.location.trim()]);
-  if (e.account) q.push(["authuser", e.account]);
   // 新規は render?action=TEMPLATE（Google の案内の形。Google が作成の画面へ移し、項目を入れて開く）。
   // `/u/0/r/eventedit?text=…` は実機のアカウントで題名が入らなかった
-  return `${RENDER}?${q.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}`;
+  return withAccount(
+    `${RENDER}?${q.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}`,
+    e.account ?? null,
+  );
+}
+
+/**
+ * アカウントのメールが分かれば、Google のアカウントの選択（AccountChooser）を通して開く: そのアカウントでログインして
+ * いれば選び、いなければそのメールでのログインを求めてから continue へ進む。`authuser=` はそのブラウザでログイン済みの
+ * ときしか効かず、違えば黙って既定のアカウント（u/0）で開いてしまう（実機で別のアカウントの画面になった）
+ */
+export function withAccount(url: string, email: string | null | undefined): string {
+  if (!looksLikeEmail(email)) return url;
+  return `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
+    (email as string).trim(),
+  )}&continue=${encodeURIComponent(url)}`;
 }
 
 /** base64url（パディングなし）。UTF-8 */
@@ -112,12 +126,17 @@ export function googleEventEditUrl(p: {
   externalId: string | null | undefined;
   calendarName: string | null;
   date: string;
+  /** Google のアカウントのメール（分かればアカウントの選択を通して開く） */
+  account?: string | null;
 }): string {
   const id = googleEventIdOf(p.externalId);
   if (id && looksLikeEmail(p.calendarName))
-    return `${BASE}/eventedit/${base64url(`${id} ${(p.calendarName as string).trim()}`)}`;
+    return withAccount(
+      `${BASE}/eventedit/${base64url(`${id} ${(p.calendarName as string).trim()}`)}`,
+      p.account,
+    );
   const [y, m, d] = p.date.split("-");
-  return `${BASE}/day/${y}/${m}/${d}`;
+  return withAccount(`${BASE}/day/${y}/${m}/${d}`, p.account);
 }
 
 /** 外の URL を開く（デスクトップアプリは新しいウインドウの要求を既定のブラウザに渡す。ブラウザは新しいタブ） */
