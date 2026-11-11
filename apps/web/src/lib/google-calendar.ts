@@ -5,6 +5,8 @@
  */
 
 const BASE = "https://calendar.google.com/calendar/u/0/r";
+/** 新しい予定の作成の画面（テンプレートの形） */
+const RENDER = "https://calendar.google.com/calendar/render";
 
 /** メールの形か（招待する人の欄・アカウントの判定） */
 export function looksLikeEmail(s: string | null | undefined): boolean {
@@ -72,6 +74,7 @@ export function googleNewEventUrl(e: NewGoogleEvent): string {
     ? `${compactDate(e.allDay.startDate)}/${compactDate(e.allDay.endDate)}`
     : `${googleDateTime(e.start ?? 0, e.tz)}/${googleDateTime(e.end ?? 0, e.tz)}`;
   const q: [string, string][] = [
+    ["action", "TEMPLATE"],
     ["text", e.title],
     ["dates", dates],
     ["ctz", e.tz],
@@ -79,7 +82,9 @@ export function googleNewEventUrl(e: NewGoogleEvent): string {
   if (e.guests.length > 0) q.push(["add", e.guests.join(",")]);
   if (e.location?.trim()) q.push(["location", e.location.trim()]);
   if (e.account) q.push(["authuser", e.account]);
-  return `${BASE}/eventedit?${q.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}`;
+  // 新規は render?action=TEMPLATE（Google の案内の形。Google が作成の画面へ移し、項目を入れて開く）。
+  // `/u/0/r/eventedit?text=…` は実機のアカウントで題名が入らなかった
+  return `${RENDER}?${q.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}`;
 }
 
 /** base64url（パディングなし）。UTF-8 */

@@ -155,7 +155,8 @@ async function run(t: Ctx) {
   t.check(
     "⏎ opens Google Calendar's event editor with title, time, time zone, guests and the account",
     !!u &&
-      u.origin + u.pathname === "https://calendar.google.com/calendar/u/0/r/eventedit" &&
+      u.origin + u.pathname === "https://calendar.google.com/calendar/render" &&
+      u.searchParams.get("action") === "TEMPLATE" &&
       u.searchParams.get("text") === "Plan & review" &&
       u.searchParams.get("dates") === "20261002T170000/20261002T180000" &&
       u.searchParams.get("ctz") === "Asia/Tokyo" &&

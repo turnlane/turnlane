@@ -42,8 +42,9 @@ describe("新しい予定の作成の画面", () => {
       location: "Room 3 & 4",
       account: "you@example.com",
     });
-    expect(url.startsWith("https://calendar.google.com/calendar/u/0/r/eventedit?")).toBe(true);
+    expect(url.startsWith("https://calendar.google.com/calendar/render?")).toBe(true);
     const q = params(url);
+    expect(q.get("action")).toBe("TEMPLATE");
     expect(q.get("text")).toBe("Plan & review: Q4 / 50% #1");
     expect(q.get("dates")).toBe("20261112T140000/20261112T150000");
     expect(q.get("ctz")).toBe(TZ);
