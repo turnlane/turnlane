@@ -1457,3 +1457,9 @@ ReportInput {
 - `POST /api/days/past/carry`（本文なし）: 対象すべてを今日の未定へ移す（時間ブロックは外し `rollover_count` +1、`usage_event(kind='carry')` を残す）。応答は `CarryDayResponse`（`{ rev, to, moved: { taskId, from, blocks }[] }`）、元に戻すは既存の `POST /api/days/carry/undo { moved }`。経路は `/days/:date/carry` より先に置く（`past` を日付として読まない）。対象が無ければ `moved: []`
 - MCP `list_tasks` の `date: "past"`: 同じ対象を日付の新しい順に返す（各タスクの `date` はそのタスクの日付）
 
+## 39. Google カレンダーで招待（0.8.2。[ux-mvp.md](ux-mvp.md) 4.21）
+
+- `GET /api/calendars` の各カレンダーに `kind: "google" | null`。google = ヘルパが返す EKSource の種類（`sourceType`）が `calDAV` で、アカウント名（`account`）が「Google」か、そのカレンダーの予定に外部 ID が `@google.com` で終わるものがある（`apps/daemon/src/calendar/google.ts`）。Exchange（外部 ID が `040000008200…` の長い形）・iCloud・ローカル・購読は null。`sourceType` は保存せず、ヘルパから一覧を受け取るたびに持ち直す（受け取るまでは null）
+- `GET /api/calendar-events/:id` に `externalId`（EventKit の calendarItemExternalIdentifier。Google の予定は `<id>@google.com`）
+- Google カレンダーの URL は web が組み立てる（`apps/web/src/lib/google-calendar.ts`）。デーモンは Google に何も送らない
+

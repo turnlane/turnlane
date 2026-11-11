@@ -36,6 +36,7 @@ import {
   readOnlyReason,
   type TimeblockEventsSummary,
 } from "./events.ts";
+import { isGoogleCalendar } from "./google.ts";
 import type { CalendarProvider } from "./provider.ts";
 import { CalendarSync, type CalendarSyncStatus, type SyncResult } from "./sync.ts";
 import { holidayState, workdayRule } from "./workdays.ts";
@@ -61,6 +62,11 @@ export interface CalendarView {
   holiday: boolean;
   events: number;
   lastSyncedAt: number | null;
+  /**
+   * カレンダーのサービス（0.8.2）。google は Google のカレンダー（calendar/google.ts の判定）。ほかは null。
+   * web は「Google カレンダーで招待」「Google カレンダーで開く」をこれで出す
+   */
+  kind: "google" | null;
 }
 
 export interface CalendarStatusView extends CalendarSyncStatus {
@@ -206,11 +212,14 @@ export function createCalendar(o: {
           role: CalendarRole;
           last_synced_at: number | null;
           n: number;
+          google_ids: number;
         },
         []
       >(
         `SELECT c.id, c.name, c.account_name, c.color, c.color_key, c.is_writable, c.role, c.last_synced_at,
-                (SELECT count(*) FROM calendar_event e WHERE e.calendar_id = c.id) AS n
+                (SELECT count(*) FROM calendar_event e WHERE e.calendar_id = c.id) AS n,
+                EXISTS (SELECT 1 FROM calendar_event e WHERE e.calendar_id = c.id
+                          AND e.external_id LIKE '%@google.com') AS google_ids
            FROM calendar c ORDER BY c.account_name, c.name, c.id`,
       )
       .all()
@@ -227,6 +236,13 @@ export function createCalendar(o: {
         holiday: holidayIds.has(r.id),
         events: r.n,
         lastSyncedAt: r.last_synced_at,
+        kind: isGoogleCalendar({
+          sourceType: service.sourceTypes.get(r.id) ?? null,
+          accountName: r.account_name,
+          hasGoogleIds: r.google_ids === 1,
+        })
+          ? ("google" as const)
+          : null,
       }));
   };
 
@@ -328,6 +344,7 @@ export function createCalendar(o: {
             recurring: number | null;
             has_meeting_link: number | null;
             event_id: string | null;
+            external_id: string;
             calendar_id: string;
             is_writable: number;
             name: string;
@@ -340,7 +357,7 @@ export function createCalendar(o: {
         >(
           `SELECT e.id, e.title, e.location, e.start_at, e.end_at, e.tz, e.all_day, e.start_date, e.end_date,
                   e.status, e.availability, e.self_response, e.conference_url, e.is_own_timeblock,
-                  e.is_own_event, e.has_attendees, e.recurring, e.has_meeting_link, e.event_id, e.calendar_id, c.is_writable,
+                  e.is_own_event, e.has_attendees, e.recurring, e.has_meeting_link, e.event_id, e.external_id, e.calendar_id, c.is_writable,
                   c.name, c.account_name, c.color, c.color_key, c.role
              FROM calendar_event e JOIN calendar c ON c.id = e.calendar_id WHERE e.id = ?`,
         )
@@ -379,6 +396,7 @@ export function createCalendar(o: {
           return { editable: reason === null, readOnlyReason: reason };
         })(),
         createdByTurnlane: e.is_own_event === 1,
+        externalId: e.external_id,
       };
     },
     async createEvent(p) {

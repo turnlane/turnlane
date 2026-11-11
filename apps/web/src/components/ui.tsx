@@ -236,6 +236,8 @@ export function Popover({
     const onKey = (e: KeyboardEvent) => {
       // 変換中の Esc は変換の取り消し。ポップオーバー（新規タスク・題名・日付の入力）を閉じない
       if (e.key === "Escape" && !isImeKey(e)) {
+        // 中で自分の Esc を持つ欄（data-own-escape。作成の入力の招待する人の欄は段だけ閉じる）は、その欄に任せる
+        if (e.target instanceof Element && e.target.closest("[data-own-escape]")) return;
         e.stopPropagation();
         onClose();
       }

@@ -244,6 +244,8 @@ export class CalendarSync {
   readonly #o: CalendarSyncOptions;
   /** calendar.id → EKCalendar の種類（祝日の自動判定で誕生日を除くため。DB には持たない） */
   readonly types = new Map<string, string>();
+  /** EKSource の種類（calDAV・exchange・local など。ヘルパから一覧を受け取るまでは空。Google の判定に使う） */
+  readonly sourceTypes = new Map<string, string | null>();
   /**
    * Calendar.app の新規イベントのデフォルトカレンダー（calendar.id）。無ければ null、ヘルパが古い（isDefault を返さない）・
    * まだ同期していなければ undefined（D-072）
@@ -426,9 +428,11 @@ export class CalendarSync {
       const rows = this.#upsertCalendars(cals);
       const typesBefore = JSON.stringify([...this.types.entries()].sort());
       this.types.clear();
+      this.sourceTypes.clear();
       for (const c of cals) {
         const id = rows.get(c.id);
         if (id) this.types.set(id, c.type);
+        if (id) this.sourceTypes.set(id, c.sourceType ?? null);
       }
       const typesChanged = typesBefore !== JSON.stringify([...this.types.entries()].sort());
       const known = cals.some((c) => c.isDefault !== undefined);

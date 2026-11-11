@@ -35,6 +35,7 @@ import { todayOrSystem } from "../lib/board-nav.ts";
 import { calColor } from "../lib/cal-color.ts";
 import { useNow } from "../lib/clock.ts";
 import { addDaysSafe } from "../lib/dates.ts";
+import { googleEventEditUrl, openExternalUrl } from "../lib/google-calendar.ts";
 import { setUi, toast, useUi } from "../lib/store.ts";
 import {
   ActionButton,
@@ -128,8 +129,31 @@ function EventBody({ e }: { e: CalendarEventDetail }) {
   const open = () => void openInCalendar(e.id, t("eventPanel.openFailed"));
   const canMove = e.editable && (cals.data?.length ?? 0) > 1;
 
-  /** 「⋯」: 右クリックと同じ並び（menuSpec。詳細を開くは除く） */
-  const moreEntries = (): MenuEntry[] =>
+  /** Google のカレンダーの予定（「⋯」に「Google カレンダーで開く」。0.8.2） */
+  const googleCal = cals.data?.find((c) => c.id === e.calendarId && c.kind === "google");
+  const googleEntry = (): MenuEntry => ({
+    id: "eventOpenGoogle",
+    label: t("menu.eventOpenGoogle"),
+    icon: MENU_ICON.eventOpen,
+    run: () =>
+      openExternalUrl(
+        googleEventEditUrl({
+          externalId: e.externalId,
+          calendarName: googleCal?.name ?? e.calendarName,
+          date: e.allDay && e.startDate ? e.startDate : dateOf(e.start, tz),
+        }),
+      ),
+  });
+  /** 「⋯」: 右クリックと同じ並び（menuSpec。詳細を開くは除く）。Google の予定は「カレンダーで開く」の後に Google を足す */
+  const moreEntries = (): MenuEntry[] => withGoogle(menuBase());
+  const withGoogle = (xs: MenuEntry[]): MenuEntry[] => {
+    if (!googleCal) return xs;
+    const i = xs.findIndex((x) => x.id === "eventOpen");
+    return i < 0
+      ? [googleEntry(), ...xs]
+      : [...xs.slice(0, i + 1), googleEntry(), ...xs.slice(i + 1)];
+  };
+  const menuBase = (): MenuEntry[] =>
     menuSpec([], { event: { editable: e.editable, calendarId: e.calendarId, focus } })
       .filter((s) => s.id !== "detail")
       .map((s) => ({

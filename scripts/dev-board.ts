@@ -24,6 +24,8 @@
  *   計画が空きを超えた今日（見出しの「計画」が琥珀）
  * - --dense: 実データに近い密度（D-074 の確認用）。今日は AI を3本並列で回し（長い日本語の題名）、自分の番への返答が
  *   十数回、会議4件、長い日本語の題名のタスク。今は 17:10（--now で変えられる）。既定の今日の AI と予定・タスクは入れない
+ * - --google: Google のアカウントのカレンダー（名前が you@example.com、アカウント Google）と、その予定 1 件
+ *   （今日 16:00 の Client check-in。外部 ID は <id>@google.com）を足す。「Google カレンダーで招待」の確認用（0.8.2）
  * - --mcp all|main|old: 設定 > AI の取り込み の MCP の状態（D-145）。all は両方の取り込み元が登録済み、main は main だけ、
  *   old は main が別の turnlane を指す。無ければどちらも未登録
  * - --source-health L3 / L1,L1: 取り込み元（main, sandbox の順）の状態を推定（L1・L2）・停止（L3）にする（D-118 の確認用）
@@ -150,6 +152,8 @@ const MORE_EXPIRED = args.includes("--more-expired");
 /** 今日閉じたものを 8 件足す（--design day と組み合わせる。右の一覧の要約の行の確認用） */
 const MANY_CLOSED = args.includes("--many-closed");
 /** 確定デザインの画像と同じダミーデータ（D-114）。どの画像に合わせるか */
+/** --google: Google のカレンダー（「Google カレンダーで招待」。0.8.2）と、その予定 1 件を足す */
+const GOOGLE = args.includes("--google");
 const DESIGN = opt("--design") as
   | "board"
   | "day"
@@ -2056,6 +2060,8 @@ const event = (
     free?: boolean;
     busy?: boolean;
     calendarId?: string;
+    /** カレンダーの予定の外部 ID（省略は ev-N。Google の予定は <id>@google.com） */
+    externalId?: string;
     attendees?: boolean;
     url?: string;
     location?: string;
@@ -2063,7 +2069,7 @@ const event = (
   } = {},
 ): HelperEvent => ({
   calendarId: p.calendarId ?? "dev-work",
-  externalId: `ev-${++evSeq}`,
+  externalId: p.externalId ?? `ev-${++evSeq}`,
   occurrenceStart: start,
   title,
   start: p.allDay ? dayStartMs(p.allDay, TZ, 0) : start,
@@ -2104,6 +2110,20 @@ const calendarProvider = new FakeCalendarProvider({
       allowsModify: false,
       type: "subscription",
     },
+    // --google: Google のアカウントのカレンダー（名前がメールの主カレンダー。「Google カレンダーで招待」の確認用。0.8.2）
+    ...(GOOGLE
+      ? [
+          {
+            id: "dev-google",
+            title: "you@example.com",
+            sourceTitle: "Google",
+            sourceType: "calDAV",
+            colorHex: "#e67c73",
+            allowsModify: true,
+            type: "calDAV",
+          },
+        ]
+      : []),
   ],
   events:
     DESIGN === "ai"
@@ -2869,6 +2889,13 @@ db.close();
 // ヘルパが接続した状態にして同期する（--calendar-off なら未接続のまま）
 if (!args.includes("--calendar-off")) {
   // Calendar.app のデフォルトカレンダー（D-072）。--no-default-calendar なら無し
+  if (GOOGLE)
+    calendarProvider.events.push(
+      event("Client check-in", at("16:00"), at("16:30"), {
+        calendarId: "dev-google",
+        externalId: "7kq2c3m9g1v0p8r5example@google.com",
+      }),
+    );
   calendarProvider.defaultCalendarId = args.includes("--no-default-calendar") ? null : "dev-work";
   calendarProvider.setConnected(true);
   await d.calendar?.service.whenIdle();

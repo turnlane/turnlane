@@ -13,6 +13,8 @@ export interface EventCalendarChoice {
   account: string | null;
   color: string | null;
   colorKey: CalendarColorKey | null;
+  /** google は Google のカレンダー（「Google カレンダーで招待」を出す。0.8.2） */
+  kind?: "google" | null;
 }
 
 type DefaultCalendar = NonNullable<EventsStatus["calendar"]>;
@@ -33,6 +35,7 @@ export function eventCalendarChoices(
       account: c.account,
       color: c.color,
       colorKey: c.colorKey,
+      kind: c.kind ?? null,
     }));
   if (defaultCal && !out.some((c) => c.id === defaultCal.id)) out.push({ ...defaultCal });
   const key = (c: EventCalendarChoice) => c.account ?? "";

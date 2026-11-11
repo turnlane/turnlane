@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Invite via Google Calendar: when a new event from a free slot goes to a Google calendar, "Invite…" lets you enter guests and opens Google Calendar's event editor with the title, time and guests filled in (nothing is created in Turnlane; no Google sign-in). Events on Google calendars have "Open in Google Calendar" in the panel's ⋯ menu.
 - Today's Unscheduled in the day view and the 3-day board now shows "N from earlier days": your unfinished tasks left on any earlier day, grouped by date, with "Move all to today" (undoable). MCP `list_tasks` takes `date: "past"` for the same list.
 
 ### Fixed

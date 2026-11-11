@@ -16,6 +16,7 @@ import {
 
 const cal = (p: Partial<CalendarView> & { id: string; name: string }): CalendarView => ({
   account: "example.com",
+  kind: null,
   color: "#6b8cc7",
   colorKey: null,
   writable: true,

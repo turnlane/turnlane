@@ -36,7 +36,14 @@ import {
 import { Picker, SwitchTrack } from "../launch/Picker.tsx";
 import { clockOrDate } from "../lib/back-time.ts";
 import { nowMs } from "../lib/clock.ts";
+import {
+  googleAccountOf,
+  googleNewEventUrl,
+  openExternalUrl,
+  parseGuests,
+} from "../lib/google-calendar.ts";
 import { isImeKey } from "../lib/ime.ts";
+import { toast } from "../lib/store.ts";
 import { atLocal } from "../panel/TaskPanel.tsx";
 import {
   choiceColor,
@@ -301,6 +308,29 @@ function TextPrompt({
   const [picked, setPicked] = useState<string | null>(null);
   const { calendar: cal, explicit } = eventTargetOf(choices ?? [], defaultCal, picked);
   const picker = isEvent && !!choices && showCalendarPicker(choices);
+  // 「Google カレンダーで招待」（0.8.2）: 空き枠から作る予定で、書き先が Google のカレンダーのときだけ。招待する人は
+  // どこにも保存しない（この入力の状態だけ）
+  const range0 = prompt.kind === "new" ? prompt.range : undefined;
+  const google =
+    isEvent && !!range0 && (choices ?? []).find((c) => c.id === cal?.id)?.kind === "google";
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [guestText, setGuestText] = useState("");
+  const guests = parseGuests(guestText);
+  const openInGoogle = () => {
+    if (!range0 || guests.length === 0 || !cal) return;
+    openExternalUrl(
+      googleNewEventUrl({
+        title: (input.current?.value ?? v).trim(),
+        start: range0.start,
+        end: range0.end,
+        tz,
+        guests,
+        account: googleAccountOf(cal.name, cal.account),
+      }),
+    );
+    onClose();
+    toast(t("event.invite.opened"));
+  };
   // 上端・入力欄の色は、Turnlane の中で選んだ色があればそれ（D-125）
   const color = choiceColor(cal);
   const input = useRef<HTMLInputElement>(null);
@@ -537,7 +567,11 @@ function TextPrompt({
         <div className="mt-4 flex items-center justify-end gap-2">
           {asking ? <AiFoot opts={aiOpts.data} /> : null}
           {picker ? (
-            <div ref={pickerBox} className="mr-auto min-w-0" data-testid="event-calendar-row">
+            <div
+              ref={pickerBox}
+              className="mr-auto flex min-w-0 items-center gap-2"
+              data-testid="event-calendar-row"
+            >
               <CalendarPicker
                 choices={choices ?? []}
                 value={cal?.id ?? null}
@@ -548,6 +582,13 @@ function TextPrompt({
                   input.current?.focus();
                 }}
               />
+              {google ? (
+                <InviteButton
+                  open={inviteOpen}
+                  onClick={() => setInviteOpen((o) => !o)}
+                  label={t("event.invite")}
+                />
+              ) : null}
             </div>
           ) : isEvent && cal ? (
             <span className="mr-auto flex min-w-0 items-center gap-1.5 text-body text-fg2">
@@ -557,6 +598,13 @@ function TextPrompt({
                 aria-hidden="true"
               />
               <span className="truncate">{t("event.in", { name: cal.name })}</span>
+              {google ? (
+                <InviteButton
+                  open={inviteOpen}
+                  onClick={() => setInviteOpen((o) => !o)}
+                  label={t("event.invite")}
+                />
+              ) : null}
             </span>
           ) : null}
           <Button variant="ghost" onMouseDown={(e) => e.preventDefault()} onClick={onClose}>
@@ -574,12 +622,86 @@ function TextPrompt({
           </Button>
         </div>
       ) : null}
+      {google && inviteOpen ? (
+        // 招待する人（カンマ区切りのメール）と「Google カレンダーで開く」。Turnlane には予定を作らない
+        <div
+          className="mt-3 flex flex-col gap-2 border-line border-t pt-3"
+          data-testid="invite-row"
+        >
+          <label className="flex items-center gap-2 text-body">
+            <span className="shrink-0 text-fg2">{t("event.invite.guests")}</span>
+            <input
+              // biome-ignore lint/a11y/noAutofocus: 「招待…」を押したらすぐ打てるように
+              autoFocus
+              value={guestText}
+              onChange={(e) => setGuestText(e.target.value)}
+              onKeyDown={(e) => {
+                if (isImeKey(e)) return;
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  openInGoogle();
+                } else if (e.key === "Escape") {
+                  // 段だけ閉じる（入力は閉じない）
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInviteOpen(false);
+                  input.current?.focus();
+                }
+              }}
+              placeholder={t("event.invite.placeholder")}
+              autoComplete="off"
+              spellCheck={false}
+              className="h-8 min-w-0 flex-1 rounded-card border border-line bg-bg px-3 text-body outline-none placeholder:text-fg3"
+              data-own-escape=""
+              data-testid="invite-guests"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 text-fg3 text-meta">{t("event.invite.hint")}</span>
+            <Button
+              variant="ghost"
+              disabled={guests.length === 0}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={openInGoogle}
+              data-testid="invite-open"
+            >
+              {t("event.invite.open")}
+              <span className="font-mono text-micro opacity-70">{"↵"}</span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {prompt.kind === "move" && v.trim() ? (
         <div className="mt-2 text-meta text-fg2">
           {moveTo === undefined ? "?" : moveTo === null ? t("task.inbox") : shortDate(moveTo)}
         </div>
       ) : null}
     </Popover>
+  );
+}
+
+/** 「招待…」（文字だけの控えめなボタン。Google のカレンダーのときだけ。0.8.2） */
+function InviteButton({
+  open,
+  onClick,
+  label,
+}: {
+  open: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-expanded={open}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className="shrink-0 rounded-control px-1 text-fg2 text-meta hover:text-fg hover:underline"
+      data-testid="event-invite"
+    >
+      {label}
+    </button>
   );
 }
 

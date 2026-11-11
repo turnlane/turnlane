@@ -49,6 +49,7 @@ const detail = (p: Partial<CalendarEventDetail> = {}): CalendarEventDetail => ({
   editable: true,
   readOnlyReason: null,
   createdByTurnlane: false,
+  externalId: "uid-1",
   ...p,
 });
 

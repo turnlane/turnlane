@@ -20,6 +20,7 @@ import { eventsSuite } from "./events.e2e.ts";
 import { expiredSuite } from "./expired.e2e.ts";
 import { buildExtWeb, extNoneSuite, extSuite } from "./ext.e2e.ts";
 import { focusSuite } from "./focus.e2e.ts";
+import { googleInviteSuite } from "./google-invite.e2e.ts";
 import { type Engine, type Result, runSuite, type Suite } from "./harness.ts";
 import { imeSuite } from "./ime.e2e.ts";
 import { instructSuite } from "./instruct.e2e.ts";
@@ -75,6 +76,7 @@ const SUITES: Suite[] = [
   calendarHideSuite,
   updateCheckSuite,
   pastRemainingSuite,
+  googleInviteSuite,
 ];
 const args = process.argv.slice(2);
 const opt = (k: string) => {

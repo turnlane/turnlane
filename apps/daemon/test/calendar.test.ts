@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { nullLogger } from "@turnlane/collectors";
 import type { BoardResponse, CalendarEventDetail } from "@turnlane/core/api";
 import { HelperBridge } from "../src/calendar/bridge.ts";
+import { isGoogleCalendar } from "../src/calendar/google.ts";
 import { type CalendarSystem, createCalendar } from "../src/calendar/index.ts";
 import {
   FakeCalendarProvider,
@@ -730,5 +731,83 @@ describe("ヘルパとの接続（HelperBridge）", () => {
       "connected",
       "disconnected",
     ]);
+  });
+});
+
+describe("Google のカレンダー（「Google カレンダーで招待」。0.8.2）", () => {
+  test("calDAV でアカウント名が Google か、予定の外部 ID が @google.com のものを kind: google。Exchange・iCloud・購読は null", async () => {
+    const { provider, call } = setup();
+    provider.calendars.push(
+      {
+        id: "ek-google",
+        title: "you@example.com",
+        sourceTitle: "Google",
+        sourceType: "calDAV",
+        colorHex: "#e67c73",
+        allowsModify: true,
+        type: "calDAV",
+      },
+      {
+        id: "ek-google-ids",
+        title: "Team",
+        sourceTitle: "you@example.com",
+        sourceType: "calDAV",
+        colorHex: null,
+        allowsModify: true,
+        type: "calDAV",
+      },
+      {
+        id: "ek-exchange",
+        title: "Calendar",
+        sourceTitle: "Google",
+        sourceType: "exchange",
+        colorHex: null,
+        allowsModify: true,
+        type: "exchange",
+      },
+    );
+    provider.events.push(
+      ev({ calendarId: "ek-google-ids", externalId: "7kq2c3m9g1v0p8r5abc@google.com" }),
+      ev({
+        calendarId: "ek-exchange",
+        externalId: "040000008200E00074C5B7101A82E0080000000000000000",
+      }),
+    );
+    await cal.service.syncNow();
+    const list = await call<{
+      calendars: { name: string; kind: string | null }[];
+    }>("GET", "/api/calendars");
+    const kind = Object.fromEntries(list.body.calendars.map((c) => [c.name, c.kind]));
+    expect(kind).toMatchObject({
+      "you@example.com": "google",
+      Team: "google",
+      Calendar: null,
+      Work: null,
+      Holidays: null,
+    });
+    // 予定の詳細は外部 ID を返す（Google の編集画面の eid に使う）
+    const id = q<{ id: string }>(
+      "SELECT e.id FROM calendar_event e WHERE e.external_id LIKE '%@google.com'",
+    )[0]?.id;
+    const d = await call<CalendarEventDetail>("GET", `/api/calendar-events/${id}`);
+    expect(d.body.externalId).toBe("7kq2c3m9g1v0p8r5abc@google.com");
+  });
+
+  test("判定の関数", () => {
+    expect(
+      isGoogleCalendar({ sourceType: "calDAV", accountName: "Google", hasGoogleIds: false }),
+    ).toBe(true);
+    expect(
+      isGoogleCalendar({ sourceType: "calDAV", accountName: "iCloud", hasGoogleIds: false }),
+    ).toBe(false);
+    expect(
+      isGoogleCalendar({ sourceType: "calDAV", accountName: "x@y.com", hasGoogleIds: true }),
+    ).toBe(true);
+    expect(
+      isGoogleCalendar({ sourceType: "exchange", accountName: "Google", hasGoogleIds: true }),
+    ).toBe(false);
+    expect(isGoogleCalendar({ sourceType: null, accountName: "Google", hasGoogleIds: true })).toBe(
+      false,
+    );
   });
 });

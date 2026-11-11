@@ -68,6 +68,11 @@ export interface CalendarEventDetail {
   readOnlyReason: EventReadOnlyReason | null;
   /** Turnlane で作った予定（url = turnlane://event/） */
   createdByTurnlane: boolean;
+  /**
+   * カレンダーの予定の外部 ID（EventKit の calendarItemExternalIdentifier。iCalendar の UID。Google の予定は
+   * `<id>@google.com`）。Google カレンダーの編集画面を開くのに使う（0.8.2）
+   */
+  externalId: string;
 }
 
 export type TaskStatus = "todo" | "doing" | "done" | "canceled" | "someday";
