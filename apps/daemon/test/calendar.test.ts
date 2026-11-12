@@ -172,7 +172,7 @@ const q = <T>(sql: string, ...args: (string | number)[]) =>
   env.sqlite.query<T, (string | number)[]>(sql).all(...args);
 
 describe("同期（M3-2）", () => {
-  test("窓（7日前〜21日後）のスナップショットを代入で入れ、変わった日付だけ SSE calendar で知らせる", async () => {
+  test("窓（7日前〜90日後）のスナップショットを代入で入れ、変わった日付だけ SSE calendar で知らせる", async () => {
     const meeting = ev({
       calendarId: "ek-work",
       externalId: "m1",
@@ -181,7 +181,7 @@ describe("同期（M3-2）", () => {
       end: jst("2026-09-14T11:45"),
     });
     const old = ev({ calendarId: "ek-work", externalId: "old", start: jst("2026-09-01T10:00") });
-    const far = ev({ calendarId: "ek-work", externalId: "far", start: jst("2026-10-20T10:00") });
+    const far = ev({ calendarId: "ek-work", externalId: "far", start: jst("2026-12-20T10:00") });
     const own = ev({
       calendarId: "ek-work",
       externalId: "tb",
@@ -198,7 +198,7 @@ describe("同期（M3-2）", () => {
       { name: "Holidays", role: "source", is_writable: 0 },
       { name: "Work", role: "source", is_writable: 1 },
     ]);
-    // 窓の外（9/1・10/20）は入らない。自分の時間ブロックは目印付き
+    // 窓の外（9/1・12/20）は入らない。自分の時間ブロックは目印付き
     expect(
       q("SELECT external_id, title, is_own_timeblock FROM calendar_event ORDER BY start_at"),
     ).toEqual([
@@ -209,10 +209,10 @@ describe("同期（M3-2）", () => {
     expect(provider.fetches.at(-1)).toEqual({
       calendarIds: ["ek-birthdays", "ek-holidays", "ek-work"],
       from: jst("2026-09-07T04:00"),
-      to: jst("2026-10-06T04:00"),
+      to: jst("2026-12-14T04:00"),
     });
     // 初回は種類（誕生日など）が分かったので、稼働日が変わりうる窓の全日付
-    expect(calendarEvents()[0]).toHaveLength(29);
+    expect(calendarEvents()[0]).toHaveLength(98);
 
     // 変化が無ければ知らせない
     const r2 = await cal.deps.sync();
@@ -611,7 +611,7 @@ describe("稼働日と祝日（M3-6）", () => {
     // --none
     const none = await call("PUT", "/api/config/workdays.holiday_calendars", { value: [] });
     expect(none.status).toBe(200);
-    expect(calendarEvents()[0]).toHaveLength(29);
+    expect(calendarEvents()[0]).toHaveLength(98);
     let st = await call<{ holidays: { mode: string }; workdays: { nextWorkday: string } }>(
       "GET",
       "/api/calendar/status",

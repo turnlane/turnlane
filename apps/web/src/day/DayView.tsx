@@ -89,6 +89,7 @@ import { LegendButton } from "../components/Legend.tsx";
 import { Nums } from "../components/Nums.tsx";
 import { useOpenWith } from "../components/OpenWith.tsx";
 import { StatusIcon } from "../components/StatusIcon.tsx";
+import { SyncRangeNote } from "../components/SyncRangeNote.tsx";
 import { closedFallback, closedLabel, primaryFollowUp, TurnRow } from "../components/TurnRow.tsx";
 import { Check } from "../components/ui.tsx";
 import { answerable, useAnswerEnabled } from "../data/answer.ts";
@@ -879,6 +880,8 @@ function SummaryBar({ day, tz }: { day: DayDetail; tz: string }) {
             {scopeLabel}
           </span>
         ) : null}
+        {/* 予定を取り込む範囲の外の日（範囲の外は予定が無いのではなく、まだ取り込んでいない） */}
+        <SyncRangeNote date={day.date} />
       </div>
       <div className="flex min-w-0 flex-col items-end gap-1">
         {free > 0 ? (

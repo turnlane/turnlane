@@ -39,6 +39,7 @@ import { AllDayChip, EventBlock, TaskCard, titleText } from "../components/items
 import { LegendButton } from "../components/Legend.tsx";
 import { Nums } from "../components/Nums.tsx";
 import { useOpenWith } from "../components/OpenWith.tsx";
+import { SyncRangeNote } from "../components/SyncRangeNote.tsx";
 import {
   ClosedFold,
   ClosedTurnRow,
@@ -823,6 +824,8 @@ export function WeekBoard() {
                     // 上部（自分の番・未定）は中身の高さどおり（中でスクロールしない。B-2）。出す件数は topLimits が決める
                     className="flex min-w-0 flex-col gap-3 border-line border-t border-r px-3 py-3"
                   >
+                    {/* 予定を取り込む範囲の外の日（範囲の外は予定が無いのではなく、まだ取り込んでいない） */}
+                    <SyncRangeNote date={date} />
                     {/* 今日の列の先頭行: 拡張の知らせ（todayNotices。D-192・ADR 0015）。公開のビルドでは何も出ない */}
                     {isToday ? <TodayNotices /> : null}
                     {isToday ? (

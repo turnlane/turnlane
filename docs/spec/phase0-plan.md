@@ -1293,7 +1293,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | 平均応答時間 | YOUR TURN のタスク（reply / review_pr / approve / resume_error）のうち、人が答えたもの（`done` で `close_reason` が `auto:human_input` / `auto:answered` / `manual` / `auto:next_turn_ok`、または `engaged_at` がある）の平均。1件の長さは壁時計ではなく、窓 `[trigger_at, min(engaged_at ?? closed_at, closed_at)]` のうち、その待ちの猶予と放置の区間（`ai_wait_segment` の `grace` / `idle`。結び付いた `follow_up_id` の区間、無ければ同じカードの区間）の和集合の長さ（D-057。Idle と同じ物差し）。閉じた後・不在・会議中・スヌーズ中・時間に置いた開始の前・タスクなし・期限切れは入れない。窓と重なる待ち区間が無いものは平均に入れない。純粋関数は `derive.countedResponseMs` | 要対応キュー（直近7日）、`turnlane stats`（直近 N 日。閉じた論理日付で数える）。日報には入れない |
 
 - 計算: `packages/core/src/derive/time.ts` の純粋関数が、事実（`ai_turn`、`hook_event`、`follow_up`、`ai_artifact`、`calendar_event`、在席（`presence_span`）、一日を閉じていた区間、設定、now）から区間を返す。runner は影響を受けた WorkItem と日付の行を `wait_key` ごとに作り直して `ai_wait_segment` に書く（代入）。開いている待ちは60秒の tick で伸ばす。再計算のきっかけは、ターン・hook・フォローアップの変化、カレンダーの同期、閉店・再開、Mac に戻った（在席の新しい区間）、`presence.tail_min` の変更（区間は入力のあった区間で持つので、作り直す範囲の日は新しい T で数え直す。D-139）、tick。
-- カレンダーのキャッシュは窓（7日前〜21日後。M3-2）から外れた予定を削除する。窓より古い日の待ち区間は、予定が消えると変わってしまうので自動では作り直さない（確定扱い）。`turnlane rederive --wait --since <date>` で明示したときだけ作り直す（在席の記録を始めた日より前は作り直さない。D-110 (3)）。
+- カレンダーのキャッシュは窓（7日前〜90日後。M3-2。0.8.2 で 21 日後から広げた）から外れた予定を削除する。窓より古い日の待ち区間は、予定が消えると変わってしまうので自動では作り直さない（確定扱い）。`turnlane rederive --wait --since <date>` で明示したときだけ作り直す（在席の記録を始めた日より前は作り直さない。D-110 (3)）。
 - 設定（`setting`）: `wait.grace_min`（既定15）、`reply.expire_hours`（既定72）、`presence.tail_min`（「使っていた」とみなす長さ、分。既定5、2〜15。D-110 (2)）、`idle.presence_since`（在席の記録を始めた時刻。デーモンが入れる）、`work_hours.planned`（計画の目安。D-106）。`work_hours.gap`・`work_hours.usual_days`・`work_hours.fallback` は D-105 でなくした（DB に残っていても読まない）。
 
 ### 3.4 HTTP API（`http://127.0.0.1:7317`）
@@ -1339,7 +1339,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | POST / PATCH / DELETE | `/api/calendar-events`、`/api/calendar-events/:id` | 予定の作成・編集（題名・開始・終了・カレンダー）・削除（D-093。m2-api 24章） |
 | GET / POST | `/api/calendar/timeblock-events`、`/api/calendar/timeblock-events/cleanup` | M3-3 で書いた時間ブロックの予定の件数・期間と、確認後の削除（D-093） |
 | POST | `/api/calendar/sync` | 窓の再取得 |
-| GET | `/api/calendar/status` | ヘルパの接続・権限・版、最後の同期、カレンダーの役割ごとの数、祝日カレンダー（自動 / 手動 / なし）と今後の祝日、稼働曜日・今日が稼働日か・次の稼働日（M3 の A） |
+| GET | `/api/calendar/status` | ヘルパの接続・権限・版、最後の同期、取り込む範囲（`window: { from, to, pastDays, futureDays }`）、カレンダーの役割ごとの数、祝日カレンダー（自動 / 手動 / なし）と今後の祝日、稼働曜日・今日が稼働日か・次の稼働日（M3 の A） |
 | GET / PUT | `/api/config`、`/api/config/:key` | `turnlane config` 用。既知のキーだけ（`packages/core/src/config.ts`）。PUT は `{ value }` を zod で検証して `mutate()` で書く（M3-6） |
 | GET | `/api/rituals/morning?date=` | 夜間の変化（前回の閉店以降に AI が動いた WorkItem の事実と、完了したもの）、持ち越し候補、次の稼働日、朝の計画を終えた時刻。今日の容量は `/api/board` の今日の列を使う（m2-api 16章） |
 | POST | `/api/rituals/morning/complete` | `{date?}`。`morning_done_at` を記録する（14日カウント）。ハイライト（`highlightTaskId`）は確定デザインに無いので受けない |
@@ -1643,7 +1643,7 @@ i18n の方式:
 | D. 祝日を扱わない（曜日だけ） | — | なし | なし | 不要 | A のフォールバック。祝日カレンダーが無い・カレンダーの権限が無いときはこれ |
 
 - **祝日カレンダーの選び方**: 設定 `workdays.holiday_calendars` が未設定（`null`）のときは自動で、次をすべて満たすカレンダーを祝日カレンダーとして採用する: (1) 書き込み不可（`allowsModify = false`）で、誕生日カレンダー（`type = birthday`）ではない、(2) 窓内の予定がすべて終日予定で、その9割以上が1日だけの予定、(3) 窓内に1件以上の予定がある。カレンダー名は見ない（言語で変わるため）。macOS の祝日カレンダーと Google の祝日カレンダーの両方が該当したら両方を使う（和集合）。条件に合う共有の休暇カレンダーなどを誤って採用しうるので、採用したカレンダー名を `turnlane calendar status`・`turnlane doctor`・設定画面に出し、`turnlane calendar holidays --set <id>...` で選び直せる（`--none` で祝日なし = `[]`、`--auto` で自動に戻す = `null`）。一度選んだら自動判定はしない。
-- **祝日の日付**: 祝日カレンダーの終日予定の `start_date`〜`end_date`（終わりを含まない）の論理日付。時刻付きの予定は無視する。窓（7日前〜21日後）の外は祝日なしとして扱う（持ち越し先と朝の移動候補が見るのは数日先までなので足りる）。
+- **祝日の日付**: 祝日カレンダーの終日予定の `start_date`〜`end_date`（終わりを含まない）の論理日付。時刻付きの予定は無視する。窓（7日前〜90日後）の外は祝日なしとして扱う（持ち越し先と朝の移動候補が見るのは数日先までなので足りる）。
 - **使う場所**: シャットダウンの自動持ち越し先（M4-2）、朝の計画 Step 3 の移動候補の「次に空きのある稼働日」（M4-7）。持ち越し先が祝日を飛ばしたときは、日報の Carried over に飛ばした理由を出す（`→ Tue 10/13 (Mon 10/12 is a holiday)`。祝日名は予定のタイトルをそのまま使う）。週ボードの終日の行には、祝日カレンダーの役割が `source` なら他の終日予定と同じく出る（祝日の特別な描き方は Phase0 では作らない）。
 - **放置の計算への影響は無い**: 放置は在席で決まり（3.3.1。D-105）、祝日に Mac を使えばその時間は数える。祝日の終日予定は availability が free なので「予定中」にもならない。
 - 追加の DDL は無い（`setting` のキーと、既存の `calendar` / `calendar_event` で足りる）。カレンダーの種類（誕生日か）は `calendar` に列が無いので、ヘルパから最後に受け取った一覧をデーモンがメモリに持って自動判定に使う（起動直後でヘルパが未接続の間は候補なし = 祝日なし。M3 の A の実装）。

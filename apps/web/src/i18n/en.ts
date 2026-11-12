@@ -118,6 +118,8 @@ export const en = {
   "board.moreRows": { one: "+{count} more", other: "+{count} more" },
   "board.offscreen.up": { one: "↑ {count} above", other: "↑ {count} above" },
   "board.offscreen.down": { one: "↓ {count} below", other: "↓ {count} below" },
+  "calendar.outsideWindow":
+    "Events aren't synced for this day (synced range: {past} days back to {future} days ahead)",
   "board.carryToday": { one: "Move {count} to today", other: "Move {count} to today" },
   "board.pastRemaining": { one: "{count} from earlier days", other: "{count} from earlier days" },
   "board.pastRemaining.carry": "Move all to today",

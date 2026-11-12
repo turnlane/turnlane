@@ -2889,6 +2889,12 @@ db.close();
 // ヘルパが接続した状態にして同期する（--calendar-off なら未接続のまま）
 if (!args.includes("--calendar-off")) {
   // Calendar.app のデフォルトカレンダー（D-072）。--no-default-calendar なら無し
+  // 取り込む範囲の終わり近く（84 日後）の予定（範囲が 90 日後までなので出る。それより先の日は「まだ取り込んでいません」）
+  calendarProvider.events.push(
+    event("Quarterly review", at("10:00") + 84 * 86_400_000, at("11:00") + 84 * 86_400_000, {
+      attendees: true,
+    }),
+  );
   if (GOOGLE)
     calendarProvider.events.push(
       event("Client check-in", at("16:00"), at("16:30"), {

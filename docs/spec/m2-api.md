@@ -1463,3 +1463,9 @@ ReportInput {
 - `GET /api/calendar-events/:id` に `externalId`（EventKit の calendarItemExternalIdentifier。Google の予定は `<id>@google.com`）
 - Google カレンダーの URL は web が組み立てる（`apps/web/src/lib/google-calendar.ts`）。デーモンは Google に何も送らない
 
+## 40. 予定を取り込む範囲（0.8.2。[ux-mvp.md](ux-mvp.md) 4.22）
+
+- 予定を取り込む範囲は、今日の論理日の 7 日前から 90 日後まで（`apps/daemon/src/calendar/sync.ts` の `WINDOW_PAST_DAYS = 7`・`WINDOW_FUTURE_DAYS = 90`。以前は 21 日後まで）。範囲の外の予定は取り込まず、キャッシュからも消す
+- `GET /api/calendar/status` の `window: { from, to, pastDays, futureDays }`: `from`・`to` は範囲の端の論理日（どちらも含む）、`pastDays`・`futureDays` は今日からの日数（画面の文言に使う。文言に数字を書き込まない）
+- 範囲の外の日の `GET /api/board`・`GET /api/day/:date` は予定が空のまま返す（範囲の外かどうかは web が window から決める）
+

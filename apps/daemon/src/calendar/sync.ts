@@ -33,8 +33,9 @@ import {
   TIMEBLOCK_EVENT_PREFIX,
 } from "./provider.ts";
 
+/** 予定を取り込む範囲（今日の論理日から過去・未来の日数）。範囲の外の日は画面に「まだ取り込んでいません」の 1 行 */
 export const WINDOW_PAST_DAYS = 7;
-export const WINDOW_FUTURE_DAYS = 21;
+export const WINDOW_FUTURE_DAYS = 90;
 /** M3-3 で書いた時間ブロックの予定の目印（D-093 で書くのをやめた。読み取りで除くのに使う） */
 export const OWN_TIMEBLOCK_PREFIX = TIMEBLOCK_EVENT_PREFIX;
 
@@ -209,7 +210,8 @@ export interface CalendarSyncStatus {
   helperVersion: string | null;
   lastSyncedAt: number | null;
   lastError: string | null;
-  window: { from: string; to: string };
+  /** 予定を取り込む範囲（論理日。from〜to を含む）と、今日からの日数（画面の「範囲は 7 日前から 90 日後まで」） */
+  window: { from: string; to: string; pastDays: number; futureDays: number };
   /** 予定を取れていないことの知らせ（D-130） */
   problem: CalendarProblem | null;
 }
@@ -376,7 +378,12 @@ export class CalendarSync {
       helperVersion: this.#o.provider.connected() ? this.#version : null,
       lastSyncedAt: this.#lastSyncedAt,
       lastError: this.#lastError,
-      window: { from: w.fromDate, to: w.toDate },
+      window: {
+        from: w.fromDate,
+        to: w.toDate,
+        pastDays: WINDOW_PAST_DAYS,
+        futureDays: WINDOW_FUTURE_DAYS,
+      },
       problem: calendarProblem({
         now: this.#o.clock.now(),
         connected: this.#o.provider.connected(),

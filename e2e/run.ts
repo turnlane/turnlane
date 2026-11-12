@@ -39,6 +39,7 @@ import { panelsSuite } from "./panels.e2e.ts";
 import { pastRemainingSuite } from "./past-remaining.e2e.ts";
 import { reportSuite } from "./report.e2e.ts";
 import { calendarHideSuite, snoozePickSuite, updateCheckSuite } from "./small.e2e.ts";
+import { syncWindowSuite } from "./sync-window.e2e.ts";
 
 const SUITES: Suite[] = [
   boardDnd,
@@ -77,6 +78,7 @@ const SUITES: Suite[] = [
   updateCheckSuite,
   pastRemainingSuite,
   googleInviteSuite,
+  syncWindowSuite,
 ];
 const args = process.argv.slice(2);
 const opt = (k: string) => {

@@ -115,6 +115,8 @@ export const ja: Dict = {
   "board.moreRows": { other: "ほか {count} 件" },
   "board.offscreen.up": { other: "↑ 上に {count} 件" },
   "board.offscreen.down": { other: "↓ 下に {count} 件" },
+  "calendar.outsideWindow":
+    "予定はまだ取り込んでいません（取り込む範囲は {past} 日前から {future} 日後まで）",
   "board.carryToday": { other: "残り {count} 件を今日へ" },
   "board.pastRemaining": { other: "過去から {count} 件" },
   "board.pastRemaining.carry": "すべて今日へ",
