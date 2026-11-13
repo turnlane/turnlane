@@ -191,6 +191,29 @@ describe("hook_spool（phase0-plan 3.6.1）", () => {
     }
   });
 
+  test("delegated（T3 Code の委任の子。D-360）は真偽値の true だけを入れる", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "turnlane-spool-"));
+    try {
+      const line = (o: object) =>
+        JSON.stringify({
+          v: 1,
+          tool: "claude_code",
+          received_at: 1,
+          hook_event_name: "Stop",
+          session_id: "s",
+          ...o,
+        });
+      writeFileSync(
+        join(dir, "hooks-20260902.jsonl"),
+        `${[line({ delegated: true }), line({}), line({ delegated: "yes" }), line({ delegated: false })].join("\n")}\n`,
+      );
+      const ev = (await readAll(hookSpool, rootFor(hookSpool, dir), fixtureCtx())) as HookEvent[];
+      expect(ev.map((e) => e.delegated ?? null)).toEqual([true, null, null, null]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("spool の行に本文系のキーが紛れていても出力しない", async () => {
     const dir = mkdtempSync(join(tmpdir(), "turnlane-spool-"));
     try {

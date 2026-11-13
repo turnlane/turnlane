@@ -31,7 +31,7 @@
 
 設定ディレクトリは `$CLAUDE_CONFIG_DIR`、未設定なら `~/.claude` になる。CLI と Claude Desktop の Code タブが別の設定ディレクトリを使っていることがある（Desktop 起動のセッションはトランスクリプトの `entrypoint` が `claude-desktop` になる）。
 
-`entrypoint` の値の例: 端末で人が始めたものは `cli`、Claude Desktop は `claude-desktop`、別のプログラムが Claude Code を動かしたもの（プログラム経由）は `sdk-cli`（`sdk-ts` / `sdk-py` など `sdk-` で始まる）。`ai_session.entrypoint` に保存し、プログラム経由のセッションは自分の番にしない（phase0-plan 3.3 の your_turn）。
+`entrypoint` の値の例: 端末で人が始めたものは `cli`、Claude Desktop は `claude-desktop`、別のプログラムが Claude Code を動かしたもの（プログラム経由）は `sdk-cli`（`sdk-ts` / `sdk-py` など `sdk-` で始まる）。`ai_session.entrypoint` に保存し、プログラム経由のセッションは自分の番にしない（phase0-plan 3.3 の your_turn）。Agent SDK の上で動くアプリ（T3 Code は `t3-code`）は人が前に座って使うので、プログラム経由にしない。ただし T3 Code が委任（`delegate_task`）で立てた子のセッションは独立した記録で、中身では人が始めたものと区別がつかない。`turnlane hook` がセッションの環境変数 `T3CODE_THREAD_ID` が `thread:delegated-task:` で始まるのを見て spool に真偽値 `delegated` だけを残し（スレッドの ID は残さない。`hook_event.delegated`）、そのセッションをプログラム経由と同じに扱う（AI の時間には数え、自分の番にしない。`SDK 経由` の札。D-360）。hooks を入れていなければ普通のセッションとして出る。親のセッションにはまとめない（親子の対応は T3 Code の中にしか無い）。
 
 | パス | 形式 | 用途 | 公式性 |
 |---|---|---|---|
@@ -80,7 +80,7 @@
 - `ai-title` を持たないセッション、`pr-link` を持たないセッションがある。どちらも任意として扱う。
 - 終了済みセッションの最後の非サイドチェーン会話レコードは、ほぼ `assistant / end_turn / text` になる。つまり「最後の発話者」だけでは「完了」と「ユーザー返答待ち」を区別できない。AI のターンが終わったことしか分からない（4章で対処する）。
 - 1レコードごとに `gitBranch` と `cwd` が入るので、セッション途中のブランチ切り替えを追跡できる。1つのターンの中でブランチが変わることもある（S3: Claude のターンの13%）。ターンのブランチと cwd はターン終了時点の値にする。
-- `origin.kind=="task-notification"` の user レコードは、バックグラウンドのサブエージェント完了などで AI が再開したターンの起点になる（S3: 107ターン中12）。`turn_duration` を持つので AI 時間には数えるが、人間の入力としては扱わない。`origin` を持たない user レコードはほぼすべて `tool_result` で、ターンの起点は `origin.kind=="human"` だけで判定してよい。
+- `origin.kind=="task-notification"` の user レコードは、バックグラウンドのサブエージェント完了などで AI が再開したターンの起点になる（S3: 107ターン中12）。`turn_duration` を持つので AI 時間には数えるが、人間の入力としては扱わない。`origin` を持たない user レコードはほぼすべて `tool_result` で、ターンの起点は `origin.kind=="human"` だけで判定してよい。例外は Agent SDK の上で動くアプリ（T3 Code。`entrypoint` が `t3-code`）で、人の入力にも `origin` が無く `promptSource` が `sdk`（`turnOrigin` も `sdk`）になる。`entrypoint` が `sdk-*` でなく、`promptSource=="sdk"` で `message.content` が文字列の user レコード（`isMeta`・`isSidechain` でない）は `origin.kind=="human"` と同じに扱う（D-360。`sdk-*` の同じ形のレコードはプログラムの入力なのでターンにしない）。
 - ツール呼び出しはツール名で数える（`Bash`, `Edit`, `Read`, `Write`, `mcp__*`, `AskUserQuestion`, `Agent` など）。`AskUserQuestion` は「質問中」判定に使える。
 - 末尾行は書き込み途中のことがある。行単位で寛容にパースし、最後の不完全な行は次回に回す。
 
@@ -263,7 +263,7 @@ Codex のピン留めスレッド（`threads.is_pinned`）とゴール（`goals_
 
 ### 3.3 hooks の実装指針
 - hook コマンド（`turnlane hook`）は「stdin を読み、許可リストのキーだけを抜き出して spool に1行追記して終了する」だけにする。`async: true` を付け、タイムアウトは1〜2秒。どんな失敗でも exit 0 にする。
-- 保存するキー: `hook_event_name, session_id, agent_id, agent_type, permission_mode, transcript_path, cwd, turn_id, prompt_id, notification_type, tool_name, error, error_type, source, reason, received_at`（`error` は StopFailure のエラーの種類で、識別子の形の値だけ。`error_type` は古い spool の行のため）。`error_details` も捨てる。`prompt`, `last_assistant_message`, `tool_input`, `message` は**hook 側で破棄**する。例外として、`quota_auto_resume_disabled` の `message` が「リセットが 24 時間より先」の定型文かどうかだけを hook の中で照らし、真偽値 `quota_horizon` を spool に残す（文は残さない。`hook-allowlist.ts` の `quotaHorizonOf`）。
+- 保存するキー: `hook_event_name, session_id, agent_id, agent_type, permission_mode, transcript_path, cwd, turn_id, prompt_id, notification_type, tool_name, error, error_type, source, reason, received_at`（`error` は StopFailure のエラーの種類で、識別子の形の値だけ。`error_type` は古い spool の行のため）。`error_details` も捨てる。`prompt`, `last_assistant_message`, `tool_input`, `message` は**hook 側で破棄**する。環境変数からは `T3CODE_THREAD_ID` の接頭辞だけを見て真偽値 `delegated` を残す（1.1。値は残さない）。例外として、`quota_auto_resume_disabled` の `message` が「リセットが 24 時間より先」の定型文かどうかだけを hook の中で照らし、真偽値 `quota_horizon` を spool に残す（文は残さない。`hook-allowlist.ts` の `quotaHorizonOf`）。
 - デーモンが起動していなくても spool に溜まり、起動時にまとめて取り込める（HTTP 型 hook だとデーモン停止中のイベントを失う）。
 - インストーラは各 hooks ファイルに Turnlane のエントリであることが分かる識別を付け、冪等な追加・削除を行う。既存エントリには触らない。書き換え前にバックアップを取る。
 

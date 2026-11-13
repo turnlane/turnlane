@@ -278,6 +278,11 @@ export interface HookEvent {
    */
   horizon?: boolean;
   /**
+   * 委任で立った子のセッション（T3 Code の delegate_task。turnlane hook が環境変数 T3CODE_THREAD_ID の接頭辞から付ける
+   * 真偽値。D-360）。デーモンはそのセッションをプログラム経由と同じに扱う。追加の任意項目
+   */
+  delegated?: boolean;
+  /**
    * Orca の端末のハンドル（turnlane hook が環境変数 ORCA_TERMINAL_HANDLE から取る。D-238）。Turnlane から答えるときに、
    * Orca のどの端末に送るかを決める。形が合うものだけ（不透明な ID。会話の中身ではない）
    */

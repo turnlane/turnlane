@@ -3,7 +3,7 @@
 // これ以外のキー（prompt、last_assistant_message、tool_input、message など本文を含みうるもの）は
 // hook の中で捨てる（ADR 0005）。spool の行には、ここのキーのほかに turnlane hook が付ける
 // v・tool・received_at・config_root（環境変数から取る設定ディレクトリ。S5）・term（環境変数から取る Orca の端末の
-// ハンドル。D-238）が入る。
+// ハンドル。D-238）・delegated（環境変数から取る委任の子の印。D-360）が入る。
 
 /** hooks を持つアダプタの ToolId */
 export const HOOK_TOOL_IDS = ["claude_code", "codex"] as const;
@@ -89,7 +89,20 @@ export const HOOK_SPOOL_META_KEYS = [
   "quota_horizon",
   // Codex の hook のハンドラの親（codex のプロセス）の pid（Issue #10）。turnlane hook が process.ppid から付ける
   "ppid",
+  // 委任で立った子のセッション（T3 Code の delegate_task。D-360）。turnlane hook が環境変数から真偽値だけを付ける
+  "delegated",
 ] as const;
+
+/**
+ * T3 Code が委任（delegate_task）で立てた子のセッションの、環境変数 T3CODE_THREAD_ID の接頭辞（D-360）。人が始めた
+ * スレッド・MCP で立てたスレッドは別の形（`mcp:launch:` など）。記録の中身では人が始めたものと区別がつかないので、
+ * hook の中でこの接頭辞を見て、spool には真偽値 `delegated` だけを残す（スレッドの ID は残さない）
+ */
+export const T3CODE_DELEGATED_PREFIX = "thread:delegated-task:";
+
+export function delegatedThreadOf(threadId: string | undefined): boolean {
+  return typeof threadId === "string" && threadId.startsWith(T3CODE_DELEGATED_PREFIX);
+}
 
 /**
  * Claude Code の利用枠の自動再開を止めた通知（Notification の notification_type が quota_auto_resume_disabled）のうち、

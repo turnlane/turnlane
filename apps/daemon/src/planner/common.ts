@@ -22,6 +22,7 @@ import type {
   TaskView,
   TitleSpec,
 } from "@turnlane/core/api";
+import { SESSION_DELEGATED_SQL } from "../derive/load.ts";
 import { titleResolver } from "../derive/subject.ts";
 import { aiByTask } from "../launch/views.ts";
 
@@ -177,7 +178,7 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
       []
     >(
       `SELECT DISTINCT t.work_item_id, s.tool, src.profile_label,
-              (COALESCE(s.entrypoint, '') LIKE 'sdk-%') AS sdk,
+              (COALESCE(s.entrypoint, '') LIKE 'sdk-%' OR ${SESSION_DELEGATED_SQL}) AS sdk,
               (COALESCE(s.entrypoint, '') = 'report') AS report, s.project_name
        FROM ai_turn t JOIN ai_session s ON s.id = t.session_id JOIN ai_source src ON src.id = s.source_id
        WHERE t.work_item_id IS NOT NULL ORDER BY s.tool, src.profile_label, s.last_activity_at DESC`,
@@ -193,7 +194,7 @@ export function sourcesByWorkItem(db: Database): Map<string, SourceBadge[]> {
       b = badge;
       xs.push(b);
     }
-    // プログラム経由のセッションがあれば印を付ける（SDK 経由の札）
+    // プログラム経由・委任の子（D-360）のセッションがあれば印を付ける（SDK 経由の札）
     if (r.sdk === 1) b.sdk = true;
     // 報告の出どころ（ADR 0021）と、最後に報告されたプロジェクトの名前
     if (r.report === 1) {

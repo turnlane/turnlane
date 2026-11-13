@@ -38,6 +38,12 @@ describe("プログラム経由の判定", () => {
     expect(isProgramSession({ entrypoint: null })).toBe(false);
     expect(isProgramSession({})).toBe(false);
   });
+
+  test("委任で立った子（delegated。T3 Code。D-360）は entrypoint によらずプログラム経由", () => {
+    expect(isProgramSession({ entrypoint: "t3-code", delegated: true })).toBe(true);
+    expect(isProgramSession({ entrypoint: "t3-code" })).toBe(false);
+    expect(isProgramSession({ entrypoint: "t3-code", delegated: false })).toBe(false);
+  });
 });
 
 describe("自分の番とタスク", () => {
@@ -74,6 +80,17 @@ describe("自分の番とタスク", () => {
         status: "your_turn",
         reason: "hook:stop",
       });
+    }
+  });
+
+  test("委任の子（t3-code・delegated）: 問い・編集・Stop の終わりは done。印の無い t3-code は今までどおり", () => {
+    const child = (f: ReturnType<typeof facts>) =>
+      facts({ ...f, sessions: f.sessions.map((x) => ({ ...x, delegated: true })) });
+    for (const f of [question("t3-code"), edits("t3-code"), stopped("t3-code")]) {
+      const r = derive(child(f), at("10:30"));
+      expect(r.st.status).toBe("done");
+      expect(r.kinds).toEqual([]);
+      expect(derive(f, at("10:30")).st.status).toBe("your_turn");
     }
   });
 

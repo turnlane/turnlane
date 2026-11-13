@@ -525,3 +525,122 @@ describe("claude_code: 題名（ai-session-ingestion 4.4）", () => {
     expect(titleOf(await read(d))).toBe("Fixture ai title");
   });
 });
+
+describe("claude_code: Agent SDK の上のアプリ（T3 Code など。D-360）", () => {
+  let dir: string;
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const SID = "00000000-0000-4000-8000-0000000000f2";
+  /** 人の入力 1 つ（記録の形は entrypoint と origin / promptSource で変える）と最後の応答のトランスクリプト */
+  function write(shapes: { entrypoint: string; prompt: object }[]): string {
+    dir = mkdtempSync(join(tmpdir(), "turnlane-app-"));
+    const p = join(dir, "projects", "-fixture-repo-f");
+    mkdirSync(p, { recursive: true });
+    const lines = shapes.flatMap((s, i) => {
+      const common = {
+        sessionId: SID,
+        isSidechain: false,
+        cwd: "/fixture/repo-f",
+        gitBranch: "feat/branch-f",
+        version: "2.1.300",
+        entrypoint: s.entrypoint,
+      };
+      return [
+        {
+          ...common,
+          type: "user",
+          timestamp: `2026-11-13T01:0${i}:00.000Z`,
+          uuid: `f0000000-0000-4000-8000-00000000000${i}`,
+          promptId: `f1000000-0000-4000-8000-00000000000${i}`,
+          message: { role: "user", content: "(prompt)" },
+          ...s.prompt,
+        },
+        {
+          ...common,
+          type: "assistant",
+          timestamp: `2026-11-13T01:0${i}:30.000Z`,
+          uuid: `f0000000-0000-4000-8000-00000000001${i}`,
+          message: {
+            id: `msg_f${i}`,
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "ok" }],
+          },
+        },
+      ];
+    });
+    writeFileSync(join(p, `${SID}.jsonl`), `${lines.map((x) => JSON.stringify(x)).join("\n")}\n`);
+    return dir;
+  }
+  const read = async (d: string) => {
+    const ev = await withRootJail([d], () =>
+      readAll(claudeCode, rootFor(claudeCode, d), fixtureCtx()),
+    );
+    return { ev, s: Object.values(reduceEvents(ev).sessions)[0], t: turns(ev) };
+  };
+  const T3 = { promptSource: "sdk", turnOrigin: "sdk" };
+  const TYPED = { origin: { kind: "human" }, promptSource: "typed", turnOrigin: "human" };
+
+  test("T3 Code の形（origin 無し・promptSource sdk・本文が文字列）は人のターン。hasHumanInput が真、noise が偽", async () => {
+    const r = await read(write([{ entrypoint: "t3-code", prompt: T3 }]));
+    expect(r.t.map((x) => [x.status, x.initiator])).toEqual([["completed", "human"]]);
+    expect(r.s).toMatchObject({ entrypoint: "t3-code", hasHumanInput: true, noise: false });
+  });
+
+  test("合成フィクスチャ: 2 ターン、Agent ツールのサブエージェント（isSidechain）は親にまとまりターンを出さない", async () => {
+    const ev = await eventsOf("t3-code-app");
+    const t = turns(ev);
+    expect(t.map((x) => [x.status, x.initiator, x.editedFiles])).toEqual([
+      ["completed", "human", 0],
+      ["completed", "human", 1],
+    ]);
+    const sessions = Object.values(reduceEvents(ev).sessions);
+    const main = sessions.find((s) => !s.isSubagent);
+    const sub = sessions.find((s) => s.isSubagent);
+    expect(main).toMatchObject({ entrypoint: "t3-code", hasHumanInput: true, noise: false });
+    expect(sub?.parent?.externalId).toBe(main?.ref.externalId);
+    expect(sub?.hasHumanInput).toBe(false);
+    expect(ev.some((e) => e.kind === "turn" && e.ref.externalId === sub?.ref.externalId)).toBe(
+      false,
+    );
+  });
+
+  test("entrypoint が sdk-*（プログラム経由。D-342）の promptSource sdk は今までどおりターンにしない（ノイズ）", async () => {
+    for (const ep of ["sdk-cli", "sdk-ts", "sdk-py"]) {
+      const r = await read(write([{ entrypoint: ep, prompt: T3 }]));
+      expect(r.t).toEqual([]);
+      expect(r.s).toMatchObject({ hasHumanInput: false, noise: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("sdk-cli の途中に cli の人の入力が混じると、その入力だけがターン（D-342 の実機と同じ）", async () => {
+    const r = await read(
+      write([
+        { entrypoint: "sdk-cli", prompt: T3 },
+        { entrypoint: "cli", prompt: TYPED },
+        { entrypoint: "sdk-cli", prompt: T3 },
+      ]),
+    );
+    expect(r.t.map((x) => x.startedAt)).toEqual([Date.parse("2026-11-13T01:01:00.000Z")]);
+    expect(r.s).toMatchObject({ entrypoint: "sdk-cli", hasHumanInput: true, noise: false });
+  });
+
+  test("cli の形（origin.kind human）は変わらない", async () => {
+    const r = await read(write([{ entrypoint: "cli", prompt: TYPED }]));
+    expect(r.t.map((x) => [x.status, x.initiator])).toEqual([["completed", "human"]]);
+    expect(r.s).toMatchObject({ hasHumanInput: true, noise: false });
+  });
+
+  test("本文が配列のもの・isMeta・isSidechain・中断の印は promptSource sdk でもターンにしない", async () => {
+    for (const prompt of [
+      { ...T3, message: { role: "user", content: [{ type: "text", text: "(prompt)" }] } },
+      { ...T3, isMeta: true },
+      { ...T3, isSidechain: true },
+      { ...T3, message: { role: "user", content: "[Request interrupted by user]" } },
+    ]) {
+      const r = await read(write([{ entrypoint: "t3-code", prompt }]));
+      expect(r.t).toEqual([]);
+      expect(r.s?.noise).toBe(true);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

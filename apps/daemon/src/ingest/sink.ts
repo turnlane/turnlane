@@ -350,8 +350,8 @@ function applyEvent(
         ctx.db,
         `INSERT INTO hook_event (id, tool, config_root, hook_event_name, session_external_id, turn_id, prompt_id,
            notification_type, tool_name, error_type, source, reason, cwd, term_handle, agent_id, agent_type, permission_mode,
-           quota_horizon, occurred_at, spool_file, spool_offset, created_at, pid)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           quota_horizon, occurred_at, spool_file, spool_offset, created_at, pid, delegated)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (spool_file, spool_offset) DO NOTHING`,
         [
           newId(ctx.clock),
@@ -377,6 +377,8 @@ function applyEvent(
           e.spool.offset,
           now,
           e.pid ?? null,
+          // 委任で立った子のセッション（T3 Code。D-360）。真偽値だけ
+          e.delegated === true ? 1 : null,
         ],
       );
       if (r.changes > 0) res.hooks++;

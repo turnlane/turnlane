@@ -2,6 +2,8 @@
  * Claude Code のトランスクリプト（projects/<enc-cwd>/<sessionId>.jsonl）のパース（ai-session-ingestion 1.1）。
  *
  * - ターンは origin.kind=="human" / "task-notification" の user レコードで始まる。turnKey は promptId（無ければ uuid。U6）
+ * - Agent SDK の上のアプリ（T3 Code など。entrypoint が sdk-* 以外）は origin を書かない。promptSource=="sdk" で本文が文字列の
+ *   user レコードを origin.kind=="human" と同じに扱う（D-360）。entrypoint が sdk-*（プログラム経由。D-342）のものは扱わない
  * - task-notification 起点のターンは initiator='system'（人間入力ではない）
  * - ターンの gitBranch / cwd はターン内で最後のレコードの値
  * - system/turn_duration か assistant.stop_reason=="end_turn" で終了
@@ -314,6 +316,13 @@ export function readTranscript(
         ? promptSubject(promptText(((raw as Rec).message as Rec | undefined)?.content))
         : null;
     const usablePrompt = subject !== null;
+    // Agent SDK の上のアプリ（T3 Code など。D-360）の人の入力: origin が無く promptSource が sdk、本文が文字列の user
+    // レコード。本文には触れず型だけを見る。entrypoint が sdk-* のもの（プログラム経由。D-342）は下で除く
+    const appPrompt =
+      type === "user" &&
+      (raw as Rec).promptSource === "sdk" &&
+      typeof ((raw as Rec).message as Rec | undefined)?.content === "string" &&
+      !interruptMarker;
     // `summary` の行は要約の文字列だけをその場で題名の候補にする（本文のキーなので許可リストには入れない）
     const summaryTitle =
       type === "summary" && ctx.privacy.storeTitles ? cleanTitle((raw as Rec).summary) : null;
@@ -370,7 +379,11 @@ export function readTranscript(
     if (cwd) c.cwd = cwd;
 
     if (type === "user") {
-      const origin = str((r.origin as Rec | undefined)?.kind);
+      const origin =
+        str((r.origin as Rec | undefined)?.kind) ??
+        (appPrompt && !(str(r.entrypoint) ?? c.entrypoint ?? "").startsWith("sdk-")
+          ? "human"
+          : undefined);
       if (
         (origin === "human" || origin === "task-notification") &&
         at !== undefined &&

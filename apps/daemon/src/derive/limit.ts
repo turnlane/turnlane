@@ -9,6 +9,7 @@ import { derive } from "@turnlane/core";
 import {
   HOOK_WINDOW_MS,
   loadClaudeLimits,
+  SESSION_SELECT,
   type SessionRow,
   type TurnRow,
   toSessionFact,
@@ -39,7 +40,7 @@ export function cardLimitWait(db: Database, workItemId: string, now: number): Ca
   const sessIds = [...new Set(turns.map((t) => t.session_id))];
   const marks = sessIds.map(() => "?").join(",");
   const sessions = db
-    .query<SessionRow, string[]>(`SELECT * FROM ai_session WHERE id IN (${marks})`)
+    .query<SessionRow, string[]>(`${SESSION_SELECT} WHERE s.id IN (${marks})`)
     .all(...sessIds);
   const sessionTurns = new Map<string, derive.TurnFact[]>();
   for (const id of sessIds)

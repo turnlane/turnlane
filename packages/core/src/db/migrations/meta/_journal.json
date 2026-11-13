@@ -183,6 +183,13 @@
       "when": 1793349593610,
       "tag": "0025_report_plan_hidden",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1794557209720,
+      "tag": "0026_hook_delegated",
+      "breakpoints": true
     }
   ]
 }

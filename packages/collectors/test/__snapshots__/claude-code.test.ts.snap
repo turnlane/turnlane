@@ -938,3 +938,98 @@ exports[`claude_code: golden 2.1.x/permission-pending 1`] = `
   },
 ]
 `;
+
+exports[`claude_code: golden 2.1.x/t3-code-app 1`] = `
+[
+  {
+    "closingQuestion": false,
+    "cwd": "/fixture/repo-e",
+    "durationMs": 64000,
+    "editedFiles": 0,
+    "endedAt": 1794531665000,
+    "endedWith": "end_turn",
+    "gitBranch": "feat/branch-e",
+    "initiator": "human",
+    "kind": "turn",
+    "lastActivityAt": 1794531666000,
+    "pendingQuestion": false,
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000e1",
+      "tool": "claude_code",
+    },
+    "startedAt": 1794531601000,
+    "status": "completed",
+    "tokens": {
+      "cacheRead": 200,
+      "input": 20,
+      "output": 10,
+    },
+    "toolCounts": {
+      "Agent": 1,
+    },
+    "turnKey": "e1000000-0000-4000-8000-000000000001",
+  },
+  {
+    "closingQuestion": false,
+    "cwd": "/fixture/repo-e",
+    "durationMs": 10000,
+    "editedFiles": 1,
+    "endedAt": 1794531730000,
+    "endedWith": "end_turn",
+    "gitBranch": "feat/branch-e",
+    "initiator": "human",
+    "kind": "turn",
+    "lastActivityAt": 1794531730000,
+    "pendingQuestion": false,
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000e1",
+      "tool": "claude_code",
+    },
+    "startedAt": 1794531720000,
+    "status": "completed",
+    "tokens": {
+      "cacheRead": 200,
+      "input": 20,
+      "output": 10,
+    },
+    "toolCounts": {
+      "Edit": 1,
+    },
+    "turnKey": "e1000000-0000-4000-8000-000000000002",
+  },
+  {
+    "at": 1794531730000,
+    "clientVersion": "2.1.300",
+    "cwd": "/fixture/repo-e",
+    "entrypoint": "t3-code",
+    "filePath": "<root>/projects/-fixture-repo-e/00000000-0000-4000-8000-0000000000e1.jsonl",
+    "hasHumanInput": true,
+    "kind": "session_seen",
+    "model": "claude-opus-4-8",
+    "noise": false,
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000e1",
+      "tool": "claude_code",
+    },
+    "startedAt": 1794531600000,
+  },
+  {
+    "at": 1794531659000,
+    "cwd": "/fixture/repo-e",
+    "endedAt": 1794531659000,
+    "filePath": "<root>/projects/-fixture-repo-e/00000000-0000-4000-8000-0000000000e1/subagents/agent-ae1.jsonl",
+    "hasHumanInput": false,
+    "isSubagent": true,
+    "kind": "session_seen",
+    "parent": {
+      "externalId": "00000000-0000-4000-8000-0000000000e1",
+      "tool": "claude_code",
+    },
+    "ref": {
+      "externalId": "00000000-0000-4000-8000-0000000000e1/agent-ae1",
+      "tool": "claude_code",
+    },
+    "startedAt": 1794531606000,
+  },
+]
+`;

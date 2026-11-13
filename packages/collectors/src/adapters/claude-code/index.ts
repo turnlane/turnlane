@@ -31,10 +31,12 @@ export const CLAUDE_CODE = toolId("claude_code");
  * `ai-title` より優先する（保存済みの題名を直すため読み直す）。6: 先頭からの読み直しで題名の行が空同然のものだけなら題名を
  * 消す（title: null）、自分の指示の 1 行目で相づちだけの行・貼り付けの塊を飛ばす（保存済みの題名・指示を直すため読み直す）。
  * 7: 問いの判定の対象を広げた（見出し＋列挙＋判断待ちの条件文。保存済みのターンの問いを直すため読み直す）。
+ * 8: Agent SDK の上のアプリ（T3 Code など）の人の入力（origin が無く promptSource が sdk）をターンの始まりにする（D-360。
+ * ノイズにしていたセッションを出すため読み直す）。
  * 上げるとデーモンが起動時に先頭から読み直し、
  * ターンの判定を書き直す
  */
-const PARSER_VERSION = 7;
+const PARSER_VERSION = 8;
 const LIVE_MS = 10 * 60_000;
 const RECENT_MS = 7 * 86_400_000;
 
@@ -148,6 +150,8 @@ export const claudeHooks: HookSpec = {
       ...(x.quota_horizon === true && x.notification_type === "quota_auto_resume_disabled"
         ? { horizon: true }
         : {}),
+      // 委任で立った子のセッション（T3 Code。turnlane hook が残した真偽値。D-360）
+      ...(x.delegated === true ? { delegated: true } : {}),
     };
   },
 };

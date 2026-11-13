@@ -87,7 +87,7 @@ export function SourceBadges({
   );
 }
 
-/** プログラム経由（entrypoint が `sdk-*`）のセッションがある AI 項目か（SDK 経由の札） */
+/** プログラム経由（entrypoint が `sdk-*`、または委任の子。D-360）のセッションがある AI 項目か（SDK 経由の札） */
 export function viaSdk(sources: readonly SourceBadgeData[]): boolean {
   return sources.some((s) => s.sdk === true);
 }

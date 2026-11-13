@@ -31,7 +31,15 @@ let uid = 0;
 
 export function claudeTranscript(
   root: string,
-  opts: { sid: string; cwd: string; branch: string; enc?: string; entrypoint?: string },
+  opts: {
+    sid: string;
+    cwd: string;
+    branch: string;
+    enc?: string;
+    entrypoint?: string;
+    /** Agent SDK の上のアプリ（T3 Code など）の形: 人の入力に origin を書かず promptSource が sdk（D-360） */
+    sdkPrompts?: boolean;
+  },
 ): ClaudeWriter {
   const path = `${root}/projects/${opts.enc ?? opts.cwd.replaceAll(/[/.]/g, "-")}/${opts.sid}.jsonl`;
   mkdirSync(dirname(path), { recursive: true });
@@ -55,8 +63,9 @@ export function claudeTranscript(
         ...common(at),
         type: "user",
         promptId: prompt,
-        origin: { kind: o.origin ?? "human" },
-        promptSource: "typed",
+        ...(opts.sdkPrompts && !o.origin
+          ? { promptSource: "sdk", turnOrigin: "sdk" }
+          : { origin: { kind: o.origin ?? "human" }, promptSource: "typed" }),
         message: { role: "user", content: o.text ?? "(prompt)" },
       });
       return prompt;

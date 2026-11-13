@@ -45,6 +45,11 @@ export interface SessionFact {
    * `sdk-cli` / `sdk-ts` / `sdk-py` など）。分からなければ省略
    */
   entrypoint?: string | null;
+  /**
+   * 委任で立った子のセッション（T3 Code の delegate_task。hook の環境変数から付く印。D-360）。プログラム経由と同じに扱う。
+   * 分からなければ省略
+   */
+  delegated?: boolean;
 }
 
 export interface HookFact {

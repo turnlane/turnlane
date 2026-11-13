@@ -328,6 +328,38 @@ describe("turnlane hook（プロセスとして実行）", () => {
     expect(JSON.parse(text)).toMatchObject({ term: h });
   });
 
+  test("T3 Code の委任の子（T3CODE_THREAD_ID が thread:delegated-task:）は delegated の真偽値だけを残す（D-360）", () => {
+    const run = (threadId: string | undefined, tool = "claude_code") => {
+      const p = Bun.spawnSync(
+        [process.execPath, join(import.meta.dir, "../src/main.ts"), "hook", "--tool", tool],
+        {
+          env: {
+            HOME: dir,
+            TURNLANE_DATA_DIR: dir,
+            PATH: process.env.PATH ?? "",
+            ...(threadId !== undefined ? { T3CODE_THREAD_ID: threadId } : {}),
+          },
+          stdin: new TextEncoder().encode(JSON.stringify({ hook_event_name: "Stop" })),
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      expect(p.exitCode).toBe(0);
+      const files = readdirSync(join(dir, "spool"));
+      const path = join(dir, "spool", files[0] as string);
+      const text = readFileSync(path, "utf8");
+      rmSync(path);
+      return text;
+    };
+    const child = run(`thread:delegated-task:${SENTINEL}`);
+    expect(JSON.parse(child)).toMatchObject({ hook_event_name: "Stop", delegated: true });
+    // スレッドの ID は残さない
+    expect(child).not.toContain(SENTINEL);
+    expect(child).not.toContain("thread:");
+    for (const other of [`mcp:launch:${SENTINEL}`, "", "thread:other", undefined])
+      expect(JSON.parse(run(other))).not.toHaveProperty("delegated");
+  });
+
   test("壊れた JSON・不明な --tool・--tool なしでも exit 0 で何も書かない", () => {
     expect(runHook("{not json").exitCode).toBe(0);
     expect(runHook("{}", ["--tool", "other"]).exitCode).toBe(0);

@@ -642,6 +642,9 @@ export const hookEvent = sqliteTable(
     spoolOffset: integer("spool_offset").notNull(),
     // 0023（Issue #10）: Codex の hook のハンドラの親（codex のプロセス）の pid。セッションの live_pid に写す
     pid: integer("pid"),
+    // 0026（D-360）: 委任で立った子のセッションの hook（T3 Code の delegate_task。1。スレッドの ID は持たない）。そのセッションを
+    // プログラム経由と同じに扱う
+    delegated: integer("delegated"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

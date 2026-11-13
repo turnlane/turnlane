@@ -316,7 +316,12 @@ export function anonymize(o: AnonymizeOptions): { written: string[]; anonymizer:
       if (o.maxTurns !== undefined) {
         const startsTurn =
           o.tool === "claude_code"
-            ? raw.type === "user" && (raw.origin as Rec | undefined)?.kind === "human"
+            ? raw.type === "user" &&
+              ((raw.origin as Rec | undefined)?.kind === "human" ||
+                // Agent SDK の上のアプリ（T3 Code など。D-360）の人の入力
+                (raw.promptSource === "sdk" &&
+                  typeof (raw.message as Rec | undefined)?.content === "string" &&
+                  !String(raw.entrypoint ?? "").startsWith("sdk-")))
             : raw.type === "event_msg" && (raw.payload as Rec | undefined)?.type === "task_started";
         if (startsTurn && ++turns > o.maxTurns) break;
       }

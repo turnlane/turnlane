@@ -109,7 +109,7 @@ describe("取り込みパイプライン（phase0-plan 3.2、M1-2）", () => {
         "SELECT min(parser_version) AS v FROM ingest_cursor WHERE source_id IN (SELECT id FROM ai_source WHERE tool = 'claude_code')",
       )
       .get()?.v;
-    expect(v).toBe(7);
+    expect(v).toBe(8);
   });
 
   test("元ファイルが消えても行は残し、transcript_missing_at を記録する", async () => {

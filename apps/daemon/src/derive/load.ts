@@ -36,6 +36,8 @@ export interface SessionRow {
   entrypoint?: string | null;
   /** 報告のセッションのプロジェクトの名前（ADR 0021） */
   project_name?: string | null;
+  /** 委任で立った子のセッション（SESSION_SELECT が付ける。1 / 0。D-360） */
+  delegated?: number | null;
 }
 
 export interface TurnRow {
@@ -123,8 +125,18 @@ export interface WorkItemRow {
   deleted_at: number | null;
 }
 
+/**
+ * 委任で立った子のセッション（T3 Code の delegate_task。D-360）か: そのセッションの hook に delegated の印があるもの。印は hook
+ * の生の記録（hook_event.delegated）にだけ持ち、読むときに求める（hooks を入れていなければ付かない）
+ */
+export const SESSION_DELEGATED_SQL =
+  "EXISTS (SELECT 1 FROM hook_event h WHERE h.session_external_id = s.external_id AND h.tool = s.tool AND h.delegated = 1)";
+
+/** ai_session の行と委任の子の印（s が ai_session） */
+export const SESSION_SELECT = `SELECT s.*, ${SESSION_DELEGATED_SQL} AS delegated FROM ai_session s`;
+
 export function loadSessions(db: Database): SessionRow[] {
-  return db.query<SessionRow, []>("SELECT * FROM ai_session").all();
+  return db.query<SessionRow, []>(SESSION_SELECT).all();
 }
 
 export function loadTurns(db: Database): TurnRow[] {
@@ -283,6 +295,7 @@ export function toSessionFact(r: SessionRow): SessionFact {
     liveCheckedAt: r.live_checked_at,
     lastActivityAt: r.last_activity_at,
     entrypoint: r.entrypoint ?? null,
+    ...(r.delegated === 1 ? { delegated: true } : {}),
   };
 }
 
