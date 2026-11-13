@@ -66,6 +66,8 @@ export const codexHooks: HookSpec = {
       ...opt("cwd", x.cwd),
       // サブエージェントの中で出た hook の ID（付いていれば）。親のターンの終わり・停止に数えない
       ...opt("agentId", x.agent_id),
+      // 委任で立った子のセッション（T3 Code。turnlane hook が残した真偽値。D-360）
+      ...(x.delegated === true ? { delegated: true } : {}),
     };
   },
 };

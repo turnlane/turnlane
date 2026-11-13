@@ -2,14 +2,15 @@
  * プログラム経由のセッション（記録の entrypoint が `sdk-*`）の結合テスト: 取り込み → 判定で、問いで終わっても自分の番・
  * 返答タスクにならず、ボードの札（ソースの sdk）が付く。合成のトランスクリプト・偽の git。
  * T3 Code（Agent SDK の上のアプリ。D-360）: 人の入力に origin が無い記録でも自分の番になる。委任の子（turnlane hook が
- * T3CODE_THREAD_ID から付けた delegated の印）はプログラム経由と同じ。hook は本物の turnlane hook をプロセスとして起こす
+ * T3CODE_THREAD_ID から付けた delegated の印）はプログラム経由と同じ。T3 Code から動かした Codex の委任の子も同じ。hook は
+ * 本物の turnlane hook をプロセスとして起こす
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { sourcesByWorkItem } from "../src/planner/common.ts";
 import { type AiEnv, makeAiEnv, present } from "./helpers/env.ts";
-import { claudeTranscript } from "./helpers/transcript.ts";
+import { claudeTranscript, codexRollout } from "./helpers/transcript.ts";
 
 let env: AiEnv;
 afterEach(async () => {
@@ -20,18 +21,13 @@ const MIN = 60_000;
 const T0 = Date.UTC(2026, 8, 14, 1, 0); // 2026-09-14 10:00 JST
 
 const SID = "33333333-0000-4000-8000-000000000001";
+const CODEX_SID = "33333333-0000-4000-8000-000000000002";
 
 /** 本物の turnlane hook（apps/cli）を、セッションの中と同じ環境変数で起こして spool に 1 行書かせる */
-function runHook(threadId: string | undefined) {
+function runHook(threadId: string | undefined, tool: "claude_code" | "codex" = "claude_code") {
   mkdirSync(join(env.dataDir, "spool"), { recursive: true });
   const p = Bun.spawnSync(
-    [
-      process.execPath,
-      join(import.meta.dir, "../../cli/src/main.ts"),
-      "hook",
-      "--tool",
-      "claude_code",
-    ],
+    [process.execPath, join(import.meta.dir, "../../cli/src/main.ts"), "hook", "--tool", tool],
     {
       env: {
         HOME: env.home,
@@ -40,7 +36,11 @@ function runHook(threadId: string | undefined) {
         ...(threadId !== undefined ? { T3CODE_THREAD_ID: threadId } : {}),
       },
       stdin: new TextEncoder().encode(
-        JSON.stringify({ hook_event_name: "SessionStart", session_id: SID, source: "startup" }),
+        JSON.stringify({
+          hook_event_name: "SessionStart",
+          session_id: tool === "codex" ? CODEX_SID : SID,
+          source: "startup",
+        }),
       ),
       stdout: "pipe",
       stderr: "pipe",
@@ -121,6 +121,58 @@ describe("runner: プログラム経由のセッション", () => {
       expect(r.status).toBe("your_turn");
       expect(r.fus).toEqual([{ kind: "reply" }]);
       expect(r.sources).toEqual([{ tool: "claude_code", profile: null }]);
+      expect(
+        env.sqlite.query<{ n: number }, []>("SELECT count(*) AS n FROM hook_event").get()?.n,
+      ).toBe(1);
+      await env.cleanup();
+    }
+  });
+
+  /** T3 Code から動かした Codex のセッション（originator が T3 Code）。問いで終わる 1 ターン */
+  async function runCodex(threadId: string | undefined) {
+    env = makeAiEnv({ now: T0 });
+    present(env.sqlite, T0 - 60 * MIN, T0 + 14 * 60 * MIN);
+    env.git.repos.set("/w/app", "/w/app");
+    env.git.defaults.set("/w/app", "main");
+    env.git.branches.set("/w/app", "feat/x");
+    const r = codexRollout(join(env.home, ".codex"), {
+      sid: CODEX_SID,
+      cwd: "/w/app",
+      at: T0 - 3 * MIN,
+      originator: "T3 Code",
+    });
+    runHook(threadId, "codex");
+    r.turn(T0 - 2 * MIN, T0, "Which option do you prefer?");
+    env.clock.set(T0 + 20 * MIN);
+    await env.sync();
+    const wi = env.sqlite
+      .query<{ id: string; status: string }, []>("SELECT id, status FROM work_item")
+      .get();
+    const fus = env.sqlite.query<{ kind: string }, []>("SELECT kind FROM follow_up").all();
+    return { status: wi?.status, fus, sources: sourcesByWorkItem(env.sqlite).get(wi?.id ?? "") };
+  }
+
+  test("T3 Code から動かした Codex の委任の子（T3CODE_THREAD_ID が thread:delegated-task:）: done、返答タスクを作らない。ソースに sdk の印", async () => {
+    const r = await runCodex("thread:delegated-task:00000000-0000-4000-8000-0000000000cc");
+    expect(r.status).toBe("done");
+    expect(r.fus).toEqual([]);
+    expect(r.sources).toEqual([{ tool: "codex", profile: null, sdk: true }]);
+    const rows = env.sqlite
+      .query<{ tool: string; delegated: number | null }, []>(
+        "SELECT tool, delegated FROM hook_event",
+      )
+      .all();
+    expect(rows).toEqual([{ tool: "codex", delegated: 1 }]);
+    const dump = JSON.stringify(env.sqlite.query("SELECT * FROM hook_event").all());
+    expect(dump).not.toContain("thread:");
+  });
+
+  test("T3 Code から動かした Codex で hook が mcp:launch: や未設定なら、普通に自分の番", async () => {
+    for (const threadId of ["mcp:launch:00000000-0000-4000-8000-0000000000dd", undefined]) {
+      const r = await runCodex(threadId);
+      expect(r.status).toBe("your_turn");
+      expect(r.fus).toEqual([{ kind: "reply" }]);
+      expect(r.sources).toEqual([{ tool: "codex", profile: null }]);
       expect(
         env.sqlite.query<{ n: number }, []>("SELECT count(*) AS n FROM hook_event").get()?.n,
       ).toBe(1);

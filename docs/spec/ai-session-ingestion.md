@@ -31,7 +31,7 @@
 
 設定ディレクトリは `$CLAUDE_CONFIG_DIR`、未設定なら `~/.claude` になる。CLI と Claude Desktop の Code タブが別の設定ディレクトリを使っていることがある（Desktop 起動のセッションはトランスクリプトの `entrypoint` が `claude-desktop` になる）。
 
-`entrypoint` の値の例: 端末で人が始めたものは `cli`、Claude Desktop は `claude-desktop`、別のプログラムが Claude Code を動かしたもの（プログラム経由）は `sdk-cli`（`sdk-ts` / `sdk-py` など `sdk-` で始まる）。`ai_session.entrypoint` に保存し、プログラム経由のセッションは自分の番にしない（phase0-plan 3.3 の your_turn）。Agent SDK の上で動くアプリ（T3 Code は `t3-code`）は人が前に座って使うので、プログラム経由にしない。ただし T3 Code が委任（`delegate_task`）で立てた子のセッションは独立した記録で、中身では人が始めたものと区別がつかない。`turnlane hook` がセッションの環境変数 `T3CODE_THREAD_ID` が `thread:delegated-task:` で始まるのを見て spool に真偽値 `delegated` だけを残し（スレッドの ID は残さない。`hook_event.delegated`）、そのセッションをプログラム経由と同じに扱う（AI の時間には数え、自分の番にしない。`SDK 経由` の札。D-360）。hooks を入れていなければ普通のセッションとして出る。親のセッションにはまとめない（親子の対応は T3 Code の中にしか無い）。
+`entrypoint` の値の例: 端末で人が始めたものは `cli`、Claude Desktop は `claude-desktop`、別のプログラムが Claude Code を動かしたもの（プログラム経由）は `sdk-cli`（`sdk-ts` / `sdk-py` など `sdk-` で始まる）。`ai_session.entrypoint` に保存し、プログラム経由のセッションは自分の番にしない（phase0-plan 3.3 の your_turn）。Agent SDK の上で動くアプリ（T3 Code は `t3-code`）は人が前に座って使うので、プログラム経由にしない。ただし T3 Code が委任（`delegate_task`）で立てた子のセッションは独立した記録で、中身では人が始めたものと区別がつかない。`turnlane hook` がセッションの環境変数 `T3CODE_THREAD_ID` が `thread:delegated-task:` で始まるのを見て spool に真偽値 `delegated` だけを残し（スレッドの ID は残さない。`hook_event.delegated`）、そのセッションをプログラム経由と同じに扱う（AI の時間には数え、自分の番にしない。`SDK 経由` の札。D-360）。hooks を入れていなければ普通のセッションとして出る。親のセッションにはまとめない（親子の対応は T3 Code の中にしか無い）。T3 Code から動かした Codex も同じ（1.4）。
 
 | パス | 形式 | 用途 | 公式性 |
 |---|---|---|---|
@@ -128,6 +128,8 @@ Phase0 では対象外（v1 で扱う）。仕様だけ記録しておく。
 | `auth.json` | — | **開かない** |
 
 **プロセス**（Issue #10。ADR 0019 の Decision 12）: rollout には pid が無い。Codex は hook のハンドラを自分の子として直接起こすので、`turnlane hook --tool codex` が親の pid（`process.ppid`）を spool の `ppid` に残し（`hook_event.pid`）、デーモンがそのセッションの `live_pid`・`live_status` に写す。新しい版では hook の親は TUI ではなく常駐の app-server のデーモン（端末が無い）なので、そのときは端末のある codex のプロセスのうち作業フォルダがセッションの cwd と同じもの（複数なら始まりの直前に起きたもの）を TUI とする（`ps` と `lsof -p` で読むだけ）。TUI が生きていれば `busy`（SessionEnd はデーモンの入れ替えでも来るので、TUI が生きている間は終わりにしない）、TUI が消えたら `gone`、TUI が分からなければ SessionEnd の後は `gone`・それ以外は分からない。`busy` は状態の判定には使わない。hooks が来ていないセッションは今までどおり分からない（AI の画面では最後の動きから 6 時間の推定）。
+
+**T3 Code から動かした Codex**（D-360）: rollout は Codex CLI と同じ形（`session_meta.originator` が `T3 Code`、`source` が `vscode`）で、そのまま取り込む。委任（`delegate_task`）で立った子は記録の中身では人が始めたものと区別がつかないので、Claude Code と同じく `turnlane hook --tool codex` が `T3CODE_THREAD_ID` の接頭辞を見て真偽値 `delegated` を残し、プログラム経由と同じに扱う（1.1）。ただし Codex 0.166 の hook のハンドラの環境は codex のプロセス（T3 Code では `codex app-server`）の環境にハンドラの設定の `env` を重ねたもので、`shell_environment_policy` は効かない。T3 Code は `T3CODE_THREAD_ID` を `shell_environment_policy.set` でシェルにだけ渡し、`codex app-server` の環境には入れていない（2026-11-13 の実機と T3 Code・Codex のソースで確かめた）ので、いまは Codex の hook に届かず、印は付かない。届く形になれば効く。
 
 **rollout JSONL**（各行 `{timestamp, ordinal, type, payload}`）
 - `session_meta`: `id/session_id, timestamp, cwd, originator("Codex Desktop"|"codex-tui"), source("vscode"|"cli"|{subagent:...}), thread_source, cli_version, model_provider, git{branch, commit_hash, repository_url}?`

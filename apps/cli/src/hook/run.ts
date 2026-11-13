@@ -78,8 +78,10 @@ export function extract(
   // CODEX_HOME で確かめた）ので、親の pid が codex。tty は取らない（ps を起こすと 50ms の目標を食う。デーモンが pid から取る）
   if (tool === "codex" && ppid !== undefined && Number.isInteger(ppid) && ppid > 1) out.ppid = ppid;
   // T3 Code の委任（delegate_task）で立った子のセッション（D-360）: 環境変数 T3CODE_THREAD_ID の接頭辞だけを見て、真偽値を残す
-  // （スレッドの ID は残さない）。子はプログラム経由と同じに扱う（自分の番にしない）
-  if (tool === "claude_code" && delegatedThreadOf(threadId)) out.delegated = true;
+  // （スレッドの ID は残さない）。子はプログラム経由と同じに扱う（自分の番にしない）。Claude Code と Codex の両方で見る
+  // （Codex 0.166 の hook は codex のプロセスの環境を受け継ぎ、T3 Code が shell_environment_policy.set で渡す値は届かない。
+  // 届く形になれば効く）
+  if (delegatedThreadOf(threadId)) out.delegated = true;
   for (const k of HOOK_ALLOWLIST[tool].keys) {
     const v = src[k];
     if (typeof v === "string" && v.length <= MAX_VALUE_LENGTH && hookValueAllowed(k, v))

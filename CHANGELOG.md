@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Claude Code sessions started in apps built on the Claude Agent SDK (such as T3 Code) now show up on the board. Their prompts carry no `origin`, so every such session was treated as noise with no turns; existing sessions are re-read after the update. Sessions run by a program (`entrypoint` `sdk-*`) are unchanged.
-- T3 Code: sessions started by its task delegation are treated like sessions run by a program (AI time is counted, they never become your turn, and they carry the "via SDK" badge). This needs the Claude Code hooks; only a true/false mark is kept, not the thread ID.
+- T3 Code: sessions started by its task delegation are treated like sessions run by a program (AI time is counted, they never become your turn, and they carry the "via SDK" badge). This needs the hooks; only a true/false mark is kept, not the thread ID. The Claude Code and Codex hooks both check for it, but Codex 0.166 does not pass T3 Code's thread to its hooks, so for now only Claude Code sessions get the mark.
 - Reports: a planned run's band on the AI lane is now always tall enough for its title and its "Planned · 22:00" line; in the day view the second line was cut off.
 
 ## [0.8.1] - 2026-11-02

@@ -107,7 +107,7 @@ turnlane ai report --source myscript --id weekly --title "Weekly digest" --state
 | Codex CLI | 0.147–0.159 | `sessions/**/rollout-*.jsonl`, `session_index.jsonl` (the SQLite database is never opened), hooks |
 | Claude Desktop app, Code tab | the Claude Code it bundles | the same files as Claude Code, in that Claude Code's config directory; nothing extra to set up |
 | Codex app | the Codex it bundles | the same `~/.codex` files as Codex CLI; nothing extra to set up |
-| T3 Code (Claude Code sessions) | the Claude Code it runs | the same files as Claude Code. With the hooks installed, sessions T3 Code starts by delegating a task are shown as run by a program ("via SDK") and never become your turn. Open and Answer do not reach T3 Code |
+| T3 Code (Claude Code and Codex sessions) | the Claude Code or Codex it runs | Claude Code sessions: the same files as Claude Code; Codex sessions: the same `~/.codex` files as Codex CLI. With the hooks installed, Claude Code sessions T3 Code starts by delegating a task are shown as run by a program ("via SDK") and never become your turn (Codex does not pass this to its hooks yet). Open and Answer do not reach T3 Code |
 
 Chats in claude.ai, in the Claude app's chat view, or in the ChatGPT app are not read: those conversations are not stored on your Mac.
 

@@ -328,7 +328,7 @@ describe("turnlane hook（プロセスとして実行）", () => {
     expect(JSON.parse(text)).toMatchObject({ term: h });
   });
 
-  test("T3 Code の委任の子（T3CODE_THREAD_ID が thread:delegated-task:）は delegated の真偽値だけを残す（D-360）", () => {
+  test("T3 Code の委任の子（T3CODE_THREAD_ID が thread:delegated-task:）は Claude Code・Codex とも delegated の真偽値だけを残す（D-360）", () => {
     const run = (threadId: string | undefined, tool = "claude_code") => {
       const p = Bun.spawnSync(
         [process.execPath, join(import.meta.dir, "../src/main.ts"), "hook", "--tool", tool],
@@ -358,6 +358,13 @@ describe("turnlane hook（プロセスとして実行）", () => {
     expect(child).not.toContain("thread:");
     for (const other of [`mcp:launch:${SENTINEL}`, "", "thread:other", undefined])
       expect(JSON.parse(run(other))).not.toHaveProperty("delegated");
+    // T3 Code から動かした Codex でも同じ印（真偽値だけ）
+    const codex = run(`thread:delegated-task:${SENTINEL}`, "codex");
+    expect(JSON.parse(codex)).toMatchObject({ tool: "codex", delegated: true });
+    expect(codex).not.toContain(SENTINEL);
+    expect(codex).not.toContain("thread:");
+    for (const other of [`mcp:launch:${SENTINEL}`, undefined])
+      expect(JSON.parse(run(other, "codex"))).not.toHaveProperty("delegated");
   });
 
   test("壊れた JSON・不明な --tool・--tool なしでも exit 0 で何も書かない", () => {

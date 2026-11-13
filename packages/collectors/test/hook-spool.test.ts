@@ -194,10 +194,10 @@ describe("hook_spool（phase0-plan 3.6.1）", () => {
   test("delegated（T3 Code の委任の子。D-360）は真偽値の true だけを入れる", async () => {
     const dir = mkdtempSync(join(tmpdir(), "turnlane-spool-"));
     try {
-      const line = (o: object) =>
+      const line = (o: object, tool = "claude_code") =>
         JSON.stringify({
           v: 1,
-          tool: "claude_code",
+          tool,
           received_at: 1,
           hook_event_name: "Stop",
           session_id: "s",
@@ -205,10 +205,27 @@ describe("hook_spool（phase0-plan 3.6.1）", () => {
         });
       writeFileSync(
         join(dir, "hooks-20260902.jsonl"),
-        `${[line({ delegated: true }), line({}), line({ delegated: "yes" }), line({ delegated: false })].join("\n")}\n`,
+        `${[
+          line({ delegated: true }),
+          line({}),
+          line({ delegated: "yes" }),
+          line({ delegated: false }),
+          // T3 Code から動かした Codex
+          line({ delegated: true }, "codex"),
+          line({}, "codex"),
+          line({ delegated: "yes" }, "codex"),
+        ].join("\n")}\n`,
       );
       const ev = (await readAll(hookSpool, rootFor(hookSpool, dir), fixtureCtx())) as HookEvent[];
-      expect(ev.map((e) => e.delegated ?? null)).toEqual([true, null, null, null]);
+      expect(ev.map((e) => `${e.ref.tool}:${e.delegated ?? null}`)).toEqual([
+        "claude_code:true",
+        "claude_code:null",
+        "claude_code:null",
+        "claude_code:null",
+        "codex:true",
+        "codex:null",
+        "codex:null",
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
