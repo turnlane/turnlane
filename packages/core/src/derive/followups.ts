@@ -8,6 +8,7 @@
  *   ターンを含む）で、ターン終了から15分人間入力が無い（終了の時刻に本人が
  *   いなかった（在席の外）ならすぐ。D-214 (3)）。(2) needs_input の AskUserQuestion（すぐ作る）。(3) AI カードの `y`（手動。daemon の UserOps が作る。D-066 (2)） | トリガのターン（(2) は `<turn>:ask`、(3) は `<turn>:manual`） | 返答済み / 解決済み（推定）/ 72時間で期限切れ。(2) は質問に答えたら（auto:answered）。(3) は your_turn を外れても閉じない |
  * | review_pr | PR が open（pr-link の初出） | PR ref | merged / closed / 自分のレビュー |
+ * | reply（図つきの問い。ADR 0022） | MCP の ask_user が開いた問い（デーモンのメモリ）。すぐ作る。返答タスクの設定によらない | `ask_user:<問いの ID>:ask` | 問いが閉じたら（返した = auto:answered、AI 側で打ち切られた = auto:ask_cancelled、消えた = auto:ask_lost）。期限なし |
  * | resume_error | error（利用枠以外。エラーの状態が 1 時間で閉じた後も止まったままなら残す） | トリガのターン | 次のターンが成功 / 72時間で期限切れ（D-045） |
  * | resume_error（`<turn>:limit`）| 上限待ち（利用枠）が明けた（until を過ぎた）。trigger_at = until | `<turn>:limit` | 人間入力 / そのセッションの次のターン・Stop など（あるべき集合から外れた）。期限なし（対応不要まで残る） |
  * | check_changes（既定オフ） | your_turn・編集あり・PR なし | トリガのターン | コミット / PR / 手動 |
@@ -21,8 +22,11 @@ import type { FollowUpKindSetting, TurnlaneSettings } from "../settings.ts";
 import { answeringInputAfter, askedBackOfFollowUp, turnAfterReturn } from "./asked-back.ts";
 import {
   askRef,
+  askUserIdOf,
+  askUserRef,
   humanInputAfter,
   isAskReply,
+  isAskUserReply,
   isClearingHook,
   isLimitResume,
   isManualReply,
@@ -84,6 +88,11 @@ export function desiredFollowUps(
     });
   };
   const lastTurn = f.turns.at(-1);
+  // 図つきの問い（ADR 0022）: 開いている問いごとに回答待ちの返答タスク。AI が自分から人に聞いたものなので、プログラム経由の
+  // セッション（T3 Code など）でも、返答タスクの設定がオフでも作る。開いている間は、同じカードの問い・Stop の終わりの返答
+  // タスクを重ねない（AI は問いの答えを待っているだけ）
+  const asking = (f.asks?.length ?? 0) > 0;
+  for (const a of f.asks ?? []) add("reply", askUserRef(a.id), a.at, a.turnId);
   // プログラム経由（sdk-*）のセッションの許可待ちは、そのプログラムが決める（状態は needs_input のまま。タスク・通知は出さない）
   const programOf = (sessionId: string | undefined) => {
     const s = f.sessions.find((x) => x.id === sessionId);
@@ -122,7 +131,7 @@ export function desiredFollowUps(
     const t = [...f.turns].reverse().find((x) => x.sessionId === s.id);
     if (!t) continue;
     const since = Math.max(t.startedAt, s.lastActivityAt);
-    if (r.reason === "ask_user_question" && on(settings, "reply")) {
+    if (r.reason === "ask_user_question" && on(settings, "reply") && !asking) {
       add("reply", askRef(t.id), since, t.id);
     } else if (r.reason === "live:idle" && on(settings, "approve")) {
       add("approve", t.id, since, t.id);
@@ -156,6 +165,7 @@ export function desiredFollowUps(
       if (
         (c.reasons.includes("question") || c.reasons.includes("stopped")) &&
         !manual &&
+        !asking &&
         on(settings, "reply") &&
         (now - end >= settings.replyDelayMs || timing.awayAt?.(end) === true)
       ) {
@@ -327,7 +337,8 @@ export function reconcileFollowUps(
   }
   // 返答タスクは「あるべき」かどうかに関係なく、返答済み・解決の兆候・期限切れで閉じる
   for (const fu of live) {
-    if (fu.kind !== "reply" || closed.has(fu.id)) continue;
+    // 図つきの問いの返答タスクは問いが閉じたときだけ閉じる（下）
+    if (fu.kind !== "reply" || closed.has(fu.id) || isAskUserReply(fu)) continue;
     const c = replyClosure(fu, f, now, settings, signals);
     if (c) {
       actions.push({ type: "close", id: fu.id, ...c });
@@ -376,6 +387,8 @@ export function reconcileFollowUps(
     actions.push({ type: "create", spec: d });
     if (d.kind === "reply" || d.kind === "approve") {
       for (const fu of live) {
+        // 開いている図つきの問いの返答タスクは置き換えない（問いは開いたまま）
+        if (isAskUserReply(fu) && want.has(fu.dedupeKey)) continue;
         if (fu.kind === d.kind && !closed.has(fu.id) && fu.triggerAt < d.triggerAt) {
           actions.push({
             type: "close",
@@ -399,6 +412,16 @@ export function reconcileFollowUps(
       actions.push({ type: "close", id: fu.id, status, reason, at });
       closed.add(fu.id);
     };
+    if (isAskUserReply(fu)) {
+      // 図つきの問いが閉じた（メモリの控えの閉じ方。控えが無ければデーモンの再起動などで消えた）
+      const c = f.askClosures?.get(askUserIdOf(fu.artifactRef) ?? "");
+      const at = Math.max(fu.triggerAt, Math.min(now, c?.at ?? now));
+      if (c?.how === "answered") close("done", "auto:answered", at);
+      else if (c?.how === "dismissed") close("superseded", "auto:ask_dismissed", at);
+      else if (c?.how === "cancelled") close("superseded", "auto:ask_cancelled", at);
+      else close("superseded", "auto:ask_lost", at);
+      continue;
+    }
     if (isAskReply(fu)) {
       // 質問に答えてターンが進んだ（D-049 (1)）。答えた時刻は分からないので、最後の活動と now の早い方
       const trigger = f.turns.find((t) => t.id === fu.triggerTurnId);

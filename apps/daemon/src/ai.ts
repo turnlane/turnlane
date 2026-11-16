@@ -11,6 +11,7 @@ import {
 import {
   addDays,
   type Clock,
+  derive,
   getSetting,
   isScratchCwd,
   type MutateCtx,
@@ -26,6 +27,7 @@ import type { LiveLaunch } from "@turnlane/core/api";
 import { mcpTargetFor, mcpTargetStatus } from "@turnlane/core/mcp";
 import { Answerer } from "./answer/index.ts";
 import { openWaitFor } from "./answer/wait.ts";
+import { AskService } from "./ask/index.ts";
 import {
   AWAY_DISMISSED_KEY,
   awayDigest,
@@ -188,6 +190,8 @@ export function createAiSystem(o: AiOptions): AiSystem {
   // 壁打ちのフォルダは git 管理外として扱う（D-135）
   const isScratch = scratchMatcher(o.sqlite, o.home);
   const git = new ScratchAwareGit(o.git, isScratch);
+  // 図つきの問い（ADR 0022）。runner・報告・操作より後に作るので、先に作るものからは遅れて読む
+  let asks: AskService | null = null;
   // 待ちの中身の保存（ADR 0018）: 読めなかったフォローアップは同じ起動の間は読み直さない
   const triedWaits = new Set<string>();
   const runner = new DeriveRunner({
@@ -204,6 +208,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
     logger: o.logger,
     runningStaleMs: Object.fromEntries(adapters.map((a) => [a.tool, a.timing.runningStaleMs])),
     publish: (type, data) => o.hub.publish(type, data),
+    asks: () => asks?.facts() ?? { open: new Map(), closures: new Map() },
   });
   const supervisor = new Supervisor({
     sqlite: o.sqlite,
@@ -318,7 +323,38 @@ export function createAiSystem(o: AiOptions): AiSystem {
       o.hub.publish("work_item", { dates: [...dates].sort(), ids: [] });
     },
   });
+  asks = new AskService({
+    sqlite: o.sqlite,
+    logger: o.logger,
+    now: () => o.clock.now(),
+    newId: () => Bun.randomUUIDv7(),
+    // 問いが開いた・閉じたら判定を回す（返答タスクができる・閉じるまで。上限 2 秒）
+    rederive: async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        runner.runNow(),
+        new Promise<void>((r) => {
+          timer = setTimeout(r, 2000);
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+    },
+    report: async (body) => {
+      const r = await reports.receive(body);
+      return r.ok ? { workItemId: r.body.workItemId } : null;
+    },
+    dismissFollowUp: (id) => {
+      ops.dismiss(id);
+    },
+  });
+  const askService = asks;
+  // 人が返答タスクを閉じたら（対応不要・完了）、開いている図つきの問いも閉じる（AI には dismissed）
+  ops.onClosed = (row) => {
+    const id = derive.askUserIdOf(row.artifact_ref);
+    if (row.kind === "reply" && id) askService.closedByUser(id);
+  };
   const deps: AiDeps = {
+    asks: askService,
     reports,
     plans: () => reportPlans(o.sqlite, o.clock.now()),
     days: (date, days) => {
@@ -335,7 +371,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
     glance: (id) => {
       const now = o.clock.now();
       const s = settings();
-      return readGlance(o.sqlite, id, {
+      const g = readGlance(o.sqlite, id, {
         now,
         // 猶予中の問い（D-245）はフォローアップが無いので、セッションの待ちのターンを読む
         sessionWait: runner.sessionWait(id),
@@ -343,6 +379,10 @@ export function createAiSystem(o: AiOptions): AiSystem {
         home: o.home,
         ...(s.storeDetail ? { stored: { day: toLocalDate(now, s.tz, s.dayBoundary) } } : {}),
       });
+      // 図つきの問い（ADR 0022）が開いていれば、待っている理由は問いと案の名前（メモリから。保存しない）
+      const a = askService.glance(id, now);
+      if (!a) return g;
+      return g?.prompt ? { ...a, prompt: g.prompt } : a;
     },
     lastReply: async (id) => {
       const r = readLastReply(o.sqlite, id, {
@@ -472,9 +512,11 @@ export function createAiSystem(o: AiOptions): AiSystem {
     async start() {
       await supervisor.start();
       runner.start();
+      askService.start();
       poller?.start();
     },
     async stop() {
+      askService.stop();
       poller?.stop();
       runner.stop();
       await runner.idle();

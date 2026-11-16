@@ -1,6 +1,6 @@
 # ADR 0021: 自分のスクリプト・エージェントの報告を、もう 1 つの取り込み元として扱う
 
-- ステータス: Accepted（2026-10-30）
+- ステータス: Accepted（2026-10-30。Amended by [0022](0022-ask-user-with-figures.md): MCP の ask_user に限って、答えをツールの結果で AI に戻す）
 - 日付: 2026-10-30
 
 ## Context

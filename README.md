@@ -72,7 +72,7 @@ turnlane today                  # events, tasks, Your turn
 turnlane add "Reply to the design review" --date 2026-10-03 --est 30
 ```
 
-The same data is exposed to agents through a stdio MCP server (`turnlane mcp`) with the tools `add_task`, `list_tasks`, `get_today`, `get_day`, `get_free_slots`, `schedule_task`, `complete_task`, `list_your_turn`, `get_ai_work`, `get_daily_report`, and `report_ai_work`, so a Claude Code or Codex session can add a task to your Inbox or read today's plan.
+The same data is exposed to agents through a stdio MCP server (`turnlane mcp`) with the tools `add_task`, `list_tasks`, `get_today`, `get_day`, `get_free_slots`, `schedule_task`, `complete_task`, `list_your_turn`, `get_ai_work`, `get_daily_report`, `report_ai_work`, and `ask_user`, so a Claude Code or Codex session can add a task to your Inbox or read today's plan.
 
 ### Connect Claude Code and Codex
 
@@ -99,6 +99,30 @@ turnlane ai report --source myscript --id weekly --title "Weekly digest" --state
 
 `--source` is any lowercase name you choose; `--state` is `scheduled`, `started`, `running`, `waiting`, `done`, or `error`; `scheduled` with `--at` puts a planned run on the AI lane until it starts. If Turnlane isn't running, the report is saved and read when it starts. The same report can be sent with the MCP tool `report_ai_work` or `POST /api/ai/reports`. For now you answer in your own tool: Turnlane shows the question and opens the `--url`.
 
+### Let the AI ask you with figures
+
+When an agent needs you to choose between concrete alternatives, it can call the MCP tool `ask_user` instead of asking in the terminal. The question lands on *Your turn* as "Needs answer", with a card per option (a small figure, a description, and the agent's recommendation) and an explanation page the agent wrote. Pick an option with `1`–`4`, add a note if you like, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result, so it carries on without you returning to the terminal. This also works in apps built on the Claude Agent SDK, such as T3 Code.
+
+```sh
+turnlane mcp install      # if you haven't yet
+turnlane skill install    # a Claude Code skill that tells the agent when and how to use ask_user
+turnlane skill install --claude-md ./CLAUDE.md --agents-md ./AGENTS.md   # also add a short section to these files
+turnlane skill snippet    # print that section to paste yourself
+turnlane skill uninstall  # remove the skill (add --claude-md / --agents-md to remove the sections too)
+```
+
+Like the hooks, the skill (`<config dir>/skills/turnlane-ask/SKILL.md`) and the CLAUDE.md / AGENTS.md section are marked as Turnlane's, so only they are changed or removed; edited files are backed up first. Claude Code asks for permission the first time `ask_user` runs.
+
+- **Figures run no scripts and reach no network.** They are static HTML/SVG files the agent writes (up to 200 KB each). The MCP server reads them with the agent's permissions; Turnlane shows them in a sandboxed frame with a Content Security Policy that blocks scripts and every network request, and passes its colors and fonts as CSS variables (`--tl-text`, `--tl-bg`, and so on) so they read in light and dark.
+- **Nothing is stored.** The question, options, figures, and your answer live only in the background service's memory while the question is open. The database keeps only that the work waited for an answer, and when. If Turnlane restarts, an open question is lost and the agent is told to ask in the terminal instead.
+- **Long waits.** Claude Code keeps the call open for hours and moves it to a background task after two minutes; Turnlane sends progress notifications so it is not cut off.
+- **Codex** stops an MCP tool call after 60 seconds by default. To give yourself time to answer, raise the limit for Turnlane in `~/.codex/config.toml`:
+
+  ```toml
+  [mcp_servers.turnlane]
+  tool_timeout_sec = 86400   # one day
+  ```
+
 ## Supported agents
 
 | Agent | Tested with | What is read |
@@ -121,6 +145,7 @@ Turnlane is built so that you can check these claims in the code.
 - **Conversation text never leaves your Mac.** Turnlane itself sends nothing to an LLM, a server, a relay, or telemetry; the two opt-in features that hand data to tools you already run (the daily note summary and the MCP server) are described below. From Claude Code and Codex sessions, Turnlane stores timestamps, repository, branch, and state, plus the session title the tool assigned (optional). Turnlane stores only, after masking secrets on a best-effort basis: the first line of each of your instructions (up to 120 characters), the question the AI asked you and its options, the tool and command (or file path) it asked permission for, and the error kind. That is what keeps an item's name stable all day and keeps it after Claude Code deletes its logs. AI replies, diffs, file contents, and copies of the session log are never stored. The daily record and its MCP tool may include these lines; the optional AI summary of your day never receives them. Turn storing off, or delete what is stored, in Settings › Data ([ADR 0018](docs/adr/0018-bounded-local-storage-of-wait-details.md), amending [ADR 0005](docs/adr/0005-no-ai-session-body-storage-or-transmission.md)). `turnlane doctor` audits the database for anything longer than these limits.
 - **Answer from Turnlane.** When you answer a waiting item, the full question is read from the local session log only while the answer box is open, and your answer is typed into the session's own terminal tab on this Mac (for Terminal and iTerm2, macOS asks once to let Turnlane control the app). Neither is stored; the log keeps only the character count and which terminal it went to ([ADR 0019](docs/adr/0019-answer-from-turnlane.md)). The same goes for a next instruction sent from the AI detail panel: it is typed into the tab and not stored (only its first line is kept later, from the session log, like any instruction you type).
 - **Reports from your own scripts and agents.** A report is written to a file in Turnlane's own data directory and read from there. Turnlane keeps its title, project, and link, and, when storing is on, the question or permission text and options cut to the limits above and masked the same way. It calls nothing back ([ADR 0021](docs/adr/0021-report-from-own-scripts-and-agents.md)).
+- **Questions with figures (`ask_user`).** The question, its options and figures, and your answer are kept only in the background service's memory while the question is open, and are dropped when it closes or Turnlane restarts; they are never written to the database, the spool, logs, live updates, exports, or backups. The database records only that the work waited for an answer and when. Your choice and note go back only to the agent that asked, as the MCP tool's result. Figures are shown in a sandboxed frame that runs no scripts and allows no network request ([ADR 0022](docs/adr/0022-ask-user-with-figures.md)).
 - **Presence.** Idle time (how long you kept an agent waiting) only counts while you were at the Mac. Every 30 seconds the daemon reads two numbers: seconds since the last keyboard or mouse input, and whether the screen is locked. It stores only the start and end of each stretch of activity, never which keys or which apps ([ADR 0013](docs/adr/0013-presence-from-input-idle-only.md)).
 - **Ask AI.** The prompt built from your task is handed to the `claude` or `codex` you already have installed, in your terminal, under your own account. Turnlane does not keep the prompt and does not talk to Anthropic or OpenAI itself ([ADR 0014](docs/adr/0014-ai-launch-via-launch-id.md)).
 - **Daily note summary (opt-in, off by default).** If you turn it on, Turnlane runs your local `claude` or `codex` CLI with a fixed instruction and the day's Markdown note (task titles, AI work titles, repository names, PR numbers, durations, your notes). That request goes to the tool's provider through the tool itself, under your account. The run uses a scratch directory and a flag that does not save a session, and it is not counted as AI work.

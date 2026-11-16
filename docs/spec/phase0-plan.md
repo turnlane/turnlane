@@ -1376,6 +1376,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | `get_ai_work` | `date?` | その日の AIカード（タイトル、状態、AI時間） | 本文は無いので安全 |
 | `get_daily_report` | `date?` | 日報 Markdown | |
 | `report_ai_work` | `source`, `id`, `state`, `title?`, `project?`, `wait?`, `error?`, `url?`, `at?`, `client_id?` | `{accepted, work_item_id, queued}` | 外の作業の報告（ADR 0021。`POST /api/ai/reports` と同じ型。`client_id` が無ければ付ける）。デーモンが止まっていればエラー（CLI の `turnlane ai report` は spool に書ける） |
+| `ask_user` | `question`, `context?`, `options`（2〜4。`label`, `description`, `recommended?`, `figure_path?`）, `explain_path?` | `{choice, note?}` / `{note}` / `{dismissed: true}` | 図つきの問い（ADR 0022。m2-api 41 章）。人が Turnlane で答えるまで返らない。図のファイルはこのプロセスが読む（200 KB まで）。待っている間は進捗の通知、`notifications/cancelled` で取り消し。デーモンの再起動・カードにできない・デーモンが止まっているときは「端末で聞き直す」エラー。メッセージは並行に処理する |
 
 外部サービスからの取り込み: Turnlane は外部サービスの API を呼びに行かない（ADR 0008）。外部側（そのサービスの CLI・MCP クライアント・利用者のスクリプト）が `add_task` / `turnlane add --source --external-id` / `POST /api/tasks` を呼ぶ。`source` は呼び出し側が名乗る小文字の識別子（`^[a-z0-9._-]{1,64}$`）で、Turnlane 側に登録は要らない。外部側の更新（タイトル変更など）を反映する upsert は Phase0 では作らない（必要になったら `add_task` に `update: true` を足す）。
 

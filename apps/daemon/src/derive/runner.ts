@@ -90,6 +90,14 @@ export interface RunnerOptions {
   isScratch?: (cwd: string) => boolean;
   /** 実行の最後に呼ぶ（新しい自分の番の待ちの中身を保存する。ADR 0018。ai.ts） */
   afterRun?: (now: number, settings: TurnlaneSettings) => void;
+  /**
+   * 図つきの問い（ADR 0022）: カード → 開いている問い（ID・時刻・ターンだけ）と、閉じた問いの閉じ方。中身はメモリ
+   * （AskService）にだけあり、ここには渡さない
+   */
+  asks?: () => {
+    open: ReadonlyMap<string, derive.AskFact[]>;
+    closures: ReadonlyMap<string, derive.AskClosure>;
+  };
 }
 
 export interface RunStats {
@@ -626,6 +634,7 @@ export class DeriveRunner {
             ...new Set((turnsByWi.get(wiId) ?? []).map((t) => t.session_id)),
           ]);
 
+    const askFacts = o.asks?.();
     const factsFor = (wiId: string): derive.WorkItemFacts | null => {
       const w = wiById.get(wiId);
       const ts = turnsByWi.get(wiId) ?? [];
@@ -673,6 +682,8 @@ export class DeriveRunner {
         })(),
         claudeLimits,
         subagents: sessIds.flatMap((id) => subagentsByParent.get(id) ?? []),
+        ...((asks) => (asks ? { asks } : {}))(askFacts?.open.get(wiId)),
+        ...(askFacts && askFacts.closures.size > 0 ? { askClosures: askFacts.closures } : {}),
       };
     };
 

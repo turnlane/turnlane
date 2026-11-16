@@ -1469,3 +1469,43 @@ ReportInput {
 - `GET /api/calendar/status` の `window: { from, to, pastDays, futureDays }`: `from`・`to` は範囲の端の論理日（どちらも含む）、`pastDays`・`futureDays` は今日からの日数（画面の文言に使う。文言に数字を書き込まない）
 - 範囲の外の日の `GET /api/board`・`GET /api/day/:date` は予定が空のまま返す（範囲の外かどうかは web が window から決める）
 
+## 41. 図つきの問い（MCP の ask_user。ADR 0022、[ux-mvp.md](ux-mvp.md) 4.23、phase0-plan 3.5）
+
+AI が MCP の `ask_user` を呼ぶと、MCP のプロセス（`turnlane mcp`）が図のファイルを読んで問いをデーモンに開き、答えを long-poll で待つ。画面が案とメモを返すと、それがツールの結果になる。問い・背景・案・図・答えはデーモンのメモリにだけあり（`apps/daemon/src/ask/`）、DB・spool・ログ・SSE・書き出し・バックアップには入れない。どの応答も `Cache-Control: no-store`。型は `packages/core/src/api/ask.ts`、上限と検証は `packages/core/src/ask.ts`。
+
+### 41.1 MCP のプロセスが使う口
+
+- **`POST /api/asks`**（Bearer）: 本文 `AskCreateInput`（下）→ 201 `{ id, workItemId, ownCard }`。カードは (1) `pid` のセッション（`ai_session.live_pid`）(2) `cwd`（その下を含む）で最近 24 時間に動いたターン (3) 自分のカード（報告の作業。出どころ `agent`、題名は `cwd` の名前。spool には状態と題名だけ）の順に決める。返答タスクができるまで待ってから返す（上限 2 秒）。だめなら 400 `{ error: "invalid_input", field }`（上限を超えた文は切らずに断る。項目の名前だけ）、413 `{ error: "too_large" }`（本文 3 MB 超）、409 `{ error: "no_card" }`（AI の取り込みがオフでカードにできない。問いは開かない）、409 `{ error: "too_many_asks" }`（同時に 20）
+- **`GET /api/asks/:id/result?wait=<ms>`**（Bearer。`wait` は 25,000 まで）: 開いていれば `wait` まで待って `{ state: "open" }`。閉じたら `{ state: "answered", choice?, note? }`・`{ state: "dismissed" }`・`{ state: "cancelled" }`。答えは渡したら捨てる（2 回目は `{ state: "answered" }` だけ）。知らない問い（デーモンの再起動で消えた・控えの 1 時間が過ぎた）は 404 `{ error: "ask_not_found" }`。この呼び出しが生きている印で、90 秒来なければ問いを取り消す（`cancelled`）
+- **`POST /api/asks/:id/cancel`**（Bearer）→ `{ state: "cancelled" }`（AI 側で打ち切られた。開いていなければ何もしない。知らなければ 404）
+
+```ts
+AskCreateInput {
+  question: string;      // 1〜120 文字
+  context?: string;      // 600 文字まで
+  options: {             // 2〜4 個。label は重ならない
+    label: string;       // 80 文字まで（仮置き）
+    description: string; // 300 文字まで（仮置き）
+    recommended?: boolean;
+    figure?: { html: string } | { error: "too_large" | "unreadable" };  // 200 KB を超える html は too_large にする
+  }[];
+  explain?: { html: string } | { error: "too_large" | "unreadable" };
+  pid?: number;          // MCP のプロセスの親（AI のプロセス）
+  cwd?: string;          // MCP のプロセスの作業ディレクトリ（絶対パス）
+  client?: string;       // initialize の clientInfo.name
+}
+```
+
+### 41.2 画面が使う口
+
+- **`GET /api/asks/:id`** → `AskView { id, workItemId, state, createdAt, closedAt, question?, context?, options?: { n, label, description, recommended, figure? }[], explain? }`。中身は開いている間だけ付く（閉じたら状態と時刻だけ。`closedAt` は返した時刻・閉じた時刻）。知らなければ 404 `ask_not_found`（web は「もう進んでいます」）
+- **`POST /api/asks/:id/answer`** 本文 `{ choice?: string, note?: string }`（`choice` は今の案の `label`。どちらか一方は要る。`note` は 4,000 文字まで）→ `{ state: "answered", answeredAt }`。閉じていれば 409 `ask_closed`、だめなら 400 `{ error: "invalid_input", field }`
+- **`POST /api/asks/:id/dismiss`** → `{ state: "dismissed" }`（返答タスクも対応不要にする）。自分の番の「対応不要」（`e`）と「完了」（Space）も、図つきの問いの返答タスクなら問いを閉じる（AI には `{ dismissed: true }`）
+- 一覧（`GET /api/queue`）の `QueueFollowUp` に `askUser: <問いの ID>`（`ask: true`、`expiresAt: null`）。中身は一覧・SSE に入れない。行の「待っている理由」（`GET /api/work-items/:id/glance`）は、カードに開いている問いがあれば `kind: "ask"` で問いと案の名前（メモリから。表示の瞬間だけ）
+- web のキーは `["ask", id]`（staleTime 0・gcTime 0。返したら queue・glance と一緒に読み直す）
+
+### 41.3 判定（DB に残るもの）
+
+- 開いている問いは runner に ID・開いた時刻・ターンだけを渡す（`WorkItemFacts.asks`）。カードは `needs_input`（理由 `ask_user`。エラーだけが先）で、返答タスク（`kind: reply`、`artifact_ref: ask_user:<id>:ask`、`trigger_at` = 開いた時刻）をすぐ作る（返答タスクの設定・プログラム経由のセッションによらない）。開いている間は同じカードの問い・Stop の終わりの返答タスクを重ねず、端末で答える待ち（31 章の `wait`）も出さない。待ちの中身の保存（ADR 0018 の `wait_detail`）はしない
+- 閉じ方（`WorkItemFacts.askClosures`。メモリの控え）で返答タスクを閉じる: 返した（MCP のプロセスが受け取った時刻）→ `done`・`auto:answered`、AI 側で打ち切られた → `superseded`・`auto:ask_cancelled`、控えが無い（デーモンの再起動）→ `superseded`・`auto:ask_lost`。人が閉じたものは `dismissed`（UserOps）。待ちの区間は開いた時刻から閉じた時刻まで（`fu:<id>`）
+

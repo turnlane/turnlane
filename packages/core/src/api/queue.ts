@@ -37,6 +37,11 @@ export interface QueueFollowUp {
   taskDate: LocalDate | null;
   /** AskUserQuestion への返答（回答待ち。artifact_ref が `:ask`。D-049 (1)） */
   ask?: boolean;
+  /**
+   * 図つきの問い（MCP の ask_user。ADR 0022）の ID。中身は GET /api/asks/:id で表示の瞬間に読む（一覧・SSE には入れない）。
+   * ask も true。期限なし（expiresAt は null）
+   */
+  askUser?: string;
   /** 利用枠の上限待ちが明けた後の再開（「再開できる」。kind は resume_error、artifact_ref が `:limit`）。期限なし（再開するか対応不要まで残る。expiresAt は null） */
   limit?: boolean;
   /** M1 の形（CLI 用。保存値のまま）。UI は title を使う */

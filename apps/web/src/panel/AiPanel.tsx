@@ -28,6 +28,7 @@ import {
 import { useRef, useState } from "react";
 import { SnoozeTimeInput } from "../board/editors.tsx";
 import { AnswerSection, openAnswer, useAnswerOpen } from "../components/AnswerSection.tsx";
+import { AskSection } from "../components/AskSection.tsx";
 import { ContextMenu, type MenuEntry } from "../components/ContextMenu.tsx";
 import { FlowSection } from "../components/Flow.tsx";
 import { LastReplySection } from "../components/LastReply.tsx";
@@ -145,7 +146,9 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
   // Turnlane から答える（D-238）: 問い・許可・エラーの待ち。対象は待ちそのもの（D-240）で、猶予の間の問いのように
   // 自分の番の行がまだ無いときも詳細の openWait で出す
   const wait = item?.wait ?? d.openWait;
-  const canAnswer = useAnswerEnabled() && !!wait;
+  // 図つきの問い（ADR 0022）: 問いの節が案と答えを出す（端末に送る「答える」は出さない）
+  const askId = item?.followUps.find((f) => f.askUser)?.askUser ?? null;
+  const canAnswer = useAnswerEnabled() && !!wait && !askId;
   const answering = useAnswerOpen(id) && canAnswer;
   useKeys({
     answer: () => {
@@ -190,7 +193,9 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
         ) : null}
       </div>
       {/* 答えている間の問いは「答える」の節が全文で出す（許可待ちのツールと中身は上に残す） */}
-      {item && view && !(answering && wait?.kind !== "permission") ? (
+      {askId ? (
+        <AskSection askId={askId} workItemId={id} />
+      ) : item && view && !(answering && wait?.kind !== "permission") ? (
         <WhyBlock view={view} prompt={glance?.prompt?.text} />
       ) : null}
       <div className="flex flex-col gap-2.5">
@@ -229,7 +234,14 @@ function AiDetail({ id, d }: { id: string; d: WorkItemDetail }) {
             <span className="min-w-0 truncate">{whereName(d.workItem, t("ai.scratch"))}</span>
           </div>
         ) : null}
-        <Actions id={id} d={d} head={head} answer={canAnswer} answering={answering} />
+        <Actions
+          id={id}
+          d={d}
+          head={head}
+          answer={canAnswer}
+          // 図つきの問いの「AI に返す」が主ボタン（1 つの画面に 1 つ）
+          answering={answering || !!askId}
+        />
       </div>
       {/* 最後の返答（Issue #8）: 開いた瞬間に記録から読む。答えている間の問いは「答える」の節が全文で出すので出さない */}
       {isReportItem(d.workItem) ? null : answering && wait?.kind !== "permission" ? null : (

@@ -156,6 +156,23 @@ export interface FollowUpFact {
   returnedAt?: number | null;
 }
 
+/**
+ * 開いている図つきの問い（MCP の ask_user。ADR 0022）。デーモンのメモリにだけある。判定には ID と時刻だけを渡す（中身は渡さない）
+ */
+export interface AskFact {
+  id: string;
+  /** 問いを開いた時刻 */
+  at: number;
+  /** 問いを出したセッションの最後のターン（分からなければ null） */
+  turnId: string | null;
+}
+
+/** 閉じた図つきの問いの閉じ方（メモリの控え。デーモンが再起動すると無くなり、そのときは「消えた」とみなす） */
+export interface AskClosure {
+  how: "answered" | "dismissed" | "cancelled";
+  at: number;
+}
+
 /** 1枚のカード（WorkItem）の判定に要る事実 */
 export interface WorkItemFacts {
   workItemId: string;
@@ -194,6 +211,10 @@ export interface WorkItemFacts {
   claudeLimits?: ClaudeLimitFact[];
   /** このカードのセッションを親に持つサブエージェント（ターンを持たないもの）。無ければ省略 */
   subagents?: SubagentFact[];
+  /** このカードに開いている図つきの問い（ADR 0022）。無ければ省略 */
+  asks?: AskFact[];
+  /** 閉じた図つきの問いの閉じ方（問いの ID → 閉じ方）。無ければ省略（無い問いは「消えた」） */
+  askClosures?: ReadonlyMap<string, AskClosure>;
 }
 
 export interface DeriveTiming {

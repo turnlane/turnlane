@@ -25,6 +25,7 @@ import type { TurnlaneSettings } from "../settings.ts";
 import {
   humanInputAfter,
   isAskReply,
+  isAskUserReply,
   isClearingHook,
   isLimitResume,
   isManualReply,
@@ -556,7 +557,8 @@ function needsInputWaits(f: WorkItemFacts, now: number): WaitInterval[] {
     const ts = trigger ? f.sessions.find((x) => x.id === trigger.sessionId) : undefined;
     out.push({
       ...(ts && isReportSession(ts) ? { noGrace: true } : {}),
-      waitKey: ask ? `turn:${fu.triggerTurnId ?? fu.id}:ask` : `fu:${fu.id}`,
+      // 図つきの問い（ADR 0022）は 1 つのターンに複数ありうるので、フォローアップごと
+      waitKey: ask && !isAskUserReply(fu) ? `turn:${fu.triggerTurnId ?? fu.id}:ask` : `fu:${fu.id}`,
       workItemId: f.workItemId,
       start: fu.triggerAt,
       end: Math.min(end.at, now),

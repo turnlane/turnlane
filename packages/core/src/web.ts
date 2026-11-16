@@ -34,6 +34,13 @@ export {
   wakeFollowUpInQueue,
 } from "./api/optimistic.ts";
 export {
+  ASK_CONTEXT_MAX,
+  ASK_FIGURE_VARS,
+  ASK_NOTE_MAX,
+  ASK_OPTIONS_MAX,
+  ASK_QUESTION_MAX,
+} from "./ask.ts";
+export {
   CALENDAR_COLOR_KEYS,
   type CalendarColorKey,
   isCalendarColorKey,

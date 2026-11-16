@@ -11,7 +11,13 @@
  * 猶予の意味（返答タスクの行・通知・放置の数え方）は変えない。変わるのは「答える口が開く時刻」だけ。
  */
 import type { TurnlaneSettings } from "../settings.ts";
-import { ASK_REF_SUFFIX, type StatusResult, sessionStatus, yourTurnCandidates } from "./status.ts";
+import {
+  ASK_REF_SUFFIX,
+  isAskUserRef,
+  type StatusResult,
+  sessionStatus,
+  yourTurnCandidates,
+} from "./status.ts";
 import { type DeriveTiming, normalizeFacts, type WorkItemFacts } from "./types.ts";
 
 /** 答えられる待ちの種類（問い・AskUserQuestion・許可・エラー） */
@@ -37,6 +43,8 @@ export interface OpenWait {
 /** フォローアップの種類 → 待ちの種類（PR の確認・変更の確認は答える対象にしない） */
 export function followUpWaitKind(kind: string, artifactRef: string): OpenWaitKind | null {
   if (kind === "approve") return "permission";
+  // 図つきの問い（ADR 0022）は端末に送って答えるものではない（答えは MCP のツールの結果で AI に戻る）
+  if (kind === "reply" && isAskUserRef(artifactRef)) return null;
   if (kind === "reply") return artifactRef.endsWith(ASK_REF_SUFFIX) ? "ask" : "question";
   if (kind === "resume_error") return "error";
   return null;
@@ -54,6 +62,8 @@ export function sessionWaitOf(
   timing: DeriveTiming,
 ): SessionWait | null {
   if (status.status === "error" || status.status === "done") return null;
+  // 図つきの問い（ADR 0022）が開いている間は、端末で答える待ちを出さない（AI は問いの答えを待っている）
+  if ((facts.asks?.length ?? 0) > 0) return null;
   const f = normalizeFacts(facts);
   const sessions = [...f.sessions].sort((a, b) => b.lastActivityAt - a.lastActivityAt);
   for (const s of sessions) {

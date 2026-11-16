@@ -5,6 +5,8 @@
  * - add_task は source=mcp、source_ref=mcp:<clientInfo.name>:<cwd>。既定は Inbox。source と external_id は
  *   両方指定か両方省略（片方だけはエラー）で、指定時は (source, external_id) で冪等
  * - 削除・一括更新のツールは作らない（安全設計）。会話本文は受け取らない・返さない
+ * - ask_user（ADR 0022）は答えが来るまで返らないので、メッセージは並行に処理する（待っている間もほかの呼び出しに答える）。
+ *   notifications/cancelled で、その呼び出しを取り消す（応答は送らない）
  */
 import { createInterface } from "node:readline";
 import { baseUrl, readToken, type TurnlanePaths, VERSION } from "@turnlane/core";
@@ -20,6 +22,13 @@ import type {
 import { planWindow } from "@turnlane/core/plan";
 import { dayDiff, shiftByDays } from "@turnlane/core/web";
 import type { CliEnv } from "../env.ts";
+import {
+  ASK_USER_DESCRIPTION,
+  ASK_USER_SCHEMA,
+  AskToolError,
+  type CallContext,
+  runAskUser,
+} from "./mcp-ask.ts";
 import { titleOf } from "./tasks.ts";
 
 type Json = Record<string, unknown>;
@@ -28,13 +37,15 @@ interface Tool {
   name: string;
   description: string;
   inputSchema: Json;
-  run: (args: Json, ctx: McpContext) => Promise<unknown>;
+  run: (args: Json, ctx: McpContext, call: CallContext) => Promise<unknown>;
 }
 
 export interface McpContext {
   paths: TurnlanePaths;
   client: string;
   cwd: string;
+  /** 呼んだ AI のプロセス（このプロセスの親）。ask_user をその AI のセッションのカードに付ける */
+  pid?: number | null;
 }
 
 /** MCP のツールからデーモンを呼ぶ（Bearer のみ。本人の操作には数えない） */
@@ -426,6 +437,12 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "ask_user",
+    description: ASK_USER_DESCRIPTION,
+    inputSchema: ASK_USER_SCHEMA,
+    run: (a, ctx, call) => runAskUser(a, { ...ctx, pid: ctx.pid ?? null }, call),
+  },
+  {
     name: "get_daily_report",
     description:
       "The daily note in Markdown for a date (default today). Past days are the note saved at the day boundary.",
@@ -450,8 +467,14 @@ export const TOOLS: Tool[] = [
   },
 ];
 
+const NO_CALL: CallContext = { signal: new AbortController().signal, progress: () => {} };
+
 /** 1つの JSON-RPC メッセージを処理する（通知なら null） */
-export async function handleMessage(msg: Json, state: { ctx: McpContext }): Promise<Json | null> {
+export async function handleMessage(
+  msg: Json,
+  state: { ctx: McpContext },
+  call: CallContext = NO_CALL,
+): Promise<Json | null> {
   const id = msg.id as string | number | undefined;
   const method = msg.method as string | undefined;
   const reply = (result: unknown) => ({ jsonrpc: "2.0", id, result });
@@ -487,14 +510,14 @@ export async function handleMessage(msg: Json, state: { ctx: McpContext }): Prom
       const tool = TOOLS.find((t) => t.name === p.name);
       if (!tool) return fail(-32602, `unknown tool: ${p.name}`);
       try {
-        const out = await tool.run(p.arguments ?? {}, state.ctx);
+        const out = await tool.run(p.arguments ?? {}, state.ctx, call);
         return reply({
           content: [{ type: "text", text: JSON.stringify(out) }],
           structuredContent: out,
         });
       } catch (e) {
         const message =
-          e instanceof McpToolError
+          e instanceof McpToolError || e instanceof AskToolError
             ? e.message
             : e instanceof Error && /fetch|connect/i.test(e.message)
               ? "daemon_not_running"
@@ -507,22 +530,86 @@ export async function handleMessage(msg: Json, state: { ctx: McpContext }): Prom
   }
 }
 
-export async function mcpCommand(env: CliEnv): Promise<number> {
-  const state = { ctx: { paths: env.paths, client: "unknown", cwd: process.cwd() } };
-  const rl = createInterface({ input: process.stdin });
+/**
+ * stdio の読み書き（並行）。リクエストごとに処理を走らせ、終わった順に応答を 1 行ずつ書く。notifications/cancelled は
+ * その呼び出しを取り消す（応答は書かない）。入力が閉じたら（AI が終わった）、待っている呼び出しを取り消してから終える
+ */
+export async function serveMcp(
+  input: NodeJS.ReadableStream,
+  write: (line: string) => void,
+  state: { ctx: McpContext },
+): Promise<void> {
+  const inflight = new Map<string, { abort: AbortController; done: Promise<void> }>();
+  const keyOf = (id: unknown) => JSON.stringify(id ?? null);
+  const rl = createInterface({ input });
   for await (const line of rl) {
     if (!line.trim()) continue;
     let msg: Json;
     try {
       msg = JSON.parse(line) as Json;
     } catch {
-      process.stdout.write(
-        `${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } })}\n`,
+      write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32700, message: "parse error" },
+        }),
       );
       continue;
     }
-    const out = await handleMessage(msg, state);
-    if (out) process.stdout.write(`${JSON.stringify(out)}\n`);
+    if (msg.method === "notifications/cancelled") {
+      const rid = (msg.params as { requestId?: unknown } | undefined)?.requestId;
+      inflight.get(keyOf(rid))?.abort.abort();
+      continue;
+    }
+    if (msg.id === undefined) continue; // ほかの通知（notifications/initialized など）
+    const key = keyOf(msg.id);
+    const abort = new AbortController();
+    const token = ((msg.params as { _meta?: { progressToken?: unknown } } | undefined)?._meta
+      ?.progressToken ?? null) as string | number | null;
+    let n = 0;
+    const call: CallContext = {
+      signal: abort.signal,
+      progress: (message) => {
+        if (token === null || abort.signal.aborted) return;
+        n += 1;
+        write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            method: "notifications/progress",
+            params: { progressToken: token, progress: n, message },
+          }),
+        );
+      },
+    };
+    const done = handleMessage(msg, state, call)
+      .then((out) => {
+        // 取り消した呼び出しには応答を書かない（MCP の取り消し）
+        if (out && !abort.signal.aborted) write(JSON.stringify(out));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (inflight.get(key)?.abort === abort) inflight.delete(key);
+      });
+    inflight.set(key, { abort, done });
   }
+  // 入力が閉じた: 待っている呼び出し（ask_user）を取り消し、Turnlane の問いを閉じてから終える（上限 3 秒）
+  for (const x of inflight.values()) x.abort.abort();
+  await Promise.race([
+    Promise.all([...inflight.values()].map((x) => x.done)),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]);
+}
+
+export async function mcpCommand(env: CliEnv): Promise<number> {
+  const state = {
+    ctx: {
+      paths: env.paths,
+      client: "unknown",
+      cwd: process.cwd(),
+      pid: process.ppid > 1 ? process.ppid : null,
+    },
+  };
+  await serveMcp(process.stdin, (l) => process.stdout.write(`${l}\n`), state);
   return 0;
 }

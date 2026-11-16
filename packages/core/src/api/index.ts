@@ -1,4 +1,5 @@
 export * from "./answer.ts";
+export * from "./ask.ts";
 export * from "./away.ts";
 export * from "./board.ts";
 export * from "./common.ts";

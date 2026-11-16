@@ -21,8 +21,8 @@ Usage:
                                     Copy to ~/.local/bin, register the LaunchAgent, and start it.
                                     If Turnlane.app is next to it, put it in ~/Applications and open it at login
   turnlane uninstall [--dry-run]          Remove the LaunchAgent, binaries, and Turnlane.app (your data stays)
-  turnlane uninstall --all [--dry-run]    Also remove Turnlane's hooks and MCP entries, its background items, and
-                                    its links (your data stays). Then move Turnlane.app to the Trash
+  turnlane uninstall --all [--dry-run]    Also remove Turnlane's hooks and MCP entries, its skill, its background items,
+                                    and its links (your data stays). Then move Turnlane.app to the Trash
   turnlane link [--dry-run] [--app <path>]
                                     Put turnlane in ~/.local/bin (a link to the turnlane inside Turnlane.app)
   turnlane setup migrate [--dry-run] [--app <path>] | migrate --rollback [--dry-run]
@@ -68,6 +68,10 @@ Usage:
                                     Sources and their status
   turnlane hooks install|uninstall|status [--claude-dir <dir>]... [--codex] [--dry-run] [--bin <path>]
                                     Add or remove hooks in Claude Code / Codex (other tools' entries are left alone)
+  turnlane skill install|uninstall|status [--claude-dir <dir>]... [--claude-md <file>]... [--agents-md <file>]... [--dry-run]
+                                    Add or remove the Claude Code skill (and, for the files you name, a CLAUDE.md /
+                                    AGENTS.md section) that tells the AI to ask you with figures through ask_user
+  turnlane skill snippet                  Print that CLAUDE.md / AGENTS.md section
   turnlane calendar status [--json]       Calendar helper connection and access, holiday calendar, next workday
   turnlane calendar calendars [--json] [--role <id> source|ignored]
                                     List calendars and change their role
@@ -104,7 +108,7 @@ const USAGE_JA = `turnlane ${VERSION}
                                     ~/.local/bin へコピーし、LaunchAgent を登録して起動。
                                     コピー元に Turnlane.app があれば ~/Applications に置き、ログイン時に起動する
   turnlane uninstall [--dry-run]          LaunchAgent・バイナリ・Turnlane.app を削除（データは残す）
-  turnlane uninstall --all [--dry-run]    hooks・MCP の Turnlane の項目、常駐の登録、リンクも外す（データは残す）。
+  turnlane uninstall --all [--dry-run]    hooks・MCP の Turnlane の項目、スキル、常駐の登録、リンクも外す（データは残す）。
                                     最後に Turnlane.app をゴミ箱へ
   turnlane link [--dry-run] [--app <path>]
                                     ~/.local/bin に turnlane を置く（Turnlane.app の中の turnlane へのリンク）
@@ -150,6 +154,10 @@ const USAGE_JA = `turnlane ${VERSION}
                                     取り込み元とその状態
   turnlane hooks install|uninstall|status [--claude-dir <dir>]... [--codex] [--dry-run] [--bin <path>]
                                     Claude Code / Codex に hooks を入れる・外す（他ツールのエントリには触らない）
+  turnlane skill install|uninstall|status [--claude-dir <dir>]... [--claude-md <file>]... [--agents-md <file>]... [--dry-run]
+                                    AI に図つきで聞いてもらう（ask_user）Claude Code のスキルと、指定した CLAUDE.md /
+                                    AGENTS.md の 1 節を入れる・外す
+  turnlane skill snippet                  その CLAUDE.md / AGENTS.md の 1 節を表示する
   turnlane calendar status [--json]       カレンダーヘルパの接続・権限、祝日カレンダー、次の稼働日
   turnlane calendar calendars [--json] [--role <id> source|ignored]
                                     カレンダーの一覧と役割の変更
@@ -256,6 +264,7 @@ export const ARG_SPECS: Record<string, ArgSpec> = {
   stats: { flags: ["--json"], opts: ["--days"] },
   sources: { flags: ["--json"], pos: 1 },
   hooks: { flags: ["--codex", "--dry-run"], opts: ["--claude-dir", "--bin"], pos: 1 },
+  skill: { flags: ["--dry-run"], opts: ["--claude-dir", "--claude-md", "--agents-md"], pos: 1 },
   calendar: {
     flags: ["--json", "--none", "--auto", "--dry-run", "--yes"],
     opts: ["--role", "--set", "--app"],
@@ -518,6 +527,15 @@ export async function runCommand(cmd: string, args: string[], env: CliEnv = syst
         codex: flags.has("--codex"),
         dryRun: flags.has("--dry-run"),
         cliPath: opts.get("--bin"),
+      });
+    }
+    case "skill": {
+      const { skillCommand } = await import("./commands/skill.ts");
+      return skillCommand(env, pos[0], {
+        claudeDirs: multi.get("--claude-dir") ?? [],
+        claudeMd: multi.get("--claude-md") ?? [],
+        agentsMd: multi.get("--agents-md") ?? [],
+        dryRun: flags.has("--dry-run"),
       });
     }
     case "calendar": {

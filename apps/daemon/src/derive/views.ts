@@ -482,6 +482,9 @@ export function queue(db: Database, settings: TurnlaneSettings, now: number): Qu
         ...(f.kind === "reply" && f.artifact_ref.endsWith(derive.ASK_REF_SUFFIX)
           ? { ask: true }
           : {}),
+        ...(f.kind === "reply" && derive.askUserIdOf(f.artifact_ref)
+          ? { askUser: derive.askUserIdOf(f.artifact_ref) as string }
+          : {}),
         ...(derive.isLimitResume({ kind: f.kind, artifactRef: f.artifact_ref })
           ? { limit: true }
           : {}),
@@ -493,11 +496,14 @@ export function queue(db: Database, settings: TurnlaneSettings, now: number): Qu
         snoozeUntil: f.snooze_until,
         engagedAt: f.engaged_at,
         // 返答と再開は72時間で期限切れ（D-020・D-045）。上限待ちが明けた後の再開（「再開できる」）は期限なし
-        expiresAt: derive.isLimitResume({ kind: f.kind, artifactRef: f.artifact_ref })
-          ? null
-          : f.kind === "reply" || f.kind === "resume_error"
-            ? f.trigger_at + settings.replyExpireMs
-            : null,
+        // 図つきの問い（ADR 0022）は問いが閉じるまで（期限なし）
+        expiresAt:
+          derive.isLimitResume({ kind: f.kind, artifactRef: f.artifact_ref }) ||
+          derive.isAskUserRef(f.artifact_ref)
+            ? null
+            : f.kind === "reply" || f.kind === "resume_error"
+              ? f.trigger_at + settings.replyExpireMs
+              : null,
         taskId: f.task_id,
         taskDate: f.task_date,
         task:

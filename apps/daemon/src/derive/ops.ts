@@ -47,6 +47,9 @@ export class UserOps {
     private readonly publish?: (type: "task" | "follow_up", data: Record<string, unknown>) => void,
   ) {}
 
+  /** 人が自分の番を閉じた（対応不要・完了）。図つきの問い（ADR 0022）の返答タスクなら問いも閉じる（ai.ts が付ける） */
+  onClosed?: (row: FollowUpRow) => void;
+
   #followUp(id: string): FollowUpRow {
     const row = this.sqlite
       .query<FollowUpRow, [string]>("SELECT * FROM follow_up WHERE id = ? AND deleted_at IS NULL")
@@ -184,6 +187,7 @@ export class UserOps {
     // 頼んだタスク（D-107）は閉じない（自分の番だけを外す）
     if (row.task_id && !isLaunchTask(this.sqlite, row.task_id))
       updateRow(this.mutate, schema.task, row.task_id, { status: "canceled", completedAt: null });
+    this.onClosed?.(row);
     this.onChanged();
     return this.#followUp(id);
   }
@@ -227,6 +231,7 @@ export class UserOps {
         source: "followup_estimate",
       });
     }
+    this.onClosed?.(row);
     this.onChanged();
     return this.#followUp(id);
   }

@@ -22,6 +22,7 @@ import { queueSummary, type UpdateMenuItem } from "@turnlane/core/web";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Answerer } from "../answer/index.ts";
+import type { AskService } from "../ask/index.ts";
 import { OpError, type UserOps } from "../derive/ops.ts";
 import type { AiDaysView, QueueItem, queueExtras } from "../derive/views.ts";
 import type { FocusService } from "../focus/service.ts";
@@ -102,6 +103,8 @@ export interface AiDeps {
   ingestStatus(): { backfillDone: boolean };
   /** 外の作業の報告（ADR 0021。m2-api 37 章） */
   reports: ReportReceiver;
+  /** 図つきの問い（MCP の ask_user。ADR 0022。m2-api 41 章） */
+  asks: AskService;
   /** 報告の予定（state scheduled。0.8.1。AI の画面の「後で」） */
   plans?(): ReportPlanView[];
 }
@@ -199,6 +202,15 @@ const answerInput = z.union([
 const instructInput = z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict();
 const bulkInput = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(500) });
 
+/** POST /api/asks/:id/answer（案の名前とメモ。中身の検証は core の parseAskAnswer） */
+const askAnswerInput = z.object({
+  choice: z.string().max(200).optional(),
+  note: z.string().max(4000).optional(),
+});
+
+/** POST /api/asks の本文の上限（図 5 つ × 200 KB と文。JSON の書き方で膨らむぶんを見込む） */
+const ASK_BODY_MAX = 3 * 1024 * 1024;
+
 /** 入力の検証に失敗したら 400 { error: "invalid_input" } */
 const invalid = (r: { success: boolean }, c: { json: (b: unknown, s: 400) => Response }) => {
   if (!r.success) return c.json({ error: "invalid_input" }, 400);
@@ -231,6 +243,49 @@ export function createAiRoutes(
         if (r.ok) return c.json(r.body, 202);
         if (r.status === 400) return c.json({ error: "invalid_input", field: r.field }, 400);
         return c.json({ error: r.error }, 500);
+      })
+      // 図つきの問い（MCP の ask_user。ADR 0022。m2-api 41 章）。中身はメモリにだけあり、応答は no-store
+      .post("/asks", async (c) => {
+        c.header("Cache-Control", "no-store");
+        const len = Number(c.req.header("content-length") ?? "0");
+        if (len > ASK_BODY_MAX) return c.json({ error: "too_large" }, 413);
+        const body = await c.req.json().catch(() => undefined);
+        try {
+          return c.json(await deps().asks.create(body), 201);
+        } catch (e) {
+          if (e instanceof OpError && e.message.startsWith("invalid_input: "))
+            return c.json({ error: "invalid_input", field: e.message.slice(15) }, 400);
+          throw e;
+        }
+      })
+      .get("/asks/:id/result", async (c) => {
+        c.header("Cache-Control", "no-store");
+        const w = Number(c.req.query("wait") ?? "0");
+        return c.json(
+          await deps().asks.result(c.req.param("id"), Number.isFinite(w) ? Math.floor(w) : 0),
+        );
+      })
+      .post("/asks/:id/cancel", (c) => {
+        deps().asks.cancel(c.req.param("id"));
+        return c.json({ state: "cancelled" });
+      })
+      .get("/asks/:id", (c) => {
+        c.header("Cache-Control", "no-store");
+        return c.json(deps().asks.view(c.req.param("id")));
+      })
+      .post("/asks/:id/answer", zValidator("json", askAnswerInput, invalid), (c) => {
+        c.header("Cache-Control", "no-store");
+        try {
+          return c.json(deps().asks.answer(c.req.param("id"), c.req.valid("json")));
+        } catch (e) {
+          if (e instanceof OpError && e.message.startsWith("invalid_input: "))
+            return c.json({ error: "invalid_input", field: e.message.slice(15) }, 400);
+          throw e;
+        }
+      })
+      .post("/asks/:id/dismiss", (c) => {
+        deps().asks.dismiss(c.req.param("id"));
+        return c.json({ state: "dismissed" });
       })
       .get("/ai/reports/sources", (c) => c.json(deps().reports.sources()))
       // 予定の詳細パネル（0.8.1。m2-api 37 章）: 報告の作業 1 つ。AI の項目になったら workItemId が入る

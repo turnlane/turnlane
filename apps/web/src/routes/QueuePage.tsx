@@ -29,6 +29,7 @@ import {
 } from "../actions/item-actions.tsx";
 import { type Prompt, PromptView } from "../board/editors.tsx";
 import { AnswerSection, openAnswer, useAnswerOpen } from "../components/AnswerSection.tsx";
+import { AskSection } from "../components/AskSection.tsx";
 import { BulkBar } from "../components/BulkBar.tsx";
 import { FlowSection } from "../components/Flow.tsx";
 import { titleText } from "../components/items.tsx";
@@ -509,8 +510,10 @@ function QueueDetail({
   // 主ボタンは待ちの種類に合わせる（ボードの詳細と同じ言葉。D-214 の §4）
   const primaryKey: MessageKey =
     PRIMARY_KEY[view.parts.why ?? ""] ?? ("menu.openTurn" as MessageKey);
+  // 図つきの問い（ADR 0022）: 問いの節が案と答えを出す（端末に送る「答える」と待っている理由の節は出さない）
+  const askId = item.followUps.find((f) => f.askUser)?.askUser ?? null;
   // Turnlane から答える（D-238）。答えている間は主ボタンを節の「送る」に譲る
-  const canAnswer = useAnswerEnabled() && !later && answerable(item);
+  const canAnswer = useAnswerEnabled() && !later && !askId && answerable(item);
   const answering = useAnswerOpen(item.workItemId) && canAnswer;
   return (
     <ResizablePanel
@@ -560,12 +563,14 @@ function QueueDetail({
           )}
         </span>
       </div>
-      {!(answering && fu?.kind !== "approve") ? (
+      {askId ? (
+        <AskSection askId={askId} workItemId={item.workItemId} />
+      ) : !(answering && fu?.kind !== "approve") ? (
         <WhyBlock view={view} prompt={glance?.prompt?.text} />
       ) : null}
       <div className="flex flex-wrap items-center gap-1.5" data-testid="queue-detail-actions">
         <Button
-          variant={answering ? "secondary" : "primary"}
+          variant={answering || askId ? "secondary" : "primary"}
           className="px-2"
           onClick={() =>
             void openTask(fu ? { followUpId: fu.id } : { workItemId: item.workItemId })

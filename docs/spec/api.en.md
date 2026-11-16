@@ -49,6 +49,7 @@ This is an English map of the daemon's HTTP API for contributors and for people 
 | POST | `/api/follow-ups/:id/snooze` (`{ preset }` or `{ until }`), `/defer`, `/wake`, `/dismiss`, `/complete`, `/reopen`, `/engage`; `/api/follow-ups/bulk-dismiss` | Act on a Your turn item | 2, 32 |
 | GET / POST | `/api/open/options`, `/api/open`, `/api/open/apps` | Open the item where it lives (terminal tab, editor, PR, reported link) | 13 |
 | POST / GET | `/api/ai/reports`, `/api/ai/reports/sources` | Reports from your own scripts and agents | 37 |
+| POST / GET | `/api/asks`, `/api/asks/:id/result?wait=`, `/api/asks/:id/cancel`; `/api/asks/:id`, `/answer`, `/dismiss` | A question with figures (MCP `ask_user`): the MCP server opens it and long-polls for the answer; the app reads it and answers. Kept in memory only (`no-store`) | 41 |
 | GET / POST | `/api/ai/launches`, `/api/ai/templates`, `/api/ai/claude-accounts` | Ask AI from a task | 27 |
 
 ## Sources, settings, and the rest

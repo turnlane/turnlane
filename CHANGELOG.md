@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A question with figures: an agent can call the new MCP tool `ask_user` to ask you to choose between 2–4 concrete options. The question shows on *Your turn* as "Needs answer" with a card per option (number key, label, a "Recommended" chip, description, and a small figure) and the agent's explanation page, side by side when the panel is wide. Pick with `1`–`4`, add a note, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result. Figures are static HTML/SVG the agent writes, shown in a sandboxed frame that runs no scripts and reaches no network, with Turnlane's colors and fonts as `--tl-*` CSS variables. The question, figures and answer live only in memory while the question is open; if Turnlane restarts, the agent is told to ask in the terminal instead.
+- `turnlane skill install|uninstall|status|snippet`: a Claude Code skill (and, for the files you name with `--claude-md` / `--agents-md`, a CLAUDE.md / AGENTS.md section) that tells the agent when and how to use `ask_user`. Only Turnlane's marked entries are changed; `turnlane uninstall --all` removes the skill too.
+
+### Changed
+
+- The MCP server now handles calls concurrently, so a waiting `ask_user` doesn't hold up other tools. It sends progress notifications while waiting and closes the question in Turnlane when the agent cancels the call.
+
 ## [0.8.2] - 2026-11-16
 
 ### Added

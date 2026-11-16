@@ -1,7 +1,7 @@
 /**
  * E2E の実行（D-092）。`bun run e2e` が Web をビルドしてからこれを呼ぶ。
  *
- *   bun e2e/run.ts [--engine chromium|webkit] [--suite board-dnd|ime|events|focus|mouse|launch|actions|actions-scratch|ext|ext-none|panels|panel-resize|away|expired|answer|answer-grace|answer-lane|onboarding|onboarding-app|onboarding-calendar-fail|boot|editing|demo|ai|palette|later]
+ *   bun e2e/run.ts [--engine chromium|webkit] [--suite board-dnd|ime|events|focus|mouse|launch|actions|actions-scratch|ext|ext-none|panels|panel-resize|away|expired|answer|answer-grace|answer-lane|ask|onboarding|onboarding-app|onboarding-calendar-fail|boot|editing|demo|ai|palette|later]
  *
  * 既定は全スイートを WebKit だけで走らせる（アプリの殻は WKWebView。D-196。スイートごとに新しい dev-board）。
  * Chromium は `--engine chromium` を指定したときだけ。
@@ -10,6 +10,7 @@
 import { actionsScratchSuite, actionsSuite } from "./actions.e2e.ts";
 import { aiSuite } from "./ai.e2e.ts";
 import { answerGraceSuite, answerLaneSuite, answerSuite } from "./answer.e2e.ts";
+import { askSuite } from "./ask.e2e.ts";
 import { awaySuite } from "./away.e2e.ts";
 import { boardDnd } from "./board-dnd.e2e.ts";
 import { bootSuite } from "./boot.e2e.ts";
@@ -64,6 +65,7 @@ const SUITES: Suite[] = [
   answerGraceSuite,
   answerLaneSuite,
   instructSuite,
+  askSuite,
   onboardingSuite,
   onboardingAppSuite,
   onboardingCalendarFailSuite,

@@ -60,6 +60,7 @@ import type { CliEnv } from "../env.ts";
 import { tr } from "../lang.ts";
 import { bootoutAndWait, reloadService } from "../launchctl.ts";
 import { applyToTargets, refreshMcpPaths } from "./mcp-config.ts";
+import { uninstallSkills } from "./skill.ts";
 
 /** 同梱のアプリの登録の操作（`<app>/Contents/MacOS/turnlane --setup …`）。テストでは差し替える */
 export type AppSetupRunner = (app: string, args: string[]) => { code: number; out: string };
@@ -242,6 +243,8 @@ export async function uninstallAll(
     dryRun: o.dryRun,
     now: o.now,
   }).failed;
+  // 図つきの問いのスキル（Turnlane の印のあるものだけ。CLAUDE.md / AGENTS.md の節は turnlane skill uninstall --claude-md で）
+  failed += uninstallSkills(env, o.dryRun);
   // 常駐の登録（アプリのプロセスで外す）
   const app = targetApp(env, o.app);
   if (app && isBundledApp(app)) {

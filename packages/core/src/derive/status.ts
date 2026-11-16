@@ -414,6 +414,32 @@ export function isAskReply(x: { kind: string; artifactRef: string }): boolean {
   return x.kind === "reply" && x.artifactRef.endsWith(ASK_REF_SUFFIX);
 }
 
+/**
+ * 図つきの問い（MCP の ask_user。ADR 0022）の返答タスクの artifact_ref の接頭辞。形は `ask_user:<問いの ID>:ask` で、
+ * AskUserQuestion の返答タスクと同じ「回答待ち」（接尾辞 `:ask`）として扱う（自分の番の先頭・待ちの区間・閉じた行の言葉）
+ */
+export const ASK_USER_PREFIX = "ask_user:";
+
+export function askUserRef(askId: string): string {
+  return `${ASK_USER_PREFIX}${askId}${ASK_REF_SUFFIX}`;
+}
+
+/** 図つきの問いの返答タスクか */
+export function isAskUserReply(x: { kind: string; artifactRef: string }): boolean {
+  return x.kind === "reply" && isAskUserRef(x.artifactRef);
+}
+
+export function isAskUserRef(artifactRef: string): boolean {
+  return artifactRef.startsWith(ASK_USER_PREFIX) && artifactRef.endsWith(ASK_REF_SUFFIX);
+}
+
+/** 図つきの問いの返答タスクの artifact_ref から問いの ID（違えば null） */
+export function askUserIdOf(artifactRef: string): string | null {
+  if (!isAskUserRef(artifactRef)) return null;
+  const id = artifactRef.slice(ASK_USER_PREFIX.length, -ASK_REF_SUFFIX.length);
+  return id.length > 0 ? id : null;
+}
+
 /** 手で作った返答タスク（AI カードの `y`。D-066 (2)）の artifact_ref の接尾辞。作り直しは `:manual:<n>` */
 export const MANUAL_REF_SUFFIX = ":manual";
 
@@ -688,6 +714,10 @@ export function deriveStatus(
     if (r && (!best || RANK[r.status] > RANK[best.status])) best = r;
   };
   for (const s of f.sessions) pick(sessionStatus(f, s, now, timing));
+  // 図つきの問い（ADR 0022）が開いている間は、AI は人の答えを待っている（エラーだけが先）。AI のセッション（記録には
+  // 結果の無いツールの呼び出しが残る）の実行中・止まった・終わったの見え方より、問いを優先する
+  if ((f.asks?.length ?? 0) > 0 && (best as StatusResult | null)?.status !== "error")
+    return { status: "needs_input", reason: "ask_user", estimated: false };
   if (best && RANK[(best as StatusResult).status] > RANK.your_turn) return best;
 
   const lastStart = f.turns.reduce((m, t) => Math.max(m, t.startedAt), 0);

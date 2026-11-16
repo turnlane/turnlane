@@ -654,6 +654,8 @@ export function snapshotWaitDetails(
        FROM follow_up f
        WHERE f.deleted_at IS NULL AND f.status IN ('open', 'snoozed')
          AND f.kind IN ('approve', 'reply', 'resume_error')
+         -- 図つきの問い（ADR 0022）の中身はメモリにだけ持つ。記録の結果の無いツールの呼び出し（問いの入力）も読まない
+         AND substr(f.artifact_ref, 1, 9) != 'ask_user:'
          AND NOT EXISTS (SELECT 1 FROM wait_detail w WHERE w.follow_up_id = f.id)`,
     )
     .all()
