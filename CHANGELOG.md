@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-16
+
 ### Added
 
 - Invite via Google Calendar: when a new event from a free slot goes to a Google calendar, "Invite…" lets you enter guests and opens Google Calendar's event editor with the title, time and guests filled in (nothing is created in Turnlane; no Google sign-in). Events on Google calendars have "Open in Google Calendar" in the panel's ⋯ menu.
@@ -132,7 +134,8 @@ First public release.
 - Daily update check against a static `latest.json` on GitHub Releases (no identifiers sent; `turnlane config set update.check false` turns it off).
 - `turnlane doctor` and `turnlane doctor --redact` for diagnostics you can paste into an issue.
 
-[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/turnlane/turnlane/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/turnlane/turnlane/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/turnlane/turnlane/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/turnlane/turnlane/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/turnlane/turnlane/compare/v0.7.3...v0.7.4
