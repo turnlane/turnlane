@@ -42,6 +42,8 @@ async function setup(o: {
   wait: "permission" | "ask" | "ask_multi";
   where: "warp" | "none";
   entrypoint?: string;
+  /** hook の permission_mode（省略時は付けない） */
+  mode?: string;
 }) {
   env = makeAiEnv({ now: T0 });
   putSetting(env.mutate, "ui.language", "ja");
@@ -82,6 +84,7 @@ async function setup(o: {
         config_root: root,
         hook_event_name: name,
         session_id: SID,
+        ...(o.mode ? { permission_mode: o.mode } : {}),
         ...extra,
       }),
     );
@@ -201,6 +204,21 @@ describe("POST /api/hook-waits（待つか）", () => {
       wait: false,
       reason: "program",
     });
+  });
+
+  test("bypassPermissions: 許可（Bash）は待たない。AskUserQuestion はどのモードでも人に聞くので待つ", async () => {
+    const s = await setup({ wait: "permission", where: "warp", mode: "bypassPermissions" });
+    expect(
+      (await s.open({ session: SID, tool: "Bash", permissionMode: "bypassPermissions" })).body,
+    ).toEqual({ wait: false, reason: "unsupported" });
+    for (const mode of ["bypassPermissions", "acceptEdits", "dontAsk", "plan", "auto", "default"])
+      expect(
+        (await s.open({ session: SID, tool: "AskUserQuestion", permissionMode: mode })).body.wait,
+      ).toBe(true);
+    // ほかのモードの許可は今までどおり待つ
+    expect(
+      (await s.open({ session: SID, tool: "Bash", permissionMode: "acceptEdits" })).body.wait,
+    ).toBe(true);
   });
 
   test("同じセッション・同じエージェントの次の待ちが開くと、前の待ちは withdrawn（続けて 2 つの確認）", async () => {
@@ -326,6 +344,27 @@ describe("答える: hook が待っていれば hook に返す", () => {
       count: 1,
       answers: [{ text: `canary ${SENTINEL}` }],
     });
+  });
+
+  test("AskUserQuestion（bypassPermissions のセッション。T3 Code の既定）: 届け先は hook で、選んだ番号を hook に返す", async () => {
+    const s = await setup({ wait: "ask", where: "none", mode: "bypassPermissions" });
+    const id = waitId(
+      await s.open({ session: SID, tool: "AskUserQuestion", permissionMode: "bypassPermissions" }),
+    );
+    const w = await s.call<WaitResponse>("GET", `/api/work-items/${s.wi}/wait`);
+    expect(w.body).toMatchObject({ kind: "ask", delivery: { via: "hook", deliverable: true } });
+    // 片付けで取り下げない（カードの待ちとして見える。見えないままなら 60 秒で取り下げる）
+    env.ai.runner.runOnce();
+    env.clock.set(env.clock.now() + HOOK_WAIT_UNSEEN_MS + 1_000);
+    env.ai.runner.runOnce();
+    expect((await s.result(id)).body).toEqual({ state: "open" });
+    const polled = s.result(id, 10_000).then((r) => {
+      s.tr.answer(env.clock.now(), s.toolUseId);
+      return r;
+    });
+    const r = await answerer().answer(s.wi, { choices: [{ options: [1] }] });
+    expect((await polled).body).toEqual({ state: "answer", count: 1, answers: [{ options: [1] }] });
+    expect(r).toMatchObject({ via: "hook", confirmed: true });
   });
 
   test("hook が待っていない AskUserQuestion に選んだ答え（choices）は送れない（409 undeliverable）", async () => {

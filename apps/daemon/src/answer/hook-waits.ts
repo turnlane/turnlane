@@ -100,8 +100,11 @@ export class HookWaits {
     const entry = typeof b.entrypoint === "string" ? b.entrypoint : "";
     if (b.delegated === true || entry.startsWith("sdk-") || this.o.isProgram(b.session))
       return { wait: false, reason: "program" };
-    // 許可を確かめない設定（bypassPermissions）では確認が出ない。念のため待たない
-    if (b.permissionMode === "bypassPermissions") return { wait: false, reason: "unsupported" };
+    // 許可を確かめない設定（bypassPermissions）では許可の確認が出ない。念のため待たない。ただし AskUserQuestion は
+    // どのモードでも人に聞く（Claude Code はこのモードでも PermissionRequest を出す）ので待つ。ほかのモードでは
+    // 飛ばさない（hook が動いたなら確認が出ている）
+    if (b.permissionMode === "bypassPermissions" && b.tool !== "AskUserQuestion")
+      return { wait: false, reason: "unsupported" };
     const agentId = typeof b.agentId === "string" ? b.agentId : null;
     for (const r of this.#recs.values())
       if (r.closedAt === null && r.session === b.session && r.agentId === agentId)
