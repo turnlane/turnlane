@@ -3,6 +3,7 @@
  * stdin の JSON から許可リストのキーだけを取り出し、spool に1行追記して exit 0。
  * デーモンとは通信しない。どんな失敗でも呼び出し元のツールを止めないよう exit 0 にする。
  * `--managed-by turnlane` は hooks 設定ファイル上で Turnlane のエントリを識別するための語で、ここでは読み飛ばす。
+ * `--answer` は hook で答える（ADR 0023）の PermissionRequest のハンドラで、answer.ts が受け持つ（デーモンと通信する）。
  * 未知の引数も無視する。
  *
  * 起動時間の目標は 50ms 以内（S4: p95 8.9ms）。そのため、このディレクトリは node:fs、同じディレクトリの
@@ -133,6 +134,12 @@ function append(dir: string, name: string, line: string): void {
 }
 
 export async function runHook(args: string[]): Promise<never> {
+  // hook で答える（ADR 0023）: PermissionRequest の 2 つ目のハンドラ。spool には書かない（1 つ目の async のハンドラが書く）
+  if (args.includes("--answer")) {
+    const i = args.indexOf("--tool");
+    if (args[i + 1] === "claude_code") return (await import("./answer.ts")).runAnswerHook();
+    process.exit(0);
+  }
   try {
     const i = args.indexOf("--tool");
     const tool = i >= 0 ? args[i + 1] : undefined;

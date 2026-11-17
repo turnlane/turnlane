@@ -23,7 +23,17 @@ export interface Handler {
 
 export interface Plan {
   events: readonly string[];
-  handler: (event: string) => Handler;
+  /**
+   * イベントのハンドラ。Turnlane のグループ 1 つに、この順で入れる（Claude Code の PermissionRequest は spool に書く async の
+   * ハンドラと、hook で答えるハンドラの 2 つ。ADR 0023）
+   */
+  handler: (event: string) => Handler | readonly Handler[];
+}
+
+/** プランのイベントのハンドラの並び */
+export function handlersOf(plan: Plan, event: string): Handler[] {
+  const h = plan.handler(event);
+  return Array.isArray(h) ? [...h] : [h as Handler];
 }
 
 type Obj = Record<string, unknown>;
@@ -46,7 +56,7 @@ function isTurnlaneGroup(g: unknown): boolean {
   );
 }
 
-function sameHandler(a: unknown, b: unknown): boolean {
+function sameHandlers(a: readonly unknown[], b: readonly unknown[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -95,23 +105,23 @@ export function install(settings: unknown, plan: Plan): { next: Obj; report: Ins
   const report: InstallReport = { added: [], updated: [], removed: [], unchanged: [] };
   const hooks = hooksOf(next);
   for (const event of plan.events) {
-    const want = plan.handler(event);
+    const want = handlersOf(plan, event);
     const arr: unknown[] = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]) : [];
     const ours = arr.map((g, i) => [g, i] as const).filter(([g]) => isTurnlaneGroup(g));
     if (ours.length === 0) {
       stripMixed(arr);
-      arr.push({ hooks: [want] });
+      arr.push({ hooks: want });
       report.added.push(event);
     } else {
       const [first, firstIdx] = ours[0] as readonly [Group, number];
       const firstHooks = first.hooks as unknown[];
-      if (firstHooks.length === 1 && sameHandler(firstHooks[0], want) && ours.length === 1) {
+      if (sameHandlers(firstHooks, want) && ours.length === 1) {
         report.unchanged.push(event);
       } else {
         // 位置を保ったまま置き換える（Codex の承認の鍵を他ツールについて動かさない）
         arr[firstIdx] = {
           ...(first.matcher !== undefined ? { matcher: first.matcher } : {}),
-          hooks: [want],
+          hooks: want,
         };
         for (const [, i] of ours.slice(1).reverse()) arr.splice(i, 1);
         report.updated.push(event);
@@ -154,8 +164,7 @@ export function status(
     else {
       found++;
       const h = ours[0]?.hooks ?? [];
-      if (!(ours.length === 1 && h.length === 1 && sameHandler(h[0], plan.handler(event))))
-        outdated.push(event);
+      if (!(ours.length === 1 && sameHandlers(h, handlersOf(plan, event)))) outdated.push(event);
     }
   }
   const state: InstallState =
@@ -194,8 +203,35 @@ export function groupsAfterTurnlane(settings: unknown): Record<string, string[]>
   return out;
 }
 
-/** シェルに渡す command 文字列。パスは単一引用符で囲む */
-export function hookCommand(cliPath: string, tool: string): string {
+/** シェルに渡す command 文字列。パスは単一引用符で囲む。answer は hook で答えるハンドラ（ADR 0023） */
+export function hookCommand(cliPath: string, tool: string, o: { answer?: boolean } = {}): string {
   const q = `'${cliPath.replaceAll("'", `'\\''`)}'`;
-  return `${q} hook --tool ${tool} ${MARKER}`;
+  return `${q} hook --tool ${tool}${o.answer ? " --answer" : ""} ${MARKER}`;
+}
+
+/** command から turnlane の場所（先頭の引用した語）を除いた形（入れた場所によらずハンドラの形を比べる） */
+function shapeOf(h: unknown): unknown {
+  if (typeof h !== "object" || h === null || Array.isArray(h)) return h;
+  const o = h as Record<string, unknown>;
+  const c =
+    typeof o.command === "string" ? o.command.replace(/^'(?:[^']|'\\'')*'\s*/, "") : o.command;
+  return { ...o, command: c };
+}
+
+/**
+ * Turnlane のハンドラが入っているが、今のプランと形（turnlane の場所を除く）が違うイベント（入れた後に足したハンドラが
+ * 無い等。再インストールを勧める）。Turnlane のグループが無いイベントは見ない（none・partial は status で分かる）
+ */
+export function shapeOutdated(settings: unknown, plan: Plan): string[] {
+  const hooks = isObj(settings) && isObj(settings.hooks) ? settings.hooks : {};
+  const out: string[] = [];
+  for (const event of plan.events) {
+    const arr: unknown[] = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]) : [];
+    const ours = arr.filter((g) => isTurnlaneGroup(g)) as Group[];
+    if (ours.length === 0) continue;
+    const have = (ours[0]?.hooks ?? []).map(shapeOf);
+    const want = handlersOf(plan, event).map(shapeOf);
+    if (JSON.stringify(have) !== JSON.stringify(want)) out.push(event);
+  }
+  return out;
 }

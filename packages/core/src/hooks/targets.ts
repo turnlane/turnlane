@@ -10,16 +10,35 @@ import { hookCommand, isTurnlaneHandler, type Plan } from "./config.ts";
 export const CLAUDE_EVENTS = HOOK_ALLOWLIST.claude_code.events;
 export const CODEX_EVENTS = HOOK_ALLOWLIST.codex.events;
 
+/**
+ * hook で答えるハンドラ（ADR 0023）の timeout（秒）。人が何時間も離れていても待てる長さにする。Claude Code（2.1.326）は
+ * timeout が来ると hook に SIGTERM を送るだけで、本体の確認（端末のダイアログ・SDK のアプリの確認）はそのまま残る
+ * （確かめた）。過ぎた後は Turnlane からは答えられず、端末・アプリで答える
+ */
+export const CLAUDE_ANSWER_TIMEOUT_S = 86_400;
+
 export function claudePlan(cliPath: string): Plan {
+  const spool = {
+    type: "command",
+    command: hookCommand(cliPath, "claude_code"),
+    timeout: 5,
+    async: true,
+  } as const;
   return {
     events: CLAUDE_EVENTS,
-    // async: Claude の処理をブロックしない。timeout は秒
-    handler: () => ({
-      type: "command",
-      command: hookCommand(cliPath, "claude_code"),
-      timeout: 5,
-      async: true,
-    }),
+    // async: Claude の処理をブロックしない。timeout は秒。PermissionRequest には hook で答えるハンドラも入れる（ADR 0023。
+    // async にしない: 出した答えを Claude Code が読む。本体の確認と並んで動くので、確認を遅らせない）
+    handler: (event) =>
+      event === "PermissionRequest"
+        ? [
+            spool,
+            {
+              type: "command",
+              command: hookCommand(cliPath, "claude_code", { answer: true }),
+              timeout: CLAUDE_ANSWER_TIMEOUT_S,
+            },
+          ]
+        : spool,
   };
 }
 

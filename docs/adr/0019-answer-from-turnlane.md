@@ -1,6 +1,6 @@
 # ADR 0019: Turnlane から答える: 答えは端末に文字として届ける。自動では送らない
 
-- ステータス: Accepted（D-238。2026-10-20）
+- ステータス: Accepted（D-238。2026-10-20）。Amended by [ADR 0023](0023-answer-through-the-permission-hook.md)（Claude Code の許可待ち・AskUserQuestion は、PermissionRequest の hook が待っていれば hook で返す。Decision 1・7 の一部）
 - 日付: 2026-10-20
 
 ## Context

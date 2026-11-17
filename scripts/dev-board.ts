@@ -169,6 +169,7 @@ const DESIGN = opt("--design") as
   | "away"
   | "away-night"
   | "answer"
+  | "hook"
   | "instruct"
   | "lane"
   | "demo"
@@ -197,6 +198,7 @@ if (
     "away",
     "away-night",
     "answer",
+    "hook",
     "instruct",
     "lane",
     "demo",
@@ -313,8 +315,10 @@ function hook(
 // 事実は時刻順に書き、偽の時計を進めながら取り込み・判定を回す（返答タスクが実際の時刻に作られ、放置が数えられる）
 const steps: { at: number; run: () => void }[] = [];
 const step = (t: number, run: () => void) => steps.push({ at: t, run });
-const session = (root: string, r: string, branch: string) => {
-  const id = sid();
+const session = (root: string, r: string, branch: string, fixedId?: string) => {
+  // 決まった ID でも番号は進める（ほかのセッションの ID を変えない）
+  const seq = sid();
+  const id = fixedId ?? seq;
   const w = claudeTranscript(root, { sid: id, cwd: repo(r), branch });
   // 文を書かない指示は、ダミーの件名になる文にする（記録の書き手の既定の "(prompt)" が件名に出ないように。D-214 (1)）
   const human = w.human;
@@ -1782,6 +1786,50 @@ if (DESIGN === "answer") {
       try {
         process.kill(pid);
       } catch {}
+  });
+}
+// hook で答える（--design hook。ADR 0023）。本文はすべてダミー。今は 17:10。端末の無いセッション（Agent SDK のアプリの形。
+// プロセスが分からないので、端末には送れない）の許可待ちと AskUserQuestion（記録に tool_use がある）。session_id は決まった値で、
+// E2E が hook の代わりに POST /api/hook-waits を呼ぶ
+const HOOK_DESIGN_SESSIONS = {
+  permission: "00000000-0000-4000-8000-00000000a001",
+  ask: "00000000-0000-4000-8000-00000000a002",
+} as const;
+if (DESIGN === "hook") {
+  const pw = session(main, "api-gateway", "fix/migration", HOOK_DESIGN_SESSIONS.permission);
+  step(at("16:58"), () => {
+    pw.w.aiTitle(at("16:58"), L("設定のテーブルの移行", "Settings table migration"));
+    pw.w.human(at("16:58"), { text: L("移行を書いて", "Write the migration") });
+    hook("UserPromptSubmit", pw.id, main, at("16:58"));
+  });
+  step(at("17:02"), () => {
+    pw.w.toolUse(at("17:02"), "Bash", {
+      command: "bun run migrate",
+      description: L("移行を流す", "Run the migration"),
+    });
+    hook("PermissionRequest", pw.id, main, at("17:02"), { tool_name: "Bash" });
+  });
+  const aw = session(main, "web-app", "feat/channel", HOOK_DESIGN_SESSIONS.ask);
+  step(at("17:00"), () => {
+    aw.w.aiTitle(at("17:00"), L("配信のチャンネル", "Delivery channel"));
+    aw.w.human(at("17:00"), { text: L("配信のチャンネルを決めて", "Pick the delivery channel") });
+    hook("UserPromptSubmit", aw.id, main, at("17:00"));
+  });
+  step(at("17:04"), () => {
+    aw.w.toolUse(at("17:04"), "AskUserQuestion", {
+      questions: [
+        {
+          question: L("どのチャンネルに出しますか?", "Which channel should it ship to?"),
+          header: "Channel",
+          multiSelect: false,
+          options: [
+            { label: "beta", description: "(description)" },
+            { label: "stable", description: "(description)" },
+          ],
+        },
+      ],
+    });
+    hook("PermissionRequest", aw.id, main, at("17:04"), { tool_name: "AskUserQuestion" });
   });
 }
 // 次の指示（--design instruct。Issue #9）。本文はすべてダミー。今は 17:10。

@@ -114,6 +114,12 @@ export function answerLanding(
   );
 }
 
+/**
+ * 届け先が Claude Code の hook のとき（ADR 0023）の短い言葉。端末のタブではなく、そのセッションの確認（端末のダイアログ・
+ * Agent SDK のアプリの確認）にそのまま返す。言語によらず同じ
+ */
+export const HOOK_LANDING = "Claude Code · hook";
+
 /** 送った後の知らせの文 */
 export function answerSentText(
   r: { confirmed: boolean; landing: string; folded?: boolean },

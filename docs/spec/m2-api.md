@@ -1325,6 +1325,13 @@ interface AnswerResult {
 
 - 答えの文は保存しない。ログは `answer.sent`（`chars`・`via`・`allow`・`confirmed`・`folded`）と、Ghostty に送れなかったときの `answer.undelivered`（`via`・`reason`）だけ
 
+### 31.3 hook で答える（D-364。ADR 0023。口は 42 章）
+
+- `GET /wait`: Claude Code の許可待ち（`permission`）・回答待ち（`ask`）で、同じセッション（許可待ちはそのターンの PermissionRequest のツールの名前も）の hook がちょうど 1 つ待っていれば、端末を探さずに `delivery: { deliverable: true, via: "hook", terminal: null, landing: "Claude Code · hook", multiline: false }`。許可待ちは `canAllow: true`。回答待ちは問いの形が読めたら `questions: { text, multiSelect, options: { n, label }[] }[]`（文と名前は伏せ字の後。設定「行に中身を出す」がオフなら付かない）。hook が待っていない・決まらないときは今までどおり
+- `POST /answer`: 入力に `{ choices: ({ options: number[] } | { text: string })[] }`（問いごと。番号は 0 始まり。単一選択は 1 つ、複数選択は 1 つ以上、重なりなし。文は 1 行に畳む）を足す。`choices` は回答待ちで hook が待っているときだけ（それ以外は 409 `undeliverable`、形が合わなければ 400 `invalid_input`）。`{ allow: true }` は hook が待っていれば hook に、いなければ今までどおり端末に `1`
+- hook に渡したら、hook が受け取るのを 3 秒まで待つ（受け取らなければ送っていないので 409 `send_failed`）。その後は 4 と同じく記録が進んだかを見る。確かめられなくても前に出さない（`focus: null`）。応答は `via: "hook"`、`app: "Claude Code"`、`landing: "Claude Code · hook"`
+- ログは `answer.sent`（`chars: 0`・`via: hook`・`allow`・`questions`（問いの数）・`confirmed`）。答えの文・番号は出さない
+
 ## 32. 自分の番の画面の「後で」（2026-10-23。[ux-mvp.md](ux-mvp.md) 4.6）
 
 自分の番の画面の一覧の下に、いま対応しなくてよいが戻ってくるもの（スヌーズ中・明日へ・時間に置いた開始の前・リセット前の上限待ち）を「後で」の節として出す。帯・メニューバーの件数・通知・放置・MCP には入れない（今までどおり `items` の open なものだけを見る）。
@@ -1509,3 +1516,18 @@ AskCreateInput {
 - 開いている問いは runner に ID・開いた時刻・ターンだけを渡す（`WorkItemFacts.asks`）。カードは `needs_input`（理由 `ask_user`。エラーだけが先）で、返答タスク（`kind: reply`、`artifact_ref: ask_user:<id>:ask`、`trigger_at` = 開いた時刻）をすぐ作る（返答タスクの設定・プログラム経由のセッションによらない）。開いている間は同じカードの問い・Stop の終わりの返答タスクを重ねず、端末で答える待ち（31 章の `wait`）も出さない。待ちの中身の保存（ADR 0018 の `wait_detail`）はしない
 - 閉じ方（`WorkItemFacts.askClosures`。メモリの控え）で返答タスクを閉じる: 返した（MCP のプロセスが受け取った時刻）→ `done`・`auto:answered`、AI 側で打ち切られた → `superseded`・`auto:ask_cancelled`、控えが無い（デーモンの再起動）→ `superseded`・`auto:ask_lost`。人が閉じたものは `dismissed`（UserOps）。待ちの区間は開いた時刻から閉じた時刻まで（`fu:<id>`）
 
+## 42. hook で答える（D-364。ADR 0023、[ux-mvp.md](ux-mvp.md) 4.18、31.3）
+
+Claude Code の PermissionRequest の 2 つ目のハンドラ（`turnlane hook --tool claude_code --answer --managed-by turnlane`。`apps/cli/src/hook/answer.ts`）が使う口。待ちはデーモンのメモリにだけある（`apps/daemon/src/answer/hook-waits.ts`。判定は core の `hook-wait.ts`）。どの応答も `Cache-Control: no-store`。型は `packages/core/src/api/hook-wait.ts`。
+
+- **`POST /api/hook-waits`**（Bearer）: 本文 `{ session, tool, agentId?, entrypoint?, delegated?, permissionMode? }`（`session` は hook の入力の `session_id`、`tool` は `tool_name`、`agentId` は `agent_id`、`entrypoint` は環境変数 `CLAUDE_CODE_ENTRYPOINT`。ツールの入力は送らない。ほかのキーは読み捨てる。4 KB まで）→ `{ wait: true, id }` か `{ wait: false, reason }`（`off` = 設定「Turnlane から答える」がオフ、`program` = `entrypoint` が `sdk-*`・`delegated`・取り込んだセッションがプログラム経由、`unsupported` = 形が違う・`bypassPermissions`）。開くと、同じ `session`・同じ `agentId` の前の待ちを取り下げる（Claude Code は確認を 1 つずつ出す）。同時に 64 まで（超えたら古いものから取り下げる）
+- **`GET /api/hook-waits/:id/result?wait=<ms>`**（Bearer。`wait` は 25,000 まで）: 答えが無ければ `wait` まで待って `{ state: "open" }`。答えは `{ state: "allow" }` か `{ state: "answer", count, answers: ({ options: number[] } | { text })[] }`（`count` は記録の問いの数）。渡したら待ちを閉じ、以後は `{ state: "withdrawn" }`。取り下げた待ちも `withdrawn`。知らない待ち（デーモンの再起動・控えの 10 分が過ぎた）は 404 `not_found`。この呼び出しが生きている印で、90 秒来なければ取り下げる
+- **`POST /api/hook-waits/:id/cancel`**（Bearer）→ `{ state: "cancelled" }`（hook がシグナルを受けた・親が居なくなった）。知らなければ 404
+
+**取り下げ**（判定の後と 5 秒ごと。core の `hookWaitWithdrawal`）: hook から 90 秒聞かれない（`gone`）、そのセッションの SessionEnd（`session_end`）、本体の待ち（`agentId` 無し）の後の本体の UserPromptSubmit・Stop・StopFailure（`turn_moved`）、カードに一度見えた待ちが無くなった（`closed`。カードの答える対象 `derive.openWaitOf` が同じセッションの同じ種類でなくなった）、開いて 60 秒たってもカードに一度も見えない（`unseen`）。ログは `hook_wait.closed`（`how`・AskUserQuestion か・サブエージェントか）だけ。
+
+**hook の側**（`turnlane hook --tool claude_code --answer`）:
+- すぐ終わる（何も出さない）: PermissionRequest でない、`T3CODE_THREAD_ID` が委任の子、`CLAUDE_CODE_ENTRYPOINT` が `sdk-*`、トークン（`<データ>/token`）が読めない、`POST /api/hook-waits` が 1.5 秒で返らない・`wait: false`
+- 待つ: `result?wait=25000` を繰り返す。`withdrawn`・404 で終わる。届かない間は 1 秒おきに聞き直し、60 秒続いたら終わる。親（起動したときの `ppid`）が変わった・`kill(pid, 0)` が失敗したら（1 秒ごと）、SIGTERM・SIGINT・SIGHUP を受けたら、`cancel` を呼んで（0.3 秒まで）何も出さずに終わる
+- 出す形: `allow` → `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`（ツールが AskUserQuestion なら出さない）。`answer` → 同じ形に `updatedInput`（hook の入力の `tool_input` に `answers: { "<問いの文>": "<名前>" }` を足したもの。複数選択は `, ` でつなぐ、文はそのまま）。ツールが AskUserQuestion でない・問いの数が `count` と違う・番号が範囲外・単一選択に 2 つ以上・同じ問いの文が 2 つなら出さない
+- データの場所とポートは `TURNLANE_DATA_DIR`・`TURNLANE_PORT`（無ければ既定。spool と同じ）

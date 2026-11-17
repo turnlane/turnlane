@@ -581,6 +581,8 @@ export const ja: Dict = {
   "settings.sources.hooks.pending_trust": "hooks の承認待ち",
   "settings.sources.hooks.receiving": "hooks 受信中",
   "settings.sources.hooks.silent": "hooks が届いていない",
+  "settings.sources.hooks.update":
+    "hooks の更新があります（turnlane hooks install で入れ直すと、許可と選択肢の問いに hook で答えられます）",
   "settings.sources.mcp.installed": "MCP 登録済み",
   "settings.sources.mcp.none": "MCP 未登録（turnlane mcp install）",
   "settings.sources.mcp.outdated": "MCP が別の turnlane を指している（turnlane mcp install）",
@@ -715,6 +717,14 @@ export const ja: Dict = {
   "answer.openToDecide": "開いて決める",
   "answer.allowHint":
     "{where} の許可のダイアログに 1（Yes）を送ります。「今後も許可」は Turnlane からは送りません。",
+  "answer.allowHintHook":
+    "この 1 回だけの許可を、hook でこのセッションの確認にそのまま返します（端末・アプリによらず届きます）。「今後も許可」は Turnlane からは送りません。",
+  "answer.askHook.hint":
+    "選んだ答えを hook でこの問いにそのまま返します（端末・アプリによらず届きます）。",
+  "answer.askHook.multi": "複数選べます",
+  "answer.askHook.other": "自分で書く",
+  "answer.askHook.unreadable":
+    "問いの中身が読めないので、ここでは選べません。開いて答えてください。",
   "answer.sentConfirmed": "{time} に送りました · 確認済み",
   "answer.sentUnconfirmed": "{time} に送りました · 確認できません",
   "answer.closed": "もう進んでいます",

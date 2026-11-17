@@ -607,6 +607,8 @@ export const en = {
   "settings.sources.hooks.pending_trust": "hooks awaiting approval",
   "settings.sources.hooks.receiving": "hooks receiving",
   "settings.sources.hooks.silent": "hooks not arriving",
+  "settings.sources.hooks.update":
+    "hooks need an update (run turnlane hooks install to answer permissions and multiple-choice questions through the hook)",
   "settings.sources.mcp.installed": "MCP registered",
   "settings.sources.mcp.none": "MCP not registered (turnlane mcp install)",
   "settings.sources.mcp.outdated": "MCP points to another turnlane (turnlane mcp install)",
@@ -743,6 +745,14 @@ export const en = {
   "answer.openToDecide": "Open to decide",
   "answer.allowHint":
     "Sends 1 (Yes) to the permission prompt in {where}. “Don't ask again” isn't sent from Turnlane.",
+  "answer.allowHintHook":
+    "Allows this one call, returned through the hook straight to this session's prompt (works in any terminal or app). “Don't ask again” isn't sent from Turnlane.",
+  "answer.askHook.hint":
+    "Your choice goes back through the hook straight to this question (works in any terminal or app).",
+  "answer.askHook.multi": "You can pick more than one",
+  "answer.askHook.other": "Write your own",
+  "answer.askHook.unreadable":
+    "Can't read the question, so you can't choose here. Open the session to answer.",
   "answer.sentConfirmed": "Sent at {time} · confirmed",
   "answer.sentUnconfirmed": "Sent at {time} · couldn't confirm",
   "answer.closed": "It's already moved on",

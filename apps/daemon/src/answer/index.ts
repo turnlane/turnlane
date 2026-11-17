@@ -10,18 +10,25 @@
  *   前に出す（確かめられたら Turnlane に留まる。D-241）
  * - 答えの文は保存しない（記録に自分の指示として現れ、ADR 0018 の規則で 1 行目だけが保存される）。ログは
  *   `answer.sent`（文字数と届け先の種類）だけ
+ * - hook で答える（ADR 0023）: 許可待ち・AskUserQuestion で、その待ちを Claude Code の PermissionRequest の hook が待っていれば
+ *   （hook-waits.ts。ちょうど 1 つに決まるときだけ）、端末に打たずに hook に返す（端末によらず、Agent SDK のアプリにも届く）。
+ *   待っていなければ今までどおり端末に打つ
  */
 import type { Database } from "bun:sqlite";
 import { type MetaOnlyLogger, meta } from "@turnlane/collectors";
 import {
   ANSWER_MAX,
+  type AskQuestionShape,
   answerLanding,
   answerSentText,
   answerWhere,
   type derive,
+  HOOK_LANDING,
+  type HookWaitEntry,
   instructBlock,
   instructUndeliverable,
   type Locale,
+  parseAskChoices,
 } from "@turnlane/core";
 import type {
   AnswerDelivery,
@@ -35,6 +42,7 @@ import type {
   WaitResponse,
 } from "@turnlane/core/api";
 import { OpError } from "../derive/ops.ts";
+import { permissionToolOf } from "../glance/index.ts";
 import { ghosttyMarker, hostTerminal } from "../open/focus.ts";
 import { ghosttyScriptable, noteGhosttyUnscriptable } from "../open/ghostty.ts";
 import { type Opener, runPrep } from "../open/index.ts";
@@ -51,6 +59,7 @@ import {
   sendPrep,
   sendsNewlines,
 } from "./deliver.ts";
+import type { HookWaits } from "./hook-waits.ts";
 import { type InstructRead, readInstruct, tailState } from "./instruct.ts";
 import { readWait, type WaitRead, waitOpen } from "./wait.ts";
 
@@ -74,6 +83,8 @@ export interface AnswererOptions {
   sleep?: (ms: number) => Promise<void>;
   /** カードのセッションの待ち（runner の最後の判定。D-240）。無ければフォローアップだけを見る */
   sessionWait?: (workItemId: string) => derive.SessionWait | null;
+  /** 待っている Claude Code の PermissionRequest の hook（ADR 0023）。無ければ端末に打つだけ */
+  hookWaits?: HookWaits;
 }
 
 export class Answerer {
@@ -154,6 +165,30 @@ export class Answerer {
     );
   }
 
+  /**
+   * その待ちを待っている hook（ADR 0023）: Claude Code の許可待ち・AskUserQuestion で、同じセッション（と許可ならツールの名前）
+   * の hook がちょうど 1 つ待っているとき
+   */
+  #hookFor(w: WaitRead): HookWaitEntry | null {
+    const hw = this.o.hookWaits;
+    const s = w.session;
+    if (!hw || !w.wait || !s || s.tool !== "claude_code" || !s.external_id) return null;
+    if (w.kind !== "permission" && w.kind !== "ask") return null;
+    const tool =
+      w.kind === "permission" ? permissionToolOf(this.o.sqlite, s.id, w.wait.turnId) : null;
+    return hw.match({ session: s.external_id, kind: w.kind, tool });
+  }
+
+  #hookDelivery(): AnswerDelivery {
+    return {
+      deliverable: true,
+      via: "hook",
+      terminal: null,
+      landing: HOOK_LANDING,
+      multiline: false,
+    };
+  }
+
   async wait(workItemId: string): Promise<WaitResponse | null> {
     const w = readWait(this.o.sqlite, workItemId, {
       showDetail: this.o.showDetail(),
@@ -170,6 +205,22 @@ export class Answerer {
     const off = !this.o.enabled();
     // 報告の項目（ADR 0021）: 端末に送る口は無い。答えは報告した側で（開く先）
     const reporter = w.session && this.#reportSource(w.session.id) ? w.session.tool : null;
+    // hook が待っていれば端末を探さずに hook に返す（ADR 0023）
+    const hook = !off && !reporter ? this.#hookFor(w) : null;
+    if (hook) {
+      // AskUserQuestion は問いごとの形が読めたときだけ選べる（読めなければ今までどおり「端末で答えて」）
+      const questions = w.kind === "ask" ? w.questions : undefined;
+      return {
+        ...base,
+        ...(w.question ? { question: w.question } : {}),
+        ...(w.options ? { options: w.options } : {}),
+        ...(questions ? { questions } : {}),
+        ...(w.permission ? { permission: w.permission } : {}),
+        ...(w.unavailable ? { unavailable: w.unavailable } : {}),
+        canAllow: w.kind === "permission",
+        delivery: this.#hookDelivery(),
+      };
+    }
     const { d, tool } = reporter
       ? { d: { ok: false, app: reporter, reason: "report" } as Delivery, tool: null }
       : off || w.kind === "none"
@@ -192,19 +243,39 @@ export class Answerer {
   async answer(workItemId: string, input: AnswerInput): Promise<AnswerResult> {
     if (!this.o.enabled()) throw new OpError(409, "answer_off");
     const allow = "allow" in input;
-    if (!allow && (typeof input.text !== "string" || input.text.length > ANSWER_MAX))
+    const choices = "choices" in input;
+    if (!allow && !choices && (typeof input.text !== "string" || input.text.length > ANSWER_MAX))
       throw new OpError(400, "invalid_input");
+    // 選んだ答え（hook）は問いごとの形を確かめるので、問いを読む（設定「行に中身を出す」がオフなら読まない = 選べない）
     const w = readWait(this.o.sqlite, workItemId, {
-      showDetail: false,
+      showDetail: choices && this.o.showDetail(),
       home: this.o.home,
       sessionWait: this.#sessionWait(workItemId),
     });
     if (!w) throw new OpError(404, "not_found");
     if (w.kind === "none" || !w.wait) throw new OpError(409, "wait_closed");
     if (allow && w.kind !== "permission") throw new OpError(400, "invalid_input");
+    if (choices && w.kind !== "ask") throw new OpError(400, "invalid_input");
     // (a) 待ちがまだ開いているか（閉じていれば送らない）
     if (!waitOpen(this.o.sqlite, w, this.#sessionWait(workItemId)).open)
       throw new OpError(409, "wait_closed");
+    // hook が待っていれば hook に返す（ADR 0023）。選んだ答えは hook にしか返せない
+    const hook = allow || choices ? this.#hookFor(w) : null;
+    if (choices) {
+      if (!hook || !w.questions) throw new OpError(409, "undeliverable");
+      const shapes: AskQuestionShape[] = w.questions.map((q) => ({
+        multiSelect: q.multiSelect,
+        options: q.options.length,
+      }));
+      const answers = parseAskChoices(shapes, input.choices);
+      if (!answers) throw new OpError(400, "invalid_input");
+      return this.#viaHook(workItemId, w, hook, {
+        state: "answer",
+        answers,
+        count: shapes.length,
+      });
+    }
+    if (allow && hook) return this.#viaHook(workItemId, w, hook, { state: "allow" });
     // (b) 届け先
     const { d, tool, host } = await this.#deliveryFor(workItemId, w);
     if (!d.ok) throw new OpError(409, "undeliverable");
@@ -258,6 +329,43 @@ export class Answerer {
       focus,
       message: answerSentText({ confirmed, landing }, locale),
       folded: prepared.folded,
+    };
+  }
+
+  /**
+   * hook に答えを渡す（ADR 0023）。hook が受け取らなければ送っていない（409 send_failed）。受け取ったら 3 秒以内に記録が
+   * 進んだかを見る（端末に打つときと同じ）。確かめられなくても前に出さない。答えは保存しない（ログは届け先の種類・許可か・
+   * 問いの数だけ）
+   */
+  async #viaHook(
+    workItemId: string,
+    w: WaitRead,
+    hook: HookWaitEntry,
+    d: Parameters<HookWaits["deliver"]>[1],
+  ): Promise<AnswerResult> {
+    const hw = this.o.hookWaits;
+    if (!hw || !(await hw.deliver(hook.id, d))) throw new OpError(409, "send_failed");
+    // 確かめられなくても前に出さない: 届け先は端末のタブではなく hook（Agent SDK のアプリでは前に出す先が無い）。並んだ
+    // 許可（同じメッセージの 2 つ目のツール）が残っていると記録の上では待ちが開いたままに見える
+    const confirmed = await this.#progressed(workItemId, w);
+    const focus: OpenLanding | null = null;
+    this.o.logger.info("answer.sent", {
+      chars: 0,
+      via: meta("hook"),
+      allow: d.state === "allow",
+      questions: d.state === "answer" ? d.count : 0,
+      confirmed,
+      folded: false,
+    });
+    return {
+      delivered: true,
+      confirmed,
+      via: "hook",
+      app: "Claude Code",
+      landing: HOOK_LANDING,
+      focus,
+      message: answerSentText({ confirmed, landing: HOOK_LANDING }, this.o.locale()),
+      folded: false,
     };
   }
 

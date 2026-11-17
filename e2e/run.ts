@@ -1,7 +1,7 @@
 /**
  * E2E の実行（D-092）。`bun run e2e` が Web をビルドしてからこれを呼ぶ。
  *
- *   bun e2e/run.ts [--engine chromium|webkit] [--suite board-dnd|ime|events|focus|mouse|launch|actions|actions-scratch|ext|ext-none|panels|panel-resize|away|expired|answer|answer-grace|answer-lane|ask|onboarding|onboarding-app|onboarding-calendar-fail|boot|editing|demo|ai|palette|later]
+ *   bun e2e/run.ts [--engine chromium|webkit] [--suite board-dnd|ime|events|focus|mouse|launch|actions|actions-scratch|ext|ext-none|panels|panel-resize|away|expired|answer|answer-grace|answer-lane|hook-answer|ask|onboarding|onboarding-app|onboarding-calendar-fail|boot|editing|demo|ai|palette|later]
  *
  * 既定は全スイートを WebKit だけで走らせる（アプリの殻は WKWebView。D-196。スイートごとに新しい dev-board）。
  * Chromium は `--engine chromium` を指定したときだけ。
@@ -23,6 +23,7 @@ import { buildExtWeb, extNoneSuite, extSuite } from "./ext.e2e.ts";
 import { focusSuite } from "./focus.e2e.ts";
 import { googleInviteSuite } from "./google-invite.e2e.ts";
 import { type Engine, type Result, runSuite, type Suite } from "./harness.ts";
+import { hookAnswerSuite } from "./hook-answer.e2e.ts";
 import { imeSuite } from "./ime.e2e.ts";
 import { instructSuite } from "./instruct.e2e.ts";
 import { keymapSuite } from "./keymap.e2e.ts";
@@ -64,6 +65,7 @@ const SUITES: Suite[] = [
   answerSuite,
   answerGraceSuite,
   answerLaneSuite,
+  hookAnswerSuite,
   instructSuite,
   askSuite,
   onboardingSuite,

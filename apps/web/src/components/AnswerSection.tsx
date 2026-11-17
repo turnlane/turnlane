@@ -8,8 +8,10 @@
  * - 送れない端末: 入力欄を出さず「この端末には送れません」と理由、「開く」
  * - 送った後（D-241）: 節は閉じず、その待ちが閉じるまで「10:25 に送りました · 確認済み」（確かめられなければ「確認できません」）
  *   の 1 行を残す（web の状態だけ）。待ちが閉じると節ごと消える
+ * - 届け先が hook（ADR 0023）: 許可待ちは「許可する」がこの 1 回の許可を hook で返す。AskUserQuestion は問いごとに選択肢を
+ *   選び（複数選択は複数、「自分で書く」で自由な文）、「送る」で hook に返す（押すまで何も送らない）
  */
-import type { OpenWaitBrief, WaitResponse } from "@turnlane/core/web";
+import type { AnswerInput, HookAskChoice, OpenWaitBrief, WaitResponse } from "@turnlane/core/web";
 import { fmtClock } from "@turnlane/core/web";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -77,7 +79,7 @@ function AnswerBody({
     if (w?.delivery.deliverable && w.kind !== "permission") area.current?.focus();
   }, [w?.delivery.deliverable, w?.kind]);
   const fid = w?.followUpId ?? followUpId;
-  const send = async (input: { text: string } | { allow: true }) => {
+  const send = async (input: AnswerInput) => {
     if (busy) return;
     setBusy(true);
     const r = await sendAnswer(workItemId, fid, input, markKey);
@@ -123,6 +125,30 @@ function AnswerBody({
         // 送った後に読み直したら待ちが閉じていた（行・詳細が読み直されるまでの間）。送った印だけを出す
         sent ? null : (
           <p className="text-fg3 text-meta">{t("answer.closed")}</p>
+        )
+      ) : w.kind === "ask" && w.delivery.via === "hook" ? (
+        w.questions && w.questions.length > 0 ? (
+          <HookAsk
+            w={w}
+            questions={w.questions}
+            busy={busy}
+            onSend={(choices) => void send({ choices })}
+          />
+        ) : (
+          // hook は待っているが、問いの形が読めない（記録に無い・設定「行に中身を出す」がオフ）。選べないので開いて答える
+          <div className="flex flex-col gap-2" data-testid="answer-ask-unreadable">
+            <p className="text-fg2 text-meta">{t("answer.askHook.unreadable")}</p>
+            <div>
+              <Button
+                variant="primary"
+                className="px-2"
+                onClick={openSession}
+                data-testid="answer-open"
+              >
+                {t("answer.open")}
+              </Button>
+            </div>
+          </div>
         )
       ) : w.kind === "ask" && !w.question && w.unavailable && w.unavailable !== "off" ? (
         // AskUserQuestion のダイアログは選択式。問いが読めないと、自由な文は意味がなく、数字は見えない選択肢を選んでしまう
@@ -379,9 +405,130 @@ function PermissionAnswer({
           {t("answer.openToDecide")}
         </Button>
       </div>
-      <p className="text-[11px] text-fg3">
-        {t("answer.allowHint", { where: w.delivery.landing ?? "" })}
+      <p className="text-[11px] text-fg3" data-testid="answer-allow-hint">
+        {t(w.delivery.via === "hook" ? "answer.allowHintHook" : "answer.allowHint", {
+          where: w.delivery.landing ?? "",
+        })}
       </p>
+    </div>
+  );
+}
+
+type Pick = { options: number[]; text: string };
+
+/**
+ * hook で返す AskUserQuestion（ADR 0023）: 問いごとに選択肢を選ぶ（単一選択は 1 つ、複数選択は複数）か「自分で書く」。全部の
+ * 問いに答えがそろったら「送る」で返す。押すまで何も送らない。番号は画面では 1 始まり、送るときは 0 始まり
+ */
+function HookAsk({
+  w,
+  questions,
+  busy,
+  onSend,
+}: {
+  w: WaitResponse;
+  questions: NonNullable<WaitResponse["questions"]>;
+  busy: boolean;
+  onSend: (choices: HookAskChoice[]) => void;
+}) {
+  const { t } = useI18n();
+  const [picks, setPicks] = useState<Pick[]>(() =>
+    questions.map(() => ({ options: [], text: "" })),
+  );
+  const set = (i: number, p: Pick) => setPicks((xs) => xs.map((x, j) => (j === i ? p : x)));
+  const ready = picks.every((p) => p.options.length > 0 || p.text.trim() !== "");
+  const submit = () => {
+    if (!ready || busy) return;
+    onSend(
+      picks.map((p) =>
+        p.text.trim() ? { text: p.text } : { options: [...p.options].sort((a, b) => a - b) },
+      ),
+    );
+  };
+  return (
+    <div className="flex flex-col gap-3" data-testid="answer-hook-ask">
+      {questions.map((q, i) => {
+        const p = picks[i] ?? { options: [], text: "" };
+        return (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: 問いの並びは変わらない
+            key={i}
+            className="flex flex-col gap-1.5"
+            data-testid="answer-hook-question"
+          >
+            <span className="text-body text-fg">{q.text}</span>
+            {q.multiSelect ? (
+              <span className="text-[11px] text-fg3">{t("answer.askHook.multi")}</span>
+            ) : null}
+            <fieldset
+              className="m-0 flex min-w-0 flex-wrap gap-1.5 border-0 p-0"
+              aria-label={t("answer.options")}
+            >
+              {q.options.map((o) => {
+                const on = p.options.includes(o.n - 1);
+                return (
+                  <Button
+                    key={o.n}
+                    size="sm"
+                    variant={on ? "primary" : "secondary"}
+                    className="max-w-full"
+                    aria-pressed={on}
+                    data-testid="answer-hook-option"
+                    onClick={() => {
+                      const n = o.n - 1;
+                      const options = q.multiSelect
+                        ? on
+                          ? p.options.filter((x) => x !== n)
+                          : [...p.options, n]
+                        : on
+                          ? []
+                          : [n];
+                      set(i, { options, text: "" });
+                    }}
+                  >
+                    <span className="font-mono">{o.n}</span>
+                    <span className="min-w-0 truncate">{o.label}</span>
+                  </Button>
+                );
+              })}
+            </fieldset>
+            <input
+              type="text"
+              value={p.text}
+              maxLength={4000}
+              onChange={(e) => set(i, { options: [], text: e.target.value })}
+              onKeyDown={(e) => {
+                if (isImeKey(e)) return;
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              aria-label={t("answer.askHook.other")}
+              placeholder={t("answer.askHook.other")}
+              className="h-7 w-full min-w-0 rounded-control border border-line bg-bg px-2.5 text-body text-fg placeholder:text-fg3 focus:border-fg3"
+              style={{ outline: "none" }}
+              data-testid="answer-hook-other"
+            />
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 text-[11px] text-fg3">
+          {t("answer.askHook.hint", { where: w.delivery.landing ?? "" })}
+        </span>
+        <Button
+          variant="primary"
+          className="max-w-[70%] px-2"
+          disabled={busy || !ready}
+          onClick={submit}
+          data-testid="answer-send"
+        >
+          <span className="min-w-0 truncate">
+            {busy ? t("answer.sending") : t("answer.sendTo", { where: w.delivery.landing ?? "" })}
+          </span>
+        </Button>
+      </div>
     </div>
   );
 }

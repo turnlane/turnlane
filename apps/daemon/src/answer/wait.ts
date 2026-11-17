@@ -52,9 +52,17 @@ export interface WaitRead {
   kind: WaitKind;
   question?: { text: string; truncated: boolean; masked: boolean };
   options?: { n: number; label: string }[];
+  /** AskUserQuestion の問いごとの文・複数選択か・選択肢（hook で答えるときに使う。ADR 0023） */
+  questions?: AskQuestionRead[];
   permission?: GlancePermission;
   error?: ErrorKind;
   unavailable?: GlanceUnavailable;
+}
+
+export interface AskQuestionRead {
+  text: string;
+  multiSelect: boolean;
+  options: { n: number; label: string }[];
 }
 
 type Rec = Record<string, unknown>;
@@ -190,6 +198,8 @@ export function readWait(
     const text = cutText(a.questions.map((q) => q.question).join("\n"));
     out.question = { ...text, masked: false };
     out.options = (a.questions[0]?.options ?? []).map((label, i) => ({ n: i + 1, label }));
+    const qs = askQuestionsOf(tu.value.input);
+    if (qs) out.questions = qs;
     return out;
   }
   // AI の問い（返答待ち）: 全文を読む
@@ -198,6 +208,33 @@ export function readWait(
     : readAt(path, null, () => null, questionInTail);
   if (!q.value) return { ...out, unavailable: q.fail ?? "unreadable" };
   return withQuestion(out, q.value);
+}
+
+/**
+ * AskUserQuestion の問いごとの形（ADR 0023）: 文（伏せ字の後に切る）・複数選択か・選択肢の名前（伏せ字。80 字）。選択肢の数は
+ * 入力のとおり（hook は番号で自分の入力の選択肢を選ぶので、名前の無い選択肢も数える）。形が合わなければ null
+ */
+export function askQuestionsOf(input: Rec): AskQuestionRead[] | null {
+  const qs = Array.isArray(input.questions) ? input.questions : [];
+  if (qs.length === 0) return null;
+  const out: AskQuestionRead[] = [];
+  for (const q of qs) {
+    const x = (typeof q === "object" && q !== null ? q : {}) as Rec;
+    if (typeof x.question !== "string" || !x.question.trim()) return null;
+    const opts = Array.isArray(x.options) ? x.options : [];
+    if (opts.length === 0) return null;
+    const r = redact(x.question.trim());
+    out.push({
+      text: cutText(r.text).text,
+      multiSelect: x.multiSelect === true,
+      options: opts.map((o, i) => {
+        const l = ((typeof o === "object" && o !== null ? o : {}) as Rec).label;
+        const t = typeof l === "string" ? redact(l).text : "";
+        return { n: i + 1, label: t.length > 80 ? `${t.slice(0, 79)}…` : t };
+      }),
+    });
+  }
+  return out;
 }
 
 /** 問いの全文（伏せ字の後に 2,000 字で切る）と、文の最後の番号付きの選択肢 */

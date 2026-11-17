@@ -5,15 +5,17 @@
  */
 import type { EpochMs } from "./common.ts";
 import type { GlancePermission, GlanceUnavailable } from "./glance.ts";
+import type { HookAskChoice } from "./hook-wait.ts";
 import type { OpenLanding } from "./open.ts";
 import type { ErrorKind } from "./work-items.ts";
 
 /**
  * 届け方（送れる端末）。tmux = send-keys、iterm = AppleScript の write text、terminal = ターミナル.app の AppleScript の
  * do script（tty の一致するタブに。D-243）、ghostty = Ghostty 1.3 の AppleScript の input text と send key（「開く」と同じ
- * 目印で選んだ端末に。D-244）、orca = 同梱の CLI の terminal send
+ * 目印で選んだ端末に。D-244）、orca = 同梱の CLI の terminal send、hook = Claude Code の PermissionRequest の hook が
+ * 待っている（許可と AskUserQuestion の選択肢だけ。端末に関係なく、Agent SDK のアプリにも届く。ADR 0023）
  */
-export type AnswerVia = "tmux" | "iterm" | "terminal" | "ghostty" | "orca";
+export type AnswerVia = "tmux" | "iterm" | "terminal" | "ghostty" | "orca" | "hook";
 
 /**
  * 送れない理由
@@ -64,6 +66,11 @@ export interface WaitResponse {
   question?: { text: string; truncated: boolean; masked: boolean };
   /** 選択肢（番号は 1 始まり。押すと入力欄に番号が入る） */
   options?: { n: number; label: string }[];
+  /**
+   * AskUserQuestion の問いごとの文・複数選択か・選択肢（届け先が hook のときだけ。ADR 0023）。画面は問いごとに選んで
+   * `{ choices }` で送る
+   */
+  questions?: { text: string; multiSelect: boolean; options: { n: number; label: string }[] }[];
   /** 許可待ちのツールと中身（glance と同じ伏せ字） */
   permission?: GlancePermission;
   /** 許可待ちで「許可する」（1 を送る）を出すか（Claude Code の許可のダイアログだけ） */
@@ -74,8 +81,11 @@ export interface WaitResponse {
   readAt: EpochMs;
 }
 
-/** 答え: 文（text）か、許可待ちの「許可する」（allow） */
-export type AnswerInput = { text: string } | { allow: true };
+/**
+ * 答え: 文（text）か、許可待ちの「許可する」（allow）か、AskUserQuestion の問いごとの答え（choices。届け先が hook のときだけ。
+ * 番号は 0 始まり。ADR 0023）
+ */
+export type AnswerInput = { text: string } | { allow: true } | { choices: HookAskChoice[] };
 
 export interface AnswerResult {
   delivered: boolean;

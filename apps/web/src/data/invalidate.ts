@@ -108,6 +108,8 @@ export function shouldInvalidate(
         (k === "workItem" && (data.ids ?? []).includes(key[1] as string)) ||
         // 待っている件の中身（D-207）。AI 項目が変われば読み直す
         (k === "glance" && (data.ids ?? []).includes(key[1] as string)) ||
+        // 「答える」の節の届け先（hook が待ち始めた・やめた。ADR 0023）
+        (k === "wait" && (data.ids ?? []).includes(key[1] as string)) ||
         k === "queue" ||
         // AI の画面（プロセス・状態・片付け）
         k === "aiLive" ||

@@ -5,6 +5,7 @@ export {
   answerLanding,
   answerSentText,
   answerWhere,
+  HOOK_LANDING,
   numberedOptions,
   prepareAnswer,
   WAIT_QUESTION_MAX,
@@ -150,6 +151,20 @@ export * as derive from "./derive/index.ts";
 export { EXT_API_VERSION } from "./ext.ts";
 export { fmtClock, fmtDuration, repoName } from "./format.ts";
 export { formatHlc, type Hlc, HlcClock, parseHlc } from "./hlc.ts";
+export {
+  type AskQuestionShape,
+  HOOK_WAIT_KEEP_MS,
+  HOOK_WAIT_MAX,
+  HOOK_WAIT_POLL_MAX_MS,
+  HOOK_WAIT_STALE_MS,
+  HOOK_WAIT_UNSEEN_MS,
+  type HookWaitEntry,
+  type HookWaitWithdrawal,
+  hookWaitWithdrawal,
+  type LaterHook,
+  matchHookWait,
+  parseAskChoices,
+} from "./hook-wait.ts";
 export {
   formatTaskSubject,
   formatTaskTitle,

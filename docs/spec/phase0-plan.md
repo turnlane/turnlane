@@ -1401,6 +1401,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 | `turnlane queue [--json]` | 要対応キュー |
 | `turnlane report [date] [--copy]` | 日報 Markdown（`--copy` で pbcopy） |
 | `turnlane hook --tool <ToolId> [--managed-by turnlane]` | hooks から呼ばれる。`--tool` はアダプタの ToolId をそのまま受ける（Phase0 は `claude_code` / `codex`。ADR 0009）。stdin の JSON から許可リスト（`@turnlane/collectors/hook-allowlist`）のキーだけを取り出し、spool に1行追記して exit 0。デーモンとは通信しない。`--managed-by turnlane` は設定ファイル上の識別用で読み飛ばす（未知の引数も無視して exit 0）。spool には `config_root`（`CLAUDE_CONFIG_DIR` / `CODEX_HOME`、未設定なら既定のディレクトリ）も残す（S5）。Codex の行には親（codex のプロセス）の pid を `ppid` に残す（`process.ppid`。ps は起こさない。Issue #10） |
+| `turnlane hook --tool claude_code --answer [--managed-by turnlane]` | hook で答える（ADR 0023。m2-api 42 章）。Claude Code の PermissionRequest の 2 つ目のハンドラ。spool には書かない。デーモンに待つかを聞き、待つなら人の答えを long-poll で受け取って判断を出す。すぐ終わる条件・取り下げ・親が居なくなったとき・シグナルは m2-api 42 章。起動時間の目標（下）は当てない |
 | `turnlane hooks install|uninstall|status [--claude-dir <dir>]... [--codex] [--dry-run]` | 識別子付きで冪等に追加・削除する。方式は 3.6.1（S5）。変更があるときだけ書き換え前に `<実パス>.bak-turnlane-<ts>` を作る。`--dry-run` で差分を表示 |
 | `turnlane sources [list|rescan|health]` | 取り込み元と縮退レベル |
 | `turnlane calendar authorize|status|calendars|cleanup-timeblocks|holidays|sync|install|uninstall` | ヘルパの権限取得（`open` でダイアログ）、状態（接続・権限・予定の書き先（Calendar.app のデフォルトカレンダー）・Holidays from・次の稼働日）、カレンダー一覧と役割（`--role <id> source|ignored`）、M3-3 で書いた時間ブロックの予定の削除（`cleanup-timeblocks [--dry-run] [--yes]`。件数と期間を出し、確認してから消す。D-093）、祝日カレンダー（`--set <id>...|--none|--auto`）、窓の再取得、ヘルパの配置と LaunchAgent の登録・削除（M3 の A。[手順](../dev/m3-a.md)） |
@@ -1425,7 +1426,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 **識別**: 設定ファイルに未知キーを足さない（Claude は現バージョンでは許容するが保証が無く、Codex は hooks.json のトップレベルの未知キーでファイル全体を読み捨てる）。`type: "command"` かつ command が語として `--managed-by turnlane` を含むハンドラ（正規表現 `(^|\s)--managed-by\s+turnlane(\s|$)`）を Turnlane のものとみなす。似た文字列（`turnlanex` など）は他ツール扱い。command は `'<dl の絶対パス>' hook --tool <ToolId> --managed-by turnlane`（パスは単一引用符で囲む）。
 
 **置き方**:
-- イベントごとに、Turnlane のハンドラを1つだけ入れた自分専用のマッチャーグループ（`matcher` なし）を配列の**末尾**に足す。他ツールのグループの中には入れない（Codex の信頼承認の鍵は位置なので、先頭や途中に入れると他ツールの承認が外れる）。
+- イベントごとに、Turnlane のハンドラだけを入れた自分専用のマッチャーグループ（`matcher` なし。ハンドラは 1 つ、Claude Code の PermissionRequest だけ 2 つ）を配列の**末尾**に足す。他ツールのグループの中には入れない（Codex の信頼承認の鍵は位置なので、先頭や途中に入れると他ツールの承認が外れる）。
 - 既にある場合は**同じ位置で置き換える**（turnlane のパスやオプションが変わったとき）。重複していたら最初の1つに寄せる。
 - 他ツールのグループに混ぜ込まれた Turnlane のハンドラは外す（グループは残す）。対象外になったイベントの Turnlane のエントリは install のときに外す。
 
@@ -1433,7 +1434,7 @@ check_changes は YOUR TURN 帯に出すタスクではないので数えない�
 |---|---|---|
 | ファイル | 検出した各設定ディレクトリの `settings.json` | `$CODEX_HOME/hooks.json`（既定 `~/.codex`） |
 | イベント | SessionStart、UserPromptSubmit、PermissionRequest、Notification、Stop、StopFailure、SessionEnd（7） | SessionStart、UserPromptSubmit、PermissionRequest、Stop、SessionEnd（5） |
-| ハンドラ | `{"type":"command","command":…,"timeout":5,"async":true}` | `{"type":"command","command":…,"timeout":2}`（`async` は付けない。Codex 0.147 は `async: true` のハンドラを未対応として読み飛ばす。timeout は全イベント2秒） |
+| ハンドラ | `{"type":"command","command":…,"timeout":5,"async":true}`。PermissionRequest だけは同じグループにもう 1 つ `{"type":"command","command":"'<turnlane>' hook --tool claude_code --answer --managed-by turnlane","timeout":86400}`（hook で答える。async にしない。ADR 0023） | `{"type":"command","command":…,"timeout":2}`（`async` は付けない。Codex 0.147 は `async: true` のハンドラを未対応として読み飛ばす。timeout は全イベント2秒） |
 | 有効化後 | 即時に効く（設定ファイルの監視） | ユーザーが `/hooks` で承認するまで動かない（未承認の hook は黙って実行されない） |
 
 PreToolUse / PostToolUse は高頻度なので入れない。許可が出たあとの needs_input の解除は、トランスクリプトの監視で拾う。
@@ -1448,7 +1449,7 @@ PreToolUse / PostToolUse は高頻度なので入れない。許可が出たあ�
 - Codex の hooks.json を新規に作る場合も、トップレベルは `hooks`（と任意の `description`）だけにする。
 
 **状態の点検（`turnlane hooks status`）**:
-- インストール状態: `none` / `installed` / `partial`（一部のイベントだけ）/ `outdated`（パスやオプションが違う）。
+- インストール状態: `none` / `installed` / `partial`（一部のイベントだけ）/ `outdated`（パスやオプションが違う。グループのハンドラの並びが違う＝ hook で答えるハンドラが無い、を含む）。デーモンは Claude Code の取り込み元ごとに、turnlane の場所を除いたハンドラの形が今のプランと違うか（core の `shapeOutdated`）を見て、設定の取り込み元の行に「hooks の更新があります」を出す（`GET /api/sources` の `hooksUpdate`。ADR 0023）。
 - Claude の無効化: ユーザー設定の `disableAllHooks`、管理設定（`/Library/Application Support/ClaudeCode/managed-settings.json`）の `disableAllHooks` / `allowManagedHooksOnly`。プロジェクト単位の `disableAllHooks` は全部は見られないので無音検知で拾う。
 - Codex の無効化: config.toml の `[features] hooks = false` / `codex_hooks = false`（行単位の読み取り。TOML パーサは持たない）。0.147 では hooks は既定で有効。
 - Codex の承認: Turnlane のハンドラの位置に対応する `[hooks.state."<hooks.json の実パス>:<event>:<グループ番号>:<ハンドラ番号>"]` があるか（hash の一致までは見ない）。最終的な判定は spool に hook が届いたか（`ai_source.hooks_state` の `pending_trust` → `receiving`）で行う。

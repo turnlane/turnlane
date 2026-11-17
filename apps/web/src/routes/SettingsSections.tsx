@@ -231,6 +231,12 @@ function SourceItem({
           {t(health)}
           {s.healthReason ? ` — ${s.healthReason}` : ""} ·{" "}
           {t(hooksKey) === hooksKey ? s.hooksState : t(hooksKey)}
+          {s.hooksUpdate ? (
+            <>
+              {" · "}
+              <span data-testid="source-hooks-update">{t("settings.sources.hooks.update")}</span>
+            </>
+          ) : null}
           {mcpText ? (
             <>
               {" · "}

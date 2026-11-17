@@ -267,6 +267,39 @@ async function sentinelRun(store: boolean) {
       expect(r.status).toBe(409);
       expect(await r.text()).not.toContain(SENTINEL_PREFIX);
     }
+    // hook で答える（ADR 0023）: hook の代わりに待ちを開き（余計なキーにツールの入力の番兵を付けても受け取って捨てる）、
+    // 自由な文の答えに番兵を入れて hook に返す。後の検査で、答え・入力が DB・ログ・SSE・spool に残らないことを見る
+    {
+      const opened = (await (
+        await fetch(`${daemon.url}/api/hook-waits`, {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          body: JSON.stringify({
+            session: "77777777-0000-4000-8000-000000000002",
+            tool: "AskUserQuestion",
+            tool_input: { questions: [{ question: `${SENTINEL_PREFIX}hook input` }] },
+          }),
+        })
+      ).json()) as { wait: boolean; id?: string };
+      expect(opened.wait).toBe(true);
+      const polled = fetch(`${daemon.url}/api/hook-waits/${opened.id}/result?wait=5000`, {
+        headers: auth,
+      }).then((r) => r.text());
+      let answered = 0;
+      for (const id of ids) {
+        const r = await fetch(`${daemon.url}/api/work-items/${id}/answer`, {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          body: JSON.stringify({ choices: [{ text: `${SENTINEL_PREFIX}hook answer` }] }),
+        });
+        const body = await r.text();
+        expect(body).not.toContain(SENTINEL_PREFIX);
+        if (r.status === 200) answered++;
+      }
+      // 答えは hook にだけ届く（表示の瞬間の応答と同じく、ここには出てよい）
+      expect(answered).toBe(1);
+      expect(await polled).toContain(`${SENTINEL_PREFIX}hook answer`);
+    }
     // 判定・取り込みをもう一度回す（glance の後でも DB に何も書かれない）
     await ai.supervisor.scanAll();
     await ai.supervisor.whenIdle();

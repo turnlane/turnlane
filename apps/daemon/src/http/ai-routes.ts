@@ -21,6 +21,7 @@ import { backToTurnInput, mergeWorkItemInput, snoozeInput } from "@turnlane/core
 import { queueSummary, type UpdateMenuItem } from "@turnlane/core/web";
 import { Hono } from "hono";
 import { z } from "zod";
+import type { HookWaits } from "../answer/hook-waits.ts";
 import type { Answerer } from "../answer/index.ts";
 import type { AskService } from "../ask/index.ts";
 import { OpError, type UserOps } from "../derive/ops.ts";
@@ -41,6 +42,8 @@ export interface SourceView {
    * unknown（Claude Code / Codex 以外、同意の前）
    */
   mcpState: "installed" | "none" | "outdated" | "unreadable" | "unknown";
+  /** Claude Code の hooks が今の形より古い（hook で答えるハンドラが無い等。turnlane hooks install で入れ直す。ADR 0023） */
+  hooksUpdate?: boolean;
   healthLevel: string;
   healthReason: string | null;
   detectedVersion: string | null;
@@ -105,6 +108,8 @@ export interface AiDeps {
   reports: ReportReceiver;
   /** 図つきの問い（MCP の ask_user。ADR 0022。m2-api 41 章） */
   asks: AskService;
+  /** hook で答える（ADR 0023）: 待っている Claude Code の PermissionRequest の hook（メモリだけ） */
+  hookWaits: HookWaits;
   /** 報告の予定（state scheduled。0.8.1。AI の画面の「後で」） */
   plans?(): ReportPlanView[];
 }
@@ -197,6 +202,20 @@ const ref = (v: { followUpId?: string | undefined; workItemId?: string | undefin
 const answerInput = z.union([
   z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict(),
   z.object({ allow: z.literal(true) }).strict(),
+  // AskUserQuestion の問いごとの答え（届け先が hook のときだけ。ADR 0023）。中身の検証は core の parseAskChoices
+  z
+    .object({
+      choices: z
+        .array(
+          z.union([
+            z.object({ options: z.array(z.number().int().min(0).max(63)).min(1).max(64) }).strict(),
+            z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict(),
+          ]),
+        )
+        .min(1)
+        .max(16),
+    })
+    .strict(),
 ]);
 /** 次の指示: 文だけ（m2-api 35章） */
 const instructInput = z.object({ text: z.string().min(1).max(ANSWER_MAX) }).strict();
@@ -286,6 +305,28 @@ export function createAiRoutes(
       .post("/asks/:id/dismiss", (c) => {
         deps().asks.dismiss(c.req.param("id"));
         return c.json({ state: "dismissed" });
+      })
+      // hook で答える（ADR 0023。m2-api 42 章）: Claude Code の PermissionRequest の hook が待ちを開き、答えを long-poll で
+      // 待つ。本文は識別子とツールの名前だけ（ツールの入力は受け取らない）。応答は no-store
+      .post("/hook-waits", async (c) => {
+        c.header("Cache-Control", "no-store");
+        const len = Number(c.req.header("content-length") ?? "0");
+        if (len > 4096) return c.json({ error: "too_large" }, 413);
+        const body = await c.req.json().catch(() => undefined);
+        return c.json(deps().hookWaits.open(body));
+      })
+      .get("/hook-waits/:id/result", async (c) => {
+        c.header("Cache-Control", "no-store");
+        const w = Number(c.req.query("wait") ?? "0");
+        const r = await deps().hookWaits.result(
+          c.req.param("id"),
+          Number.isFinite(w) ? Math.floor(w) : 0,
+        );
+        return r ? c.json(r) : c.json({ error: "not_found" }, 404);
+      })
+      .post("/hook-waits/:id/cancel", (c) => {
+        const ok = deps().hookWaits.cancel(c.req.param("id"));
+        return ok ? c.json({ state: "cancelled" }) : c.json({ error: "not_found" }, 404);
       })
       .get("/ai/reports/sources", (c) => c.json(deps().reports.sources()))
       // 予定の詳細パネル（0.8.1。m2-api 37 章）: 報告の作業 1 つ。AI の項目になったら workItemId が入る

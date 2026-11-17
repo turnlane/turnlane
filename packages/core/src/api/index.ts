@@ -8,6 +8,7 @@ export * from "./day.ts";
 export * from "./events.ts";
 export * from "./focus.ts";
 export * from "./glance.ts";
+export * from "./hook-wait.ts";
 export * from "./instruct.ts";
 export * from "./last-reply.ts";
 export * from "./launch.ts";

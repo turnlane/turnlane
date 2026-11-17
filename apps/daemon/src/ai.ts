@@ -2,6 +2,7 @@
  * 取り込み（supervisor）・判定（runner）・PR 状態（gh）・API（AiDeps）をまとめて組み立てる（M1）。
  */
 import type { Database } from "bun:sqlite";
+import { join } from "node:path";
 import {
   builtinAdapters,
   errorFields,
@@ -24,7 +25,10 @@ import {
   type WorkdayRule,
 } from "@turnlane/core";
 import type { LiveLaunch } from "@turnlane/core/api";
+import { claudePlan, loadJson, shapeOutdated } from "@turnlane/core/hooks";
 import { mcpTargetFor, mcpTargetStatus } from "@turnlane/core/mcp";
+import { hookWaitFacts, isProgramHookSession } from "./answer/hook-facts.ts";
+import { HookWaits } from "./answer/hook-waits.ts";
 import { Answerer } from "./answer/index.ts";
 import { openWaitFor } from "./answer/wait.ts";
 import { AskService } from "./ask/index.ts";
@@ -134,7 +138,23 @@ export function sourceMcpState(
   }
 }
 
-function sourceView(r: SourceRow): Omit<SourceView, "mcpState"> {
+/**
+ * Claude Code の hooks が今の形より古いか（入れた後に Turnlane が足したハンドラが無い。hook で答える。ADR 0023）。設定ファイルは
+ * 読むだけ。Turnlane の hooks が無い・Claude Code 以外・読めないときは false（hooks の状態の表示に任せる）
+ */
+export function sourceHooksUpdate(r: Pick<SourceRow, "tool" | "root_path">): boolean {
+  if (r.tool !== "claude_code") return false;
+  try {
+    return (
+      shapeOutdated(loadJson(join(r.root_path, "settings.json")).value, claudePlan("turnlane"))
+        .length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function sourceView(r: SourceRow): Omit<SourceView, "mcpState" | "hooksUpdate"> {
   const list = (s: string) => {
     try {
       const v = JSON.parse(s) as unknown;
@@ -194,11 +214,38 @@ export function createAiSystem(o: AiOptions): AiSystem {
   let asks: AskService | null = null;
   // 待ちの中身の保存（ADR 0018）: 読めなかったフォローアップは同じ起動の間は読み直さない
   const triedWaits = new Set<string>();
+  // hook で答える（ADR 0023）: 待っている PermissionRequest の hook（メモリだけ）。判定の後と 5 秒ごとに取り下げを確かめる
+  const hookWaits = new HookWaits({
+    now: () => o.clock.now(),
+    newId: () => Bun.randomUUIDv7(),
+    logger: o.logger,
+    enabled: () => getSetting<unknown>(o.mutate.db, "turn.answer") !== false,
+    isProgram: (session) => isProgramHookSession(o.sqlite, session),
+    changed: (session) => {
+      const ids = o.sqlite
+        .query<{ w: string }, [string]>(
+          `SELECT DISTINCT t.work_item_id AS w FROM ai_turn t JOIN ai_session s ON s.id = t.session_id
+           WHERE s.external_id = ? AND s.tool = 'claude_code' AND t.work_item_id IS NOT NULL`,
+        )
+        .all(session)
+        .map((r) => r.w);
+      if (ids.length > 0) o.hub.publish("work_item", { dates: [], ids });
+    },
+  });
+  const sweepHookWaits = () => {
+    try {
+      hookWaits.sweep(hookWaitFacts(o.sqlite, (id) => runner.sessionWait(id)));
+    } catch (e) {
+      o.logger.warn("hook_wait.sweep_failed", errorFields(e));
+    }
+  };
+  let hookSweepTimer: ReturnType<typeof setInterval> | null = null;
   const runner = new DeriveRunner({
     // 動いているかの確かめ（5 秒ごと）の書き直しでは判定を打ち切らない
     ignoredChanges: () => supervisor.refreshWrites,
     afterRun: (now, s) => {
       if (s.storeDetail) snapshotWaitDetails(o.sqlite, { now, home: o.home, tried: triedWaits });
+      sweepHookWaits();
     },
     sqlite: o.sqlite,
     mutate: o.mutate,
@@ -278,6 +325,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
     enabled: () => getSetting<unknown>(o.mutate.db, "turn.answer") !== false,
     showDetail: () => getSetting<unknown>(o.mutate.db, "turn.show_detail") !== false,
     sessionWait: (id) => runner.sessionWait(id),
+    hookWaits,
   });
   /** 答える対象の待ち（D-240。queue の item・詳細に付ける。wait・answer と同じ判定） */
   const openWait = (id: string) => openWaitFor(o.sqlite, id, runner.sessionWait(id)) ?? undefined;
@@ -355,6 +403,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
   };
   const deps: AiDeps = {
     asks: askService,
+    hookWaits,
     reports,
     plans: () => reportPlans(o.sqlite, o.clock.now()),
     days: (date, days) => {
@@ -455,6 +504,7 @@ export function createAiSystem(o: AiOptions): AiSystem {
         ...sourceView(r),
         // 同意の前は他ツールの設定ファイルを読まない（onboarding.md 5.2）
         mcpState: supervisor.consented ? sourceMcpState(r, o.home, o.mcpCli ?? null) : "unknown",
+        hooksUpdate: supervisor.consented ? sourceHooksUpdate(r) : false,
       })),
     patchSource: (id, p) => {
       const sets: string[] = [];
@@ -513,10 +563,13 @@ export function createAiSystem(o: AiOptions): AiSystem {
       await supervisor.start();
       runner.start();
       askService.start();
+      hookSweepTimer ??= setInterval(sweepHookWaits, 5_000);
       poller?.start();
     },
     async stop() {
       askService.stop();
+      if (hookSweepTimer) clearInterval(hookSweepTimer);
+      hookSweepTimer = null;
       poller?.stop();
       runner.stop();
       await runner.idle();
