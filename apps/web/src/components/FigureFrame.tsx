@@ -12,19 +12,26 @@ export function FigureFrame({
   title,
   className,
   testId,
+  focusable = true,
+  fit = false,
 }: {
   html: string;
   title: string;
   className?: string;
   testId?: string;
+  /** false なら Tab で枠に入らない（押せる部品で包んだ案の図・広げた画面。枠の中に入るとキーが画面に届かない） */
+  focusable?: boolean;
+  /** 図が SVG 1 つなら枠いっぱいに収める（広げた画面の図 1 枚） */
+  fit?: boolean;
 }) {
   return (
     <iframe
       sandbox=""
-      srcDoc={figureSrcdoc(html)}
+      srcDoc={figureSrcdoc(html, undefined, { fit })}
       title={title}
       referrerPolicy="no-referrer"
       loading="lazy"
+      tabIndex={focusable ? undefined : -1}
       className={className}
       data-testid={testId}
     />

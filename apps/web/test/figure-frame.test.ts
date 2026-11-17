@@ -65,6 +65,14 @@ describe("色と文字", () => {
     expect(doc).toContain("--tl-text:#123456");
   });
 
+  test("枠いっぱいに収める style は fit のときだけ（CSP は同じ）", () => {
+    const plain = figureSrcdoc("<svg/>", theme);
+    const fit = figureSrcdoc("<svg/>", theme, { fit: true });
+    expect(plain).not.toContain("svg:only-child");
+    expect(fit).toContain("body>svg:only-child{display:block;width:100%;height:100%");
+    for (const d of [plain, fit]) expect(d).toContain(`content="${FIGURE_CSP}"`);
+  });
+
   test("変数の値から ; { } < > を除く（style を抜け出せない）", () => {
     const doc = figureSrcdoc("", {
       scheme: "dark",

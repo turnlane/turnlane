@@ -87,8 +87,19 @@ export function sanitizeFigure(html: string): string {
     });
 }
 
+/**
+ * 枠いっぱいに収める（広げた画面の図 1 枚）: 中身が SVG 1 つなら縦横比を保って枠に収める。ほかの中身は今までどおり流れて
+ * スクロールする。CSP・sandbox は変えない（style を足すだけ）
+ */
+const FIT_STYLE =
+  "html,body{height:100%}body{box-sizing:border-box}body>svg:only-child{display:block;width:100%;height:100%;max-width:none}";
+
 /** 枠に入れる文書（CSP の meta を先頭に、色と文字の変数、図の中身） */
-export function figureSrcdoc(html: string, theme: FigureTheme = currentFigureTheme()): string {
+export function figureSrcdoc(
+  html: string,
+  theme: FigureTheme = currentFigureTheme(),
+  opts: { fit?: boolean } = {},
+): string {
   const vars = Object.entries(theme.vars)
     .map(([k, v]) => `${k}:${v.replace(/[;{}<>]/g, "")}`)
     .join(";");
@@ -97,7 +108,9 @@ export function figureSrcdoc(html: string, theme: FigureTheme = currentFigureThe
     `<meta http-equiv="Content-Security-Policy" content="${FIGURE_CSP}">` +
     `<style>:root{${vars};color-scheme:${theme.scheme}}` +
     "html,body{margin:0;background:transparent;color:var(--tl-text);font:13px/1.5 var(--tl-font)}" +
-    "body{padding:8px}svg{max-width:100%;height:auto}a{pointer-events:none}</style>" +
+    "body{padding:8px}svg{max-width:100%;height:auto}a{pointer-events:none}" +
+    (opts.fit ? FIT_STYLE : "") +
+    "</style>" +
     `</head><body>${sanitizeFigure(html)}</body></html>`
   );
 }

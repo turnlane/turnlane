@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AiHoverLayer } from "../components/AiHoverCard.tsx";
+import { AskOverlay } from "../components/AskOverlay.tsx";
 import { FocusBar } from "../components/FocusBar.tsx";
 import { clientName } from "../components/items.tsx";
 import { MiniCalendar } from "../components/MiniCalendar.tsx";
@@ -113,6 +114,7 @@ export function AppShell({ conn }: { conn: ConnState }) {
       <KeyHelp />
       <CommandPalette />
       <FinishSheet />
+      <AskOverlay />
       <TooltipLayer />
       <AiHoverLayer />
     </div>

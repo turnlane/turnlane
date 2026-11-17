@@ -101,7 +101,7 @@ turnlane ai report --source myscript --id weekly --title "Weekly digest" --state
 
 ### Let the AI ask you with figures
 
-When an agent needs you to choose between concrete alternatives, it can call the MCP tool `ask_user` instead of asking in the terminal. The question lands on *Your turn* as "Needs answer", with a card per option (a small figure, a description, and the agent's recommendation) and an explanation page the agent wrote. Pick an option with `1`–`4`, add a note if you like, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result, so it carries on without you returning to the terminal. This also works in apps built on the Claude Agent SDK, such as T3 Code.
+When an agent needs you to choose between concrete alternatives, it can call the MCP tool `ask_user` instead of asking in the terminal. The question lands on *Your turn* as "Needs answer", with a card per option (a small figure, a description, and the agent's recommendation) and an explanation page the agent wrote. Press `f` (or the Expand button) to see it nearly full-window, or click an option's figure to enlarge it. Pick an option with `1`–`4`, add a note if you like, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result, so it carries on without you returning to the terminal. This also works in apps built on the Claude Agent SDK, such as T3 Code.
 
 ```sh
 turnlane mcp install      # if you haven't yet
