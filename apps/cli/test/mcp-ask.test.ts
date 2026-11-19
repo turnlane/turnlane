@@ -114,6 +114,17 @@ describe("ツールの形", () => {
     expect(Object.keys(s.properties)).toEqual(["question", "context", "options", "explain_path"]);
     expect(t?.description).toContain("--tl-text");
     expect(t?.description).toContain("terminal");
+    // いつ使うか（スキル・CLAUDE.md の節と同じ条件）
+    for (const w of [
+      "ALWAYS",
+      "decide or confirm",
+      "a figure can explain",
+      "not only text",
+      "AskUserQuestion",
+      "ending your turn with a question in text",
+      "yes or no, a name, a path",
+    ])
+      expect(t?.description).toContain(w);
   });
 
   test("図のファイル: 相対パスは作業ディレクトリから。無い・ディレクトリ・200 KB 超・UTF-8 でないものは理由だけ", () => {

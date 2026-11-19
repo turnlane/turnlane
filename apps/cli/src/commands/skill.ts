@@ -25,7 +25,7 @@ import {
   ASK_SKILL_NAME,
   ASK_SNIPPET,
   addAskBlock,
-  hasAskBlock,
+  askBlockState,
   removeAskBlock,
 } from "@turnlane/core";
 import { detectClaudeDirs } from "@turnlane/core/hooks";
@@ -68,6 +68,7 @@ function editMd(
   action: "install" | "uninstall" | "status",
   o: SkillOptions,
   suffix: string,
+  kind: "claude" | "agents" = "claude",
 ): boolean {
   const pre = o.dryRun ? "[dry-run] " : "";
   let text = "";
@@ -81,7 +82,12 @@ function editMd(
     }
   }
   if (action === "status") {
-    env.out(`${file}: ${hasAskBlock(text) ? "installed" : "none"}`);
+    const st = askBlockState(text);
+    env.out(
+      st === "outdated"
+        ? `${file}: outdated (${tr("update with", "更新:")} turnlane skill install ${kind === "agents" ? "--agents-md" : "--claude-md"} ${file})`
+        : `${file}: ${st}`,
+    );
     return true;
   }
   const next = action === "install" ? addAskBlock(text) : removeAskBlock(text);
@@ -90,8 +96,15 @@ function editMd(
     return true;
   }
   if (!exists && action === "uninstall") return true;
+  const was = askBlockState(text);
   env.out(
-    `${pre}${file}: ${action === "install" ? tr("added the ask_user section", "ask_user の節を追加") : tr("removed the ask_user section", "ask_user の節を削除")}`,
+    `${pre}${file}: ${
+      action === "uninstall"
+        ? tr("removed the ask_user section", "ask_user の節を削除")
+        : was === "none"
+          ? tr("added the ask_user section", "ask_user の節を追加")
+          : tr("updated the ask_user section", "ask_user の節を更新")
+    }`,
   );
   if (o.dryRun) return true;
   try {
@@ -140,7 +153,11 @@ export function skillCommand(env: CliEnv, action: string | undefined, o: SkillOp
     const st = skillState(d);
     const label = `Claude Code ${file}`;
     if (action === "status") {
-      env.out(`${label}: ${st}`);
+      env.out(
+        st === "outdated"
+          ? `${label}: outdated (${tr("update with", "更新:")} turnlane skill install)`
+          : `${label}: ${st}`,
+      );
       continue;
     }
     if (st === "foreign") {
@@ -182,7 +199,15 @@ export function skillCommand(env: CliEnv, action: string | undefined, o: SkillOp
       failed++;
     }
   }
-  for (const f of [...o.claudeMd, ...o.agentsMd]) if (!editMd(env, f, action, o, suffix)) failed++;
+  for (const f of o.claudeMd) if (!editMd(env, f, action, o, suffix, "claude")) failed++;
+  for (const f of o.agentsMd) if (!editMd(env, f, action, o, suffix, "agents")) failed++;
+  if (action === "install" && o.claudeMd.length === 0)
+    env.out(
+      tr(
+        `${pre}Next: add the section to your CLAUDE.md too: turnlane skill install --claude-md <file> (the skill alone is often not picked up; agents see CLAUDE.md every time)`,
+        `${pre}次に CLAUDE.md にも節を入れてください: turnlane skill install --claude-md <ファイル>（スキルだけでは使われないことが多い。CLAUDE.md は AI が毎回読む）`,
+      ),
+    );
   if (action === "install")
     env.out(
       tr(

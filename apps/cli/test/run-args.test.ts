@@ -92,3 +92,33 @@ describe("未知の引数", () => {
     expect(checkArgs("hooks", ["install", "--claude-dir", "a", "--claude-dir", "b"])).toBeNull();
   });
 });
+
+describe("値を取るオプション", () => {
+  test("ARG_SPECS の opts はどれも次の引数を値として受ける（parseArgs が値を取る名前として知っている）", () => {
+    const missing: string[] = [];
+    for (const [cmd, spec] of Object.entries(ARG_SPECS))
+      for (const o of spec.opts ?? []) {
+        if (checkArgs(cmd, [o, "/tmp/x"]) !== null) missing.push(`${cmd} ${o}`);
+        else if (parseArgs([o, "/tmp/x"]).opts.get(o) !== "/tmp/x") missing.push(`${cmd} ${o}`);
+      }
+    expect(missing).toEqual([]);
+  });
+
+  test("turnlane skill の --claude-md / --agents-md は何度でも指定できる", () => {
+    const p = parseArgs([
+      "install",
+      "--claude-md",
+      "a.md",
+      "--agents-md",
+      "b.md",
+      "--claude-md",
+      "c.md",
+    ]);
+    expect(p.multi.get("--claude-md")).toEqual(["a.md", "c.md"]);
+    expect(p.multi.get("--agents-md")).toEqual(["b.md"]);
+    expect(p.pos).toEqual(["install"]);
+    expect(
+      checkArgs("skill", ["install", "--claude-md", "a.md", "--agents-md", "b.md"]),
+    ).toBeNull();
+  });
+});

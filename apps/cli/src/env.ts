@@ -82,6 +82,9 @@ export function parseArgs(args: string[]): {
     "--error-kind",
     "--at",
     "--client-id",
+    // turnlane skill（ADR 0022）
+    "--claude-md",
+    "--agents-md",
   ]);
   for (let i = 0; i < args.length; i++) {
     const a = args[i] as string;

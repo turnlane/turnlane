@@ -33,6 +33,7 @@ export {
   ASK_SKILL_NAME,
   ASK_SNIPPET,
   addAskBlock,
+  askBlockState,
   hasAskBlock,
   removeAskBlock,
 } from "./ask-skill.ts";

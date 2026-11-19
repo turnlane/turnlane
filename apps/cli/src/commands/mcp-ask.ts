@@ -55,8 +55,11 @@ export const RECONNECT_MS = 60_000;
 const FALLBACK = "Ask the user in the terminal instead.";
 
 export const ASK_USER_DESCRIPTION =
-  "Ask the user to choose between concrete alternatives, shown in Turnlane's Your turn with a small figure per option " +
-  "and an explanation page. Blocks until the user answers in Turnlane (can be hours) and returns " +
+  "ALWAYS use this when you are about to ask the user to decide or confirm something that a figure can explain, not only text " +
+  "(a screen layout, a structure or architecture, a flow or sequence, the before and after of a change, numbers side by side), " +
+  "instead of the built-in AskUserQuestion tool and instead of ending your turn with a question in text. " +
+  "Ask text-only matters (yes or no, a name, a path) the usual way. " +
+  "The question shows in Turnlane's Your turn with a small figure per option and an explanation page. Blocks until the user answers in Turnlane (can be hours) and returns " +
   '{"choice": "<label>", "note"?: "<text>"}, {"note": "<text>"} when they only wrote a note, or {"dismissed": true}. ' +
   `One question per call (question <= ${ASK_QUESTION_MAX} chars, context <= ${ASK_CONTEXT_MAX}, ${ASK_OPTIONS_MIN}-${ASK_OPTIONS_MAX} options). ` +
   "Figures are files you write: static HTML or SVG with inline CSS only (no scripts, no network, no external images or fonts; " +

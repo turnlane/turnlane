@@ -101,15 +101,18 @@ turnlane ai report --source myscript --id weekly --title "Weekly digest" --state
 
 ### Let the AI ask you with figures
 
-When an agent needs you to choose between concrete alternatives, it can call the MCP tool `ask_user` instead of asking in the terminal. The question lands on *Your turn* as "Needs answer", with a card per option (a small figure, a description, and the agent's recommendation) and an explanation page the agent wrote. Press `f` (or the Expand button) to see it nearly full-window, or click an option's figure to enlarge it. Pick an option with `1`–`4`, add a note if you like, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result, so it carries on without you returning to the terminal. This also works in apps built on the Claude Agent SDK, such as T3 Code.
+When an agent is about to ask you to decide or confirm something that a figure can explain better than text alone (a screen layout, an architecture, a flow, the before and after of a change, numbers side by side), it calls the MCP tool `ask_user` instead of Claude Code's built-in question or a question in the terminal. The question lands on *Your turn* as "Needs answer", with a card per option (a small figure, a description, and the agent's recommendation) and an explanation page the agent wrote. Press `f` (or the Expand button) to see it nearly full-window, or click an option's figure to enlarge it. Pick an option with `1`–`4`, add a note if you like, and press `⌘⏎` (Send to AI); your choice and note go back to the agent as the tool's result, so it carries on without you returning to the terminal. This also works in apps built on the Claude Agent SDK, such as T3 Code.
 
 ```sh
 turnlane mcp install      # if you haven't yet
-turnlane skill install    # a Claude Code skill that tells the agent when and how to use ask_user
-turnlane skill install --claude-md ./CLAUDE.md --agents-md ./AGENTS.md   # also add a short section to these files
+turnlane skill install --claude-md ~/.claude/CLAUDE.md   # the skill, plus a short section in your CLAUDE.md
+turnlane skill install --agents-md ./AGENTS.md           # Codex: the same section in AGENTS.md
+turnlane skill status --claude-md ~/.claude/CLAUDE.md    # "outdated" after an update: run install again
 turnlane skill snippet    # print that section to paste yourself
-turnlane skill uninstall  # remove the skill (add --claude-md / --agents-md to remove the sections too)
+turnlane skill uninstall --claude-md ~/.claude/CLAUDE.md # remove the skill and the section
 ```
+
+Add the section to CLAUDE.md (`--claude-md <file>`, your own or a project's) as the standard step: the skill alone is often not picked up, because agents see only its one-line description, while CLAUDE.md is read every time. When Turnlane updates the wording, `turnlane skill status` shows the skill and the section as `outdated`, and `turnlane skill install` with the same files replaces them in place (the section is never added twice).
 
 Like the hooks, the skill (`<config dir>/skills/turnlane-ask/SKILL.md`) and the CLAUDE.md / AGENTS.md section are marked as Turnlane's, so only they are changed or removed; edited files are backed up first. Claude Code asks for permission the first time `ask_user` runs.
 

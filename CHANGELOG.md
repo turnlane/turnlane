@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `turnlane-ask` skill, the CLAUDE.md / AGENTS.md section and the `ask_user` tool description now say when to use `ask_user` plainly: always, when the agent is about to ask you to decide or confirm something that a figure can explain (a screen layout, an architecture, a flow, the before and after of a change, numbers side by side), instead of the built-in AskUserQuestion tool or a question in text. Text-only questions (yes or no, a name, a path) are asked as before. `turnlane skill status` now reports an older CLAUDE.md / AGENTS.md section as `outdated`, and `turnlane skill install --claude-md <file>` replaces it in place (duplicate sections are merged into one). `turnlane skill install` without `--claude-md` suggests adding the section, since the skill alone is often not picked up.
 - The MCP server now handles calls concurrently, so a waiting `ask_user` doesn't hold up other tools. It sends progress notifications while waiting and closes the question in Turnlane when the agent cancels the call.
 
 ## [0.8.2] - 2026-11-16
