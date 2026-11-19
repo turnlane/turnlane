@@ -4,9 +4,11 @@
  *
  * - 広いとき（節の幅 520px 以上。パネルを広げたとき）は 2 列: 左に問い・背景・案のカード・メモ・返すボタン、右に AI の説明（図）。狭いときは説明を
  *   下に回す。説明が無ければ右の列は出さない
- * - 案のカード: 番号のキー、名前、推奨（無彩色のチップ。状態の色は使わない）、説明、案の図（右）。図を読めなければ 1 行で
- *   「図を読めませんでした」と出し、案は選べる。図を押すとその図だけを大きく出す（案は選ばない）
- * - 見出しの右に「広げる」（f）: ウインドウのほぼ全体に広げる（AskOverlay.tsx）。選んだ案とメモはパネルと共有（lib/ask-expand.ts）
+ * - 案のカード: 番号のキー、名前、推奨（無彩色のチップ。状態の色は使わない）、説明、案の図（右に 112×80。図全体を縮めて
+ *   収め、右下に「大きく」の印）。図を読めなければ 1 行で「図を読めませんでした」と出し、案は選べる。図を押すとその図だけを
+ *   大きく出す（案は選ばない）
+ * - 見出しの右に「広げる」（f）: ウインドウのほぼ全体に広げる（AskOverlay.tsx）。広げた画面は上に問い、案を横に並べて図を
+ *   カードの幅いっぱいに、その下に説明、メモと返すボタンは下に固定。選んだ案とメモはパネルと共有（lib/ask-expand.ts）
  * - キー: 1〜4 で選ぶ（入力欄の外）、⌘⏎ で返す。メモだけでも返せる。広げている間はパネルの節はキーを受けない
  * - 返した後は「10:25 に返しました」をカードが動くまで残す（web の状態だけ）。問いが消えた・閉じた・AI 側で打ち切られたら
  *   「もう進んでいます」
@@ -15,7 +17,7 @@
 import type { AskFigureView, AskView } from "@turnlane/core/web";
 import { ASK_NOTE_MAX, fmtClock } from "@turnlane/core/web";
 import { Maximize2 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useAsk, useAskSent } from "../data/ask.ts";
 import { useQueue } from "../data/queries.ts";
 import { useI18n } from "../i18n/index.tsx";
@@ -33,7 +35,7 @@ import {
 } from "../lib/ask-expand.ts";
 import { isTextEntry } from "../lib/editable.ts";
 import { isImeKey } from "../lib/ime.ts";
-import { FigureFrame } from "./FigureFrame.tsx";
+import { FigureFrame, figureCanvas } from "./FigureFrame.tsx";
 import { tipProps } from "./Tooltip.tsx";
 import { Button, Kbd } from "./ui.tsx";
 
@@ -167,91 +169,82 @@ export function AskBody({
   }, []);
   const explain = v.explain;
   const full = layout === "full";
-  const figureSize = !full ? "sm" : explain ? "md" : "lg";
-  const main = (
-    <div className={`flex min-w-0 flex-col ${full ? "gap-4" : "gap-3"}`} data-testid="ask-main">
-      <div className="flex flex-col gap-1">
-        {full ? null : (
-          <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 text-[11px] text-fg3">{t("ask.title")}</span>
-            <button
-              ref={expandRef}
-              type="button"
-              onClick={(e) => openAskOverlay(v.id, workItemId, e.currentTarget)}
-              className="-my-1 inline-flex size-6 shrink-0 items-center justify-center rounded-control text-fg2 hover:bg-sunken hover:text-fg"
-              {...tipProps(t("ask.expand"), "f")}
-              data-testid="ask-expand"
-            >
-              <Maximize2 size={14} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </div>
-        )}
-        <p
-          className={`break-words font-semibold text-fg ${full ? "text-[20px] leading-7" : "text-section"}`}
-          data-testid="ask-question"
-        >
-          {v.question}
-        </p>
-        {v.context ? (
-          <p className="break-words text-body text-fg2" data-testid="ask-context">
-            {v.context}
-          </p>
-        ) : null}
-      </div>
-      <div
-        role="radiogroup"
-        aria-label={t("ask.options")}
-        className="flex flex-col gap-2"
-        data-testid="ask-options"
+  const head = (
+    <div className="flex flex-col gap-1">
+      {full ? null : (
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 text-[11px] text-fg3">{t("ask.title")}</span>
+          <button
+            ref={expandRef}
+            type="button"
+            onClick={(e) => openAskOverlay(v.id, workItemId, e.currentTarget)}
+            className="-my-1 inline-flex size-6 shrink-0 items-center justify-center rounded-control text-fg2 hover:bg-sunken hover:text-fg"
+            {...tipProps(t("ask.expand"), "f")}
+            data-testid="ask-expand"
+          >
+            <Maximize2 size={14} strokeWidth={1.5} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      <p
+        className={`break-words font-semibold text-fg ${full ? "text-[20px] leading-7" : "text-section"}`}
+        data-testid="ask-question"
       >
-        {options.map((o) => (
-          <OptionCard
-            key={o.n}
-            n={o.n}
-            label={o.label}
-            description={o.description}
-            recommended={o.recommended}
-            figure={o.figure}
-            size={figureSize}
-            on={draft.choice === o.label}
-            onPick={() => toggleAskChoice(v.id, o.label)}
-            onEnlarge={(el) => openAskFigure(v.id, workItemId, o.n, el)}
-          />
-        ))}
-      </div>
-      <textarea
-        rows={full ? 3 : 2}
-        value={draft.note}
-        onChange={(e) => setAskDraft(v.id, { note: e.target.value })}
-        aria-label={t("ask.notePlaceholder")}
-        placeholder={t("ask.notePlaceholder")}
-        maxLength={ASK_NOTE_MAX}
-        className="min-h-[52px] w-full min-w-0 resize-y rounded-control border border-line bg-sunken px-2.5 py-1.5 text-body text-fg placeholder:text-fg3 focus:border-fg3"
-        style={{ outline: "none" }}
-        data-testid="ask-note"
-      />
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 font-mono text-[11px] text-fg3" data-testid="ask-hint">
-          {t(full ? "ask.hintExpanded" : "ask.hint", { n: options.length })}
-        </span>
-        <Button
-          variant="primary"
-          className="px-2"
-          disabled={!can}
-          onClick={send}
-          data-testid="ask-send"
-        >
-          {draft.busy ? t("ask.sending") : t("ask.send")}
-          <span className="font-mono text-micro opacity-70">⌘⏎</span>
-        </Button>
-      </div>
+        {v.question}
+      </p>
+      {v.context ? (
+        <p className="break-words text-body text-fg2" data-testid="ask-context">
+          {v.context}
+        </p>
+      ) : null}
     </div>
   );
-  const aside = explain ? (
-    <aside
-      className={`flex min-w-0 flex-col gap-2 ${full ? "@[960px]:min-h-0 @[960px]:flex-1" : ""}`}
-      data-testid="ask-explain"
+  const cards = options.map((o) => (
+    <OptionCard
+      key={o.n}
+      n={o.n}
+      label={o.label}
+      description={o.description}
+      recommended={o.recommended}
+      figure={o.figure}
+      size={full ? "lg" : "sm"}
+      on={draft.choice === o.label}
+      onPick={() => toggleAskChoice(v.id, o.label)}
+      onEnlarge={(el) => openAskFigure(v.id, workItemId, o.n, el)}
+    />
+  ));
+  const note = (
+    <textarea
+      rows={2}
+      value={draft.note}
+      onChange={(e) => setAskDraft(v.id, { note: e.target.value })}
+      aria-label={t("ask.notePlaceholder")}
+      placeholder={t("ask.notePlaceholder")}
+      maxLength={ASK_NOTE_MAX}
+      className="min-h-[52px] w-full min-w-0 resize-y rounded-control border border-line bg-sunken px-2.5 py-1.5 text-body text-fg placeholder:text-fg3 focus:border-fg3"
+      style={{ outline: "none" }}
+      data-testid="ask-note"
+    />
+  );
+  const hint = (
+    <span className="min-w-0 flex-1 font-mono text-[11px] text-fg3" data-testid="ask-hint">
+      {t(full ? "ask.hintExpanded" : "ask.hint", { n: options.length })}
+    </span>
+  );
+  const sendButton = (
+    <Button
+      variant="primary"
+      className="px-2"
+      disabled={!can}
+      onClick={send}
+      data-testid="ask-send"
     >
+      {draft.busy ? t("ask.sending") : t("ask.send")}
+      <span className="font-mono text-micro opacity-70">⌘⏎</span>
+    </Button>
+  );
+  const aside = explain ? (
+    <aside className="flex min-w-0 flex-col gap-2" data-testid="ask-explain">
       <div className="flex items-baseline gap-2">
         <h3 className="font-semibold text-fg2 text-meta">{t("ask.explain")}</h3>
         <span className="min-w-0 truncate text-[11px] text-fg3">{t("ask.explainNote")}</span>
@@ -260,11 +253,7 @@ export function AskBody({
         <FigureFrame
           html={explain.html}
           title={t("ask.explain")}
-          className={
-            full
-              ? "h-[70vh] w-full rounded-card border border-line border-dashed @[960px]:h-auto @[960px]:min-h-0 @[960px]:flex-1"
-              : "h-[420px] w-full rounded-card border border-line border-dashed"
-          }
+          className={`w-full rounded-card border border-line border-dashed ${full ? "h-[70vh] min-h-[320px]" : "h-[420px]"}`}
           testId="ask-explain-frame"
           focusable={!full}
         />
@@ -276,25 +265,41 @@ export function AskBody({
     </aside>
   ) : null;
   if (full) {
-    // 広げた画面: 説明があれば左に問い・右に説明（狭いと縦に積む）。無ければ中央の 1 列で案の図を大きく
-    return explain ? (
+    // 広げた画面（ux-mvp 4.23）: 上に問い、案を横に並べ（図はカードの幅いっぱい）、その下に説明を全幅。メモと返すボタンは
+    // 下に固定（本文だけがスクロールする）。案の列は 1 列 280px を下回ると 2 列、さらに 1 列に折り返す
+    const figured = options.some((o) => o.figure && "html" in o.figure);
+    return (
       <div
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto @[960px]:grid @[960px]:grid-cols-[minmax(360px,1fr)_minmax(0,1.5fr)] @[960px]:overflow-hidden"
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
         data-testid="ask-full"
-        data-layout="split"
+        data-layout={figured ? "row" : "compact"}
       >
-        <div className="min-w-0 p-6 @[960px]:min-h-0 @[960px]:overflow-y-auto">{main}</div>
-        <div className="flex min-w-0 flex-col border-line border-t p-6 @[960px]:min-h-0 @[960px]:border-t-0 @[960px]:border-l">
-          {aside}
+        <div className="min-h-0 flex-1 overflow-y-auto" data-testid="ask-full-scroll">
+          <div className="flex min-w-0 flex-col gap-6 p-6">
+            <div className="flex min-w-0 flex-col gap-4" data-testid="ask-main">
+              {head}
+              <div className="@container min-w-0">
+                <div
+                  role="radiogroup"
+                  aria-label={t("ask.options")}
+                  className={`grid items-stretch gap-4 ${OPTION_COLUMNS[options.length] ?? OPTION_COLUMNS[4]}`}
+                  data-testid="ask-options"
+                >
+                  {cards}
+                </div>
+              </div>
+            </div>
+            {aside}
+          </div>
         </div>
-      </div>
-    ) : (
-      <div
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto"
-        data-testid="ask-full"
-        data-layout="single"
-      >
-        <div className="mx-auto w-full max-w-[760px] p-6">{main}</div>
+        <div
+          className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 gap-y-1 border-line border-t px-6 py-3"
+          data-testid="ask-footer"
+        >
+          {note}
+          {sendButton}
+          {hint}
+        </div>
       </div>
     );
   }
@@ -302,20 +307,39 @@ export function AskBody({
     <div
       className={`grid min-w-0 gap-4 ${explain ? "@[520px]:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]" : ""}`}
     >
-      {main}
+      <div className="flex min-w-0 flex-col gap-3" data-testid="ask-main">
+        {head}
+        <div
+          role="radiogroup"
+          aria-label={t("ask.options")}
+          className="flex flex-col gap-2"
+          data-testid="ask-options"
+        >
+          {cards}
+        </div>
+        {note}
+        <div className="flex items-center gap-2">
+          {hint}
+          {sendButton}
+        </div>
+      </div>
       {aside}
     </div>
   );
 }
 
-/** 案の図の大きさ: sm はパネル（112×80）、md は広げた 2 列（160×112）、lg は広げた 1 列（カードの幅いっぱい・高さ 240） */
-type FigureSize = "sm" | "md" | "lg";
-
-const FIGURE_BOX: Record<FigureSize, string> = {
-  sm: "h-20 w-28",
-  md: "h-28 w-40",
-  lg: "h-60 w-full",
+/**
+ * 広げた画面の案の列（案の数ごと。1 列 280px を下回ると 2 列、さらに 1 列）。幅は案の列の箱（@container）の幅。
+ * 2 列 = 280×2 + 16、3 列 = 280×3 + 32、4 列 = 280×4 + 48
+ */
+const OPTION_COLUMNS: Record<number, string> = {
+  2: "grid-cols-1 @[576px]:grid-cols-2",
+  3: "grid-cols-1 @[576px]:grid-cols-2 @[872px]:grid-cols-3",
+  4: "grid-cols-1 @[576px]:grid-cols-2 @[1168px]:grid-cols-4",
 };
+
+/** 案の図の大きさ: sm はパネル（右に 112×80）、lg は広げた画面（上にカードの幅いっぱい・図の縦横比。高さは画面の 60% まで） */
+type FigureSize = "sm" | "lg";
 
 function OptionCard({
   n,
@@ -340,6 +364,70 @@ function OptionCard({
 }) {
   const { t } = useI18n();
   const lg = size === "lg";
+  const html = figure && "html" in figure ? figure.html : null;
+  const canvas = useMemo(() => (html !== null ? figureCanvas(html) : null), [html]);
+  const text = (
+    <div className={`flex min-w-0 flex-col gap-0.5 ${lg ? "px-3 py-2.5" : ""}`}>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <Kbd>{n}</Kbd>
+        <span className="min-w-0 break-words font-semibold text-body text-fg">{label}</span>
+        {recommended ? (
+          <span
+            className="rounded-chip bg-fg2 px-1.5 font-medium text-[11px] text-bg leading-4"
+            data-testid="ask-recommended"
+          >
+            {t("ask.recommended")}
+          </span>
+        ) : null}
+      </div>
+      <p className="break-words text-fg2 text-meta">{description}</p>
+      {figure && !("html" in figure) ? (
+        <p className="text-fg3 text-meta" data-testid="ask-figure-error">
+          {t("ask.figureError")}
+        </p>
+      ) : null}
+    </div>
+  );
+  const zoom =
+    html !== null && canvas ? (
+      // 図を押すとその図だけを大きく出す。案は選ばない（カードの押す・Space・⏎ に渡さない）。右下に「大きく」の印
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEnlarge(e.currentTarget);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === " " || e.key === "Enter") e.stopPropagation();
+        }}
+        className={`group relative block shrink-0 cursor-zoom-in ${
+          lg ? "w-full border-line border-b bg-sunken" : "h-20 w-28 rounded-[6px]"
+        }`}
+        style={
+          lg ? { aspectRatio: `${canvas.width} / ${canvas.height}`, maxHeight: "60vh" } : undefined
+        }
+        {...tipProps(t("ask.enlargeFigure", { label }))}
+        data-testid="ask-option-zoom"
+      >
+        <FigureFrame
+          html={html}
+          title={t("ask.figureTitle", { label })}
+          className={
+            lg ? "h-full w-full" : "h-full w-full rounded-[6px] border border-line bg-sunken"
+          }
+          testId="ask-option-frame"
+          focusable={false}
+          mode="canvas"
+        />
+        <span
+          className="pointer-events-none absolute right-1 bottom-1 inline-flex size-5 items-center justify-center rounded-control border border-line bg-raised text-fg2 group-hover:text-fg"
+          aria-hidden="true"
+          data-testid="ask-option-zoom-mark"
+        >
+          <Maximize2 size={11} strokeWidth={1.75} />
+        </span>
+      </button>
+    ) : null;
   return (
     // biome-ignore lint/a11y/useSemanticElements: カードの中に図の枠（iframe）を持つので input の radio にできない
     <div
@@ -355,56 +443,16 @@ function OptionCard({
           onPick();
         }
       }}
-      className={`grid min-w-0 cursor-pointer items-center gap-3 rounded-card border px-3 py-2.5 transition-colors ${
-        lg ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_auto]"
+      className={`min-w-0 cursor-pointer rounded-card border transition-colors ${
+        lg
+          ? "flex flex-col overflow-hidden"
+          : "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5"
       } ${on ? "border-fg bg-task" : "border-line bg-raised hover:border-fg3"}`}
       data-testid="ask-option"
       data-on={on ? "1" : undefined}
     >
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Kbd>{n}</Kbd>
-          <span className="min-w-0 break-words font-semibold text-body text-fg">{label}</span>
-          {recommended ? (
-            <span
-              className="rounded-chip bg-fg2 px-1.5 font-medium text-[11px] text-bg leading-4"
-              data-testid="ask-recommended"
-            >
-              {t("ask.recommended")}
-            </span>
-          ) : null}
-        </div>
-        <p className="break-words text-fg2 text-meta">{description}</p>
-        {figure && !("html" in figure) ? (
-          <p className="text-fg3 text-meta" data-testid="ask-figure-error">
-            {t("ask.figureError")}
-          </p>
-        ) : null}
-      </div>
-      {figure && "html" in figure ? (
-        // 図を押すとその図だけを大きく出す。案は選ばない（カードの押す・Space・⏎ に渡さない）
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEnlarge(e.currentTarget);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === " " || e.key === "Enter") e.stopPropagation();
-          }}
-          className={`block shrink-0 cursor-zoom-in rounded-[6px] ${FIGURE_BOX[size]}`}
-          {...tipProps(t("ask.enlargeFigure", { label }))}
-          data-testid="ask-option-zoom"
-        >
-          <FigureFrame
-            html={figure.html}
-            title={t("ask.figureTitle", { label })}
-            className="pointer-events-none h-full w-full rounded-[6px] border border-line bg-sunken"
-            testId="ask-option-frame"
-            focusable={false}
-          />
-        </button>
-      ) : null}
+      {lg ? zoom : text}
+      {lg ? text : zoom}
     </div>
   );
 }

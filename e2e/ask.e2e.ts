@@ -3,7 +3,9 @@
  * 問いを開き（作業ディレクトリに AI のカードが無いので自分のカード）、自分の番の画面で選んで返し、long-poll の結果に戻るまで。
  * - 案のカード（番号・名前・推奨・説明・図）、読めない図は 1 行、説明は狭いと下・広いと右
  * - 図の枠は sandbox が空で、srcdoc の先頭に CSP
- * - 広げる: 1 で選んでから広げる（共有）、背景は inert、e は背景に届かない、Tab は中を回る、Esc でボタンへ戻る。f で広げ、
+ * - 広げる: 1 で選んでから広げる（共有）。上に問い、案を横に並べて図はカードの幅いっぱい（SVG の viewBox の図も固定の px の
+ *   HTML の図も拡大する）、説明は下に全幅、メモと返すボタンは下に固定。背景は inert、e は背景に届かない、Tab は中を回る、
+ *   Esc でボタンへ戻る。f で広げ、
  *   案の図を押すとその図だけ大きく（案は選ばない）、Esc で全体へ。中で 2 を選びメモを書き、閉じてもパネルに残る
  * - 広げて ⌘⏎ で返す → 結果は { choice, note }。広げた画面は閉じ、画面は「Sent at」、行は回答待ちから外れる
  * - 広げている間に打ち切られた問いは「It's already moved on」、Esc で閉じる
@@ -33,7 +35,14 @@ const ASK = {
         html: '<svg viewBox="0 0 60 40"><rect x="2" y="2" width="56" height="36" rx="4" fill="none" stroke="var(--tl-text-3)"/><rect x="6" y="30" width="48" height="6" rx="2" fill="var(--tl-text)"/></svg>',
       },
     },
-    { label: "Top right", description: "As it is now. Leaves the screen on a phone." },
+    {
+      label: "Top right",
+      description: "As it is now. Leaves the screen on a phone.",
+      // 固定の px で描いた HTML の図（240×160）。広げた画面ではカードの幅いっぱいに拡大される
+      figure: {
+        html: '<div style="width:240px;height:160px;box-sizing:border-box;border:2px solid var(--tl-text-3);border-radius:8px;position:relative"><div style="position:absolute;right:8px;top:8px;width:60px;height:16px;background:var(--tl-text)"></div></div>',
+      },
+    },
     {
       label: "Floating",
       description: "Takes no space but covers the last field.",
@@ -116,8 +125,8 @@ async function run(t: Ctx) {
     })),
   );
   t.check(
-    "frame: two figures (one option, the explanation)",
-    frames.length === 2,
+    "frame: three figures (two options, the explanation)",
+    frames.length === 3,
     JSON.stringify(frames.map((f) => f.sandbox)),
   );
   t.check(
@@ -178,17 +187,104 @@ async function run(t: Ctx) {
     !!box && box.width >= 1440 * 0.9 && box.height >= 900 * 0.9,
     JSON.stringify(box),
   );
-  const oMain = await overlay.locator('[data-testid="ask-main"]').boundingBox();
+  const oQuestion = await overlay.locator('[data-testid="ask-question"]').boundingBox();
+  const oCards = await overlay.locator('[data-testid="ask-option"]').evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width };
+    }),
+  );
+  t.check(
+    "expand: the question on top, the three options side by side in one row",
+    !!oQuestion &&
+      oCards.length === 3 &&
+      oCards.every((c) => Math.abs(c.y - (oCards[0]?.y ?? 0)) < 2 && c.y > oQuestion.y) &&
+      oCards.every((c) => Math.abs(c.width - (oCards[0]?.width ?? 0)) < 2) &&
+      (oCards[1]?.x ?? 0) > (oCards[0]?.x ?? 0) + (oCards[0]?.width ?? 0) - 1,
+    JSON.stringify({ oQuestion, oCards }),
+  );
+  const zooms = overlay.locator('[data-testid="ask-option-zoom"]');
+  const zSvg = await zooms.nth(0).boundingBox();
+  const zHtml = await zooms.nth(1).boundingBox();
+  const fSvg = await overlay.locator('[data-testid="ask-option-frame"]').nth(0).boundingBox();
+  const fHtml = await overlay.locator('[data-testid="ask-option-frame"]').nth(1).boundingBox();
+  t.check(
+    "expand: each figure fills its card's width at the figure's aspect (3:2)",
+    !!zSvg &&
+      zSvg.width > 380 &&
+      Math.abs(zSvg.width - (oCards[0]?.width ?? 0)) < 4 &&
+      Math.abs(zSvg.height - zSvg.width * (2 / 3)) < 2,
+    JSON.stringify({ zSvg, card: oCards[0] }),
+  );
+  t.check(
+    "expand: SVG (viewBox) and fixed-px HTML figures are both scaled up to fill the slot",
+    !!zSvg &&
+      !!zHtml &&
+      !!fSvg &&
+      !!fHtml &&
+      Math.abs(fSvg.width - zSvg.width) < 3 &&
+      Math.abs(fHtml.width - zHtml.width) < 3 &&
+      Math.abs(fHtml.height - zHtml.height) < 3 &&
+      (await overlay
+        .locator('[data-testid="ask-option-frame"]')
+        .nth(1)
+        .getAttribute("data-canvas")) === "240x160",
+    JSON.stringify({ zSvg, fSvg, zHtml, fHtml }),
+  );
+  // 図の文書の中: SVG は図の大きさいっぱい、Turnlane は文字を足さない
+  const inner = await Promise.all(
+    [0, 1].map(async (i) => {
+      const f = await overlay.locator('[data-testid="ask-option-frame"]').nth(i).elementHandle();
+      const fr = await f?.contentFrame();
+      return fr
+        ? await fr.evaluate(() => ({
+            text: document.body.innerText.trim(),
+            svg: document.querySelector("svg")?.getBoundingClientRect().width ?? null,
+            vw: window.innerWidth,
+          }))
+        : null;
+    }),
+  );
+  t.check(
+    "figure document: no text added by Turnlane; the SVG fills the 480-wide canvas",
+    inner[0]?.text === "" && inner[1]?.text === "" && inner[0]?.svg === 480 && inner[0]?.vw === 480,
+    JSON.stringify(inner),
+  );
   const oExplain = await overlay.locator('[data-testid="ask-explain-frame"]').boundingBox();
   t.check(
-    "expand: question on the left, the explanation large on the right",
-    !!oMain &&
-      !!oExplain &&
-      oExplain.x >= oMain.x + oMain.width - 1 &&
-      oExplain.width > 600 &&
-      oExplain.height > 600,
-    JSON.stringify({ oMain, oExplain }),
+    "expand: the explanation is below the options, full width",
+    !!oExplain && oExplain.y > (oCards[0]?.y ?? 0) + (zSvg?.height ?? 0) && oExplain.width > 1300,
+    JSON.stringify(oExplain),
   );
+  const footer = await overlay.locator('[data-testid="ask-footer"]').boundingBox();
+  const sendBox = await overlay.locator('[data-testid="ask-send"]').boundingBox();
+  const noteBox = await overlay.locator('[data-testid="ask-note"]').boundingBox();
+  t.check(
+    "expand: the note and Send to AI stay visible at the bottom of the overlay",
+    !!footer &&
+      !!box &&
+      !!sendBox &&
+      !!noteBox &&
+      footer.y + footer.height <= box.y + box.height + 1 &&
+      footer.y + footer.height >= box.y + box.height - 2 &&
+      sendBox.y + sendBox.height <= 900 &&
+      noteBox.y + noteBox.height <= 900,
+    JSON.stringify({ footer, sendBox, noteBox, box }),
+  );
+  // 本文をいちばん下までスクロールしても、メモと返すボタンは同じ場所
+  await overlay
+    .locator('[data-testid="ask-full-scroll"]')
+    .evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await settle(page, 150);
+  const sendAfter = await overlay.locator('[data-testid="ask-send"]').boundingBox();
+  t.check(
+    "expand: the body scrolls under a fixed note and Send row",
+    !!sendAfter && !!sendBox && Math.abs(sendAfter.y - sendBox.y) < 1,
+    JSON.stringify({ sendBox, sendAfter }),
+  );
+  await overlay
+    .locator('[data-testid="ask-full-scroll"]')
+    .evaluate((el) => el.scrollTo({ top: 0 }));
   t.check(
     "expand: the selection made in the panel is shared",
     (await overlay.locator('[data-testid="ask-option"]').nth(0).getAttribute("data-on")) === "1",
@@ -203,7 +299,7 @@ async function run(t: Ctx) {
   );
   t.check(
     "expand: frames keep the empty sandbox",
-    oFrames.length === 2 && oFrames.every((x) => x === ""),
+    oFrames.length === 3 && oFrames.every((x) => x === ""),
     JSON.stringify(oFrames),
   );
   t.check(
@@ -231,6 +327,7 @@ async function run(t: Ctx) {
   }
   t.check("expand: Tab stays inside the overlay", inside);
   // 大きな説明の枠を押してもフォーカスは枠の外に戻り、Esc が効く
+  await overlay.locator('[data-testid="ask-explain-frame"]').scrollIntoViewIfNeeded();
   const ex = await overlay.locator('[data-testid="ask-explain-frame"]').boundingBox();
   if (ex) await page.mouse.click(ex.x + ex.width / 2, ex.y + ex.height / 2);
   await settle(page, 300);
@@ -261,11 +358,18 @@ async function run(t: Ctx) {
   await page.waitForSelector('[data-testid="ask-overlay"][data-view="figure"]', { timeout: 3000 });
   await settle(page, 200);
   const big = await page.locator('[data-testid="ask-figure-frame"]').boundingBox();
+  const bigBox = await page.locator('[data-testid="ask-figure-frame-box"]').boundingBox();
   const bigSandbox = await page.locator('[data-testid="ask-figure-frame"]').getAttribute("sandbox");
   t.check(
-    "figure: one figure scaled to the overlay, empty sandbox",
-    !!big && big.width > 1200 && big.height > 700 && bigSandbox === "",
-    JSON.stringify({ big, bigSandbox }),
+    "figure: one figure scaled up to fill the overlay (keeping 3:2), empty sandbox",
+    !!big &&
+      !!bigBox &&
+      bigBox.width > 1300 &&
+      bigBox.height > 700 &&
+      (Math.abs(big.width - bigBox.width) < 3 || Math.abs(big.height - bigBox.height) < 3) &&
+      Math.abs(big.width / big.height - 1.5) < 0.01 &&
+      bigSandbox === "",
+    JSON.stringify({ big, bigBox, bigSandbox }),
   );
   await page.keyboard.press("Escape");
   await page.waitForSelector('[data-testid="ask-overlay"][data-view="full"]', { timeout: 3000 });
@@ -296,7 +400,16 @@ async function run(t: Ctx) {
       (await page.locator('[data-testid="ask-option"]').nth(1).getAttribute("data-on")) === "1" &&
       (await page.locator('[data-testid="ask-note"]').inputValue()) === "Keep it small on desktop",
   );
-  // パネルの案の図を押す → その図だけ大きく、案は選ばない。Esc で閉じて図のボタンへ
+  // パネルの案の図: 右に小さく、右下に「大きく」の印。押す → その図だけ大きく、案は選ばない。Esc で閉じて図のボタンへ
+  const pz = await page.locator('[data-testid="ask-option-zoom"]').first().boundingBox();
+  t.check(
+    "panel: the small figure (112×80) shows the 'enlarge' mark",
+    !!pz &&
+      Math.abs(pz.width - 112) < 2 &&
+      Math.abs(pz.height - 80) < 2 &&
+      (await page.locator('[data-testid="ask-option-zoom-mark"]').first().isVisible()),
+    JSON.stringify(pz),
+  );
   await page.locator('[data-testid="ask-option-zoom"]').first().click();
   await page.waitForSelector('[data-testid="ask-overlay"][data-view="figure"]', { timeout: 3000 });
   await page.keyboard.press("Escape");
@@ -351,8 +464,8 @@ async function run(t: Ctx) {
   await page.locator('[data-testid="ask-expand"]').click();
   await page.waitForSelector('[data-testid="ask-overlay"][data-view="full"]', { timeout: 3000 });
   t.check(
-    "expand: no explanation → one centered column",
-    (await overlay.locator('[data-testid="ask-full"]').getAttribute("data-layout")) === "single",
+    "expand: no figures → compact cards in a row",
+    (await overlay.locator('[data-testid="ask-full"]').getAttribute("data-layout")) === "compact",
   );
   await board.api("POST", `/asks/${c2.id}/cancel`);
   let closedShown = false;

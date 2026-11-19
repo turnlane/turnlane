@@ -311,11 +311,29 @@ describe("広げた画面の見た目", () => {
     );
     expect(panel(ask())).not.toContain('role="dialog"');
   });
-  test("全体: モーダルの枠、説明があれば 2 列、図はすべて sandbox が空で Tab で入らない", () => {
+  test("全体: モーダルの枠、案を横に並べ説明は下、図はすべて sandbox が空で Tab で入らない", () => {
     const o = overlay(ask());
     expect(o).toMatch(/role="dialog"[^>]*aria-modal="true"/);
     expect(o).toContain('data-view="full"');
-    expect(o).toContain('data-layout="split"');
+    expect(o).toContain('data-layout="row"');
+    // 問い → 案の列 → 説明 の順、メモと返すボタンはスクロールの外（下に固定）
+    const q = o.indexOf('data-testid="ask-question"');
+    const row = o.indexOf('data-testid="ask-options"');
+    const ex = o.indexOf('data-testid="ask-explain"');
+    const scrollEnd = o.indexOf('data-testid="ask-footer"');
+    expect(q).toBeLessThan(row);
+    expect(row).toBeLessThan(ex);
+    expect(ex).toBeLessThan(scrollEnd);
+    expect(o.indexOf('data-testid="ask-note"')).toBeGreaterThan(scrollEnd);
+    expect(o.indexOf('data-testid="ask-send"')).toBeGreaterThan(scrollEnd);
+    // 3 案: 1 列 → 2 列 → 3 列（1 列 280px を下回ると折り返す）
+    expect(o).toMatch(
+      /grid-cols-1 @\[576px\]:grid-cols-2 @\[872px\]:grid-cols-3[^"]*" data-testid="ask-options"/,
+    );
+    // 図はカードの上で幅いっぱい、図の縦横比（既定 480×320 の SVG の viewBox 60×40 → 480×320）
+    expect(o).toMatch(
+      /w-full border-line border-b[^"]*" style="aspect-ratio:480 \/ 320;max-height:60vh"/,
+    );
     expect(o).toContain("rounded-pop");
     expect(o).not.toContain('data-testid="ask-expand"');
     const tags = iframes(o);
@@ -328,12 +346,47 @@ describe("広げた画面の見た目", () => {
       expect(tag).toContain('referrerPolicy="no-referrer"');
     }
   });
-  test("全体: 説明が無ければ中央の 1 列で案の図を大きく", () => {
+  test("全体: 説明が無くても案は横に並ぶ。図が 1 つも無ければ小さなカードのまま", () => {
     const o = overlay(ask({}, ["explain"]));
-    expect(o).toContain('data-layout="single"');
-    expect(o).toContain("max-w-[760px]");
-    expect(o).toMatch(/h-60 w-full[^"]*"[^>]*data-testid="ask-option-zoom"/);
+    expect(o).toContain('data-layout="row"');
     expect(o).not.toContain('data-testid="ask-explain"');
+    const v = ask({}, ["explain"]);
+    const plain = overlay({
+      ...v,
+      options: (v.options ?? []).map(({ figure: _f, ...o }) => o),
+    });
+    expect(plain).toContain('data-layout="compact"');
+    expect(plain).not.toContain('data-testid="ask-option-zoom"');
+    expect(plain).toContain('data-testid="ask-footer"');
+  });
+  test("全体: 案の数ごとの列（2 案は 2 列まで、4 案は 4 列 → 2 列 → 1 列）", () => {
+    const v = ask();
+    const opts = v.options ?? [];
+    const two = overlay({ ...v, options: opts.slice(0, 2) });
+    expect(two).toMatch(/grid-cols-1 @\[576px\]:grid-cols-2" data-testid="ask-options"/);
+    const four = overlay({
+      ...v,
+      options: [
+        ...opts,
+        { n: 4, label: "Inline", description: "Next to each field.", recommended: false },
+      ],
+    });
+    expect(four).toMatch(
+      /grid-cols-1 @\[576px\]:grid-cols-2 @\[1168px\]:grid-cols-4" data-testid="ask-options"/,
+    );
+  });
+  test("パネル: 案の図は右に小さく（112×80）、右下に「大きく」の印", () => {
+    const p = panel(ask());
+    expect(p).toMatch(/h-20 w-28[^"]*"[^>]*data-testid="ask-option-zoom"/);
+    expect(p).toContain('data-testid="ask-option-zoom-mark"');
+    expect(p).not.toContain('data-testid="ask-footer"');
+  });
+  test("枠に title 属性を付けない（WKWebView でずれたツールチップになる）。名前は aria-label", () => {
+    for (const tag of iframes(overlay(ask()))) {
+      expect(tag).not.toMatch(/\stitle="/);
+      expect(tag).toMatch(/aria-label="[^"]+"/);
+    }
+    expect(overlay(ask())).toContain('aria-label="AI&#x27;s explanation"');
   });
   test("全体: 読めない図は 1 行のまま", () => {
     expect(overlay(ask())).toContain("Couldn&#x27;t read the figure");
@@ -352,7 +405,10 @@ describe("広げた画面の見た目", () => {
     const csp = doc.indexOf(`<meta http-equiv="Content-Security-Policy" content="${FIGURE_CSP}">`);
     expect(csp).toBeGreaterThan(0);
     expect(csp).toBeLessThan(doc.indexOf("<svg"));
-    expect(doc).toContain("body>svg:only-child{display:block;width:100%;height:100%");
+    // 図の大きさ（viewBox 60×40 → 480×320）の文書を描いて枠ごと縮める・広げる
+    expect(tag).toContain('data-canvas="480x320"');
+    expect(doc).toContain("html,body{width:480px;height:320px;overflow:hidden}");
+    expect(doc).toContain("body>svg:first-of-type{display:block;width:100%;height:100%");
   });
   test("図 1 枚（全体から開いた）: 全体は隠して残す（戻るとスクロールとフォーカスがそのまま）", () => {
     const o = overlay(ask(), { figure: 1, full: true });

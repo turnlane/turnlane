@@ -64,6 +64,8 @@ export const ASK_USER_DESCRIPTION =
   `One question per call (question <= ${ASK_QUESTION_MAX} chars, context <= ${ASK_CONTEXT_MAX}, ${ASK_OPTIONS_MIN}-${ASK_OPTIONS_MAX} options). ` +
   "Figures are files you write: static HTML or SVG with inline CSS only (no scripts, no network, no external images or fonts; " +
   `each <= ${ASK_FILE_MAX / 1024} KB). Use these CSS variables so they read in light and dark: ${ASK_FIGURE_VARS.join(", ")}. ` +
+  "Option figures are shown small first: draw them at 480x320 (3:2) with an SVG viewBox or fluid widths so they scale, " +
+  "with a few large shapes and no small text (names go in label and description, details on the explanation page). " +
   "On error, ask the user in the terminal instead.";
 
 export const ASK_USER_SCHEMA: Json = {
@@ -89,7 +91,8 @@ export const ASK_USER_SCHEMA: Json = {
           recommended: { type: "boolean", description: "your recommendation (at most one)" },
           figure_path: {
             type: "string",
-            description: "path to a small static HTML/SVG figure for this option",
+            description:
+              "path to a static HTML/SVG figure for this option (480x320, a few large shapes, no small text)",
           },
         },
         required: ["label", "description"],

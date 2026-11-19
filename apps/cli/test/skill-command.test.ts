@@ -122,6 +122,45 @@ describe("CLAUDE.md / AGENTS.md の節", () => {
     expect(ASK_SKILL_MD).toContain("allowed-tools: mcp__turnlane__ask_user");
     expect(ASK_SKILL_MD).toContain("--tl-text");
   });
+
+  test("図の描き方: 480×320 で viewBox か流れる幅、大きな形を少し、小さな文字は入れない（240×160 の案内は消した）", () => {
+    for (const t of [ASK_SKILL_MD, ASK_SNIPPET]) {
+      expect(t).toContain("480×320");
+      expect(t).toContain("viewBox");
+      expect(t).toContain("fluid widths");
+      expect(t).toContain("a few large shapes");
+      expect(t).toContain("no small text");
+      expect(t).not.toContain("240×160");
+    }
+    expect(ASK_SKILL_MD).toContain("details belong on the explanation page");
+  });
+
+  test("前の版（240×160 の案内）のスキルと節: status は outdated、install で今の文に置き換わる", () => {
+    const e = env();
+    const dir = join(home, ".claude", "skills", "turnlane-ask");
+    mkdirSync(dir, { recursive: true });
+    const prevSkill = ASK_SKILL_MD.replace(
+      "1. Write one figure per option: a static HTML or SVG file that shows what the option looks like or changes. Draw it at 480×320 (3:2) with an SVG `viewBox` or fluid widths so it scales.",
+      "1. Write one small figure per option: a static HTML or SVG file (about 240×160) that shows what the option looks like or changes.",
+    ).replace(/^- Figures are shown small first.*\n/m, "");
+    expect(prevSkill).not.toBe(ASK_SKILL_MD);
+    writeFileSync(join(dir, "SKILL.md"), prevSkill);
+    const md = join(home, "CLAUDE.md");
+    writeFileSync(
+      md,
+      addAskBlock("# Rules\n").replace(
+        "Write one figure per option (480×320 with an SVG viewBox or fluid widths; a few large shapes, no small text)",
+        "Write one small figure per option",
+      ),
+    );
+    const o = opts({ claudeDirs: [join(home, ".claude")], claudeMd: [md] });
+    skillCommand(e, "status", o);
+    expect(out.filter((l) => l.includes("outdated"))).toHaveLength(2);
+    out = [];
+    expect(skillCommand(e, "install", o)).toBe(0);
+    expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toBe(ASK_SKILL_MD);
+    expect(askBlockState(readFileSync(md, "utf8"))).toBe("installed");
+  });
 });
 
 describe("turnlane skill", () => {

@@ -28,13 +28,14 @@ When you are about to ask the user to decide or confirm something, and a figure 
 
 \`ask_user\` is for decisions: it needs 2–4 options, so do not use it for explanations with nothing to decide. Ask text-only matters (yes or no, a name, a path) the usual way.
 
-1. Write one small figure per option: a static HTML or SVG file (about 240×160) that shows what the option looks like or changes.
+1. Write one figure per option: a static HTML or SVG file that shows what the option looks like or changes. Draw it at 480×320 (3:2) with an SVG \`viewBox\` or fluid widths so it scales.
 2. Write one explanation page (static HTML): why this needs deciding now, the alternatives side by side, and what you actually looked at (files, numbers, logs).
 3. Call \`ask_user\` with \`question\` (one line, at most 120 characters), \`context\` (2–3 sentences, at most 600), \`options\` (2–4, each with \`label\`, \`description\`, \`recommended: true\` on at most one, and \`figure_path\`), and \`explain_path\`.
 4. Continue with the returned \`choice\`. If there is a \`note\`, read it first; it may be a question for you. \`{"dismissed": true}\` means none of the options; ask in the terminal what to do next.
 
 Figures:
 
+- Figures are shown small first (a thumbnail beside each option, then a card's width when the user expands the question). Draw a few large shapes and no small text: the option's name and meaning belong in \`label\` and \`description\`, and details belong on the explanation page.
 - Static HTML, SVG and inline CSS only. Scripts do not run, and nothing inside can reach the network, so do not use external images, fonts or links.
 - Use these CSS variables so the figures read in light and dark: ${vars}.
 - Keep each file under 200 KB. Write them to a scratch folder outside the repository (for example under \`$TMPDIR\`).
@@ -47,7 +48,7 @@ If \`ask_user\` returns an error or is not available, ask the user in the termin
 export const ASK_SNIPPET = `${ASK_BLOCK_START}
 ## Asking the user to decide or confirm
 
-When you are about to ask the user to decide or confirm something, and a figure can explain it, not only text (a screen layout, a structure or architecture, a flow or sequence, the before and after of a change, numbers side by side), ALWAYS call the \`ask_user\` tool (Turnlane MCP server) with 2–4 options. It replaces the built-in AskUserQuestion tool and ending your turn with a question in text. Write one small figure per option and one explanation page (why now, the alternatives side by side, what you actually looked at) as static HTML/SVG files with inline CSS only, using Turnlane's CSS variables (${vars}). Ask text-only matters (yes or no, a name, a path) the usual way. If \`ask_user\` fails or is not available, ask in the terminal.
+When you are about to ask the user to decide or confirm something, and a figure can explain it, not only text (a screen layout, a structure or architecture, a flow or sequence, the before and after of a change, numbers side by side), ALWAYS call the \`ask_user\` tool (Turnlane MCP server) with 2–4 options. It replaces the built-in AskUserQuestion tool and ending your turn with a question in text. Write one figure per option (480×320 with an SVG viewBox or fluid widths; a few large shapes, no small text) and one explanation page (why now, the alternatives side by side, what you actually looked at) as static HTML/SVG files with inline CSS only, using Turnlane's CSS variables (${vars}). Ask text-only matters (yes or no, a name, a path) the usual way. If \`ask_user\` fails or is not available, ask in the terminal.
 ${ASK_BLOCK_END}
 `;
 

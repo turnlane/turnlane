@@ -1,8 +1,8 @@
 /**
  * 図つきの問い（ADR 0022。ux-mvp 4.23）を広げた画面。ウインドウのほぼ全体を覆うモーダル（画面の外枠に 1 つ。AppShell）:
  *
- * - 全体（full）: 左に問い・背景・案のカード・メモ・返すボタン、右に AI の説明を大きく（中でスクロール）。説明が無ければ中央の
- *   1 列で案の図を大きく。狭いウインドウでは縦に積む。キーと動きはパネルの節と同じ（AskBody を layout="full" で使う）。
+ * - 全体（full）: 上に問いと背景（全幅）、案を横に 1 列に並べ（2〜4 列。図はカードの幅いっぱい）、その下に AI の説明を全幅。
+ *   メモと返すボタンは下に固定（本文だけがスクロール）。狭いと案は 2 列・1 列に折り返す。キーと動きはパネルの節と同じ（AskBody を layout="full" で使う）。
  *   選んだ案とメモはパネルと共有。返したら閉じる
  * - 案の図 1 枚（figure）: 押した図だけを大きく。Esc で元へ（全体から開いたら全体、パネルから開いたらパネル）
  * - モーダル: 背景は inert、Tab は枠の中を回る、Esc（と閉じるボタン・背景の押下）で 1 段戻り、開いた部品へフォーカスを返す。
@@ -186,7 +186,7 @@ export function AskOverlayView({
           className="h-full w-full rounded-card border border-line border-dashed bg-sunken"
           testId="ask-figure-frame"
           focusable={false}
-          fit
+          mode="canvas"
         />
       </div>
     ) : null;
